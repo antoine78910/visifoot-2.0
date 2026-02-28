@@ -980,17 +980,25 @@ def get_fixtures_by_date(date: str) -> list[dict]:
 
 
 def resolve_team_name_to_id(team_name: str, _league_id: Optional[int] = None) -> Optional[int]:
-    """Résout un nom d'équipe en ID API-Football (recherche dans le cache multi-ligues)."""
+    """Résout un nom d'équipe en ID API-Football (recherche dans le cache multi-ligues).
+    Privilégie correspondance exacte et préfixe pour éviter les faux positifs (ex: 'Angers' vs 'Rangers')."""
     if not _use_api() or not (team_name or "").strip():
         return None
     name_lower = team_name.strip().lower()
     _fill_teams_cache()
+    exact_match: Optional[int] = None
+    prefix_match: Optional[int] = None
     for t in _teams_cache.values():
         n = (t.get("name") or "").strip().lower()
         sn = (t.get("shortName") or "").strip().lower()
-        if name_lower == n or name_lower == sn or name_lower in n or name_lower in sn or n in name_lower or sn in name_lower:
-            return int(t["id"])
-    return None
+        if name_lower == n or name_lower == sn:
+            exact_match = int(t["id"])
+            break
+        if n.startswith(name_lower) or sn.startswith(name_lower):
+            prefix_match = prefix_match or int(t["id"])
+        elif name_lower.startswith(n) and n or (name_lower.startswith(sn) and sn):
+            prefix_match = prefix_match or int(t["id"])
+    return exact_match if exact_match is not None else prefix_match
 
 
 def _fixture_to_goals_and_form(team_id: int, fixtures: list[dict], last_n: int = 5) -> tuple[list[int], list[int], list[str]]:

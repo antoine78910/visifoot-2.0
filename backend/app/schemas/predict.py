@@ -6,6 +6,8 @@ from typing import Optional
 class PredictRequest(BaseModel):
     home_team: str = Field(..., description="Nom ou slug équipe domicile")
     away_team: str = Field(..., description="Nom ou slug équipe extérieur")
+    home_team_id: Optional[int] = Field(None, description="ID API équipe domicile (prioritaire si fourni)")
+    away_team_id: Optional[int] = Field(None, description="ID API équipe extérieur (prioritaire si fourni)")
 
 
 class ExactScoreItem(BaseModel):

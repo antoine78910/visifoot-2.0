@@ -92,10 +92,16 @@ def get_h2h(home_slug: str, away_slug: str) -> tuple[int, int, int]:
 
 
 def _load_match_context_api_football(
-    home_team: str, away_team: str, progress_callback: Optional[Callable[[str, int], None]] = None
+    home_team: str,
+    away_team: str,
+    progress_callback: Optional[Callable[[str, int], None]] = None,
+    home_team_id: Optional[int] = None,
+    away_team_id: Optional[int] = None,
 ) -> dict[str, Any] | None:
     """
     Charge le contexte match via API-Football (api-sports.io) v3.
+    Si home_team_id/away_team_id sont fournis (ex: depuis l'autocomplete), on les utilise
+    directement pour éviter toute mauvaise résolution (ex: Angers vs Rangers).
     Retourne None si clé absente ou équipes non résolues.
     """
     def report(step: str, percent: int) -> None:
@@ -114,8 +120,8 @@ def _load_match_context_api_football(
         guess_common_league_name,
     )
     report("Resolving teams…", 5)
-    home_id = resolve_team_name_to_id(home_team)
-    away_id = resolve_team_name_to_id(away_team)
+    home_id = home_team_id if home_team_id is not None else resolve_team_name_to_id(home_team)
+    away_id = away_team_id if away_team_id is not None else resolve_team_name_to_id(away_team)
     if home_id is None or away_id is None:
         return None
 
@@ -133,8 +139,12 @@ def _load_match_context_api_football(
             away_info = fut_a.result()
         if home_info:
             home_team_logo = home_info.get("logo")
+            if (home_info.get("name") or "").strip():
+                home_team = (home_info.get("name") or "").strip()
         if away_info:
             away_team_logo = away_info.get("logo")
+            if (away_info.get("name") or "").strip():
+                away_team = (away_info.get("name") or "").strip()
         upcoming = get_team_upcoming_fixtures(home_id, next_n=15)
         for f in upcoming:
             teams = f.get("teams") or {}
@@ -264,18 +274,29 @@ def _load_match_context_api_football(
 
 
 def load_match_context(
-    home_team: str, away_team: str, progress_callback: Optional[Callable[[str, int], None]] = None
+    home_team: str,
+    away_team: str,
+    progress_callback: Optional[Callable[[str, int], None]] = None,
+    home_team_id: Optional[int] = None,
+    away_team_id: Optional[int] = None,
 ) -> dict[str, Any]:
     """
     Charge tout le contexte pour un match : form, goals for/against home/away, H2H.
     Priorité: API-Football si clé → Supabase → démo.
+    Si home_team_id/away_team_id sont fournis (sélection autocomplete), ils sont utilisés en priorité.
     """
     def report(step: str, percent: int) -> None:
         if progress_callback:
             progress_callback(step, percent)
 
     if _use_api_football():
-        ctx = _load_match_context_api_football(home_team, away_team, progress_callback=progress_callback)
+        ctx = _load_match_context_api_football(
+            home_team,
+            away_team,
+            progress_callback=progress_callback,
+            home_team_id=home_team_id,
+            away_team_id=away_team_id,
+        )
         if ctx is not None:
             return ctx
 

@@ -18,6 +18,7 @@ from app.schemas.predict import (
 from app.services.data_loader import load_match_context
 from app.ml.poisson import predict_all
 from app.services.openai_summary import build_prompt_context, generate_ai_analysis
+from app.services.news_fetcher import fetch_football_news
 
 router = APIRouter(prefix="/predict", tags=["predict"])
 
@@ -90,7 +91,13 @@ def run_predict_with_progress(
             progress_callback(step, percent)
 
     report("Initializing…", 0)
-    ctx = load_match_context(payload.home_team, payload.away_team, progress_callback=progress_callback)
+    ctx = load_match_context(
+        payload.home_team,
+        payload.away_team,
+        progress_callback=progress_callback,
+        home_team_id=payload.home_team_id,
+        away_team_id=payload.away_team_id,
+    )
     report("Computing probabilities…", 62)
     out = predict_all(ctx["lambda_home"], ctx["lambda_away"])
 
@@ -110,6 +117,13 @@ def run_predict_with_progress(
             ctx.get("league"),
             ctx.get("venue"),
         )
+        news_text = fetch_football_news(
+            ctx["home_team"],
+            ctx["away_team"],
+            ctx.get("league"),
+        )
+        if news_text:
+            prompt_ctx = prompt_ctx + "\n\n" + news_text
         ai = generate_ai_analysis(prompt_ctx, ctx["home_team"], ctx["away_team"])
     except Exception:
         ai = {"quick_summary": None, "scenario_1": None}

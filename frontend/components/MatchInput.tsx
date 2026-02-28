@@ -176,10 +176,19 @@ export function MatchInput({
     setProgress(0);
     setProgressStep("");
     try {
+      const body: Record<string, string | number> = {
+        home_team: homeTeam.trim(),
+        away_team: awayTeam.trim(),
+      };
+      const homeId = homeTeamOption?.id != null ? Number(homeTeamOption.id) : NaN;
+      const awayId = awayTeamOption?.id != null ? Number(awayTeamOption.id) : NaN;
+      if (Number.isInteger(homeId)) body.home_team_id = homeId;
+      if (Number.isInteger(awayId)) body.away_team_id = awayId;
+
       const res = await fetch(`${API_URL}/predict/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ home_team: homeTeam.trim(), away_team: awayTeam.trim() }),
+        body: JSON.stringify(body),
         signal: controller.signal,
       });
       if (!res.ok) {
