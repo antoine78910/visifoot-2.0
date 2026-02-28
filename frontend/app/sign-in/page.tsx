@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   setAuthCookie,
@@ -14,6 +14,19 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 export default function SignInPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
+  // If Supabase redirected here with tokens in hash (wrong Site URL in dashboard), redirect to /auth/callback on same host
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const { hash, hostname } = window.location;
+    if (hash && hash.includes("access_token=")) {
+      const callbackPath = "/auth/callback";
+      const target = hostname.startsWith("app.")
+        ? `${window.location.origin}${callbackPath}${hash.startsWith("#") ? hash : `#${hash}`}`
+        : `${getAppAuthCallbackUrl()}${hash.startsWith("#") ? hash : `#${hash}`}`;
+      window.location.replace(target);
+    }
+  }, []);
 
   const canSubmit = email.trim().length > 0 && password.trim().length >= 6;
 
