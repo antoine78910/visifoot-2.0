@@ -1,11 +1,26 @@
+const PRODUCTION_APP_ORIGIN = "https://app.deepfoot.io";
+
 /**
- * When NEXT_PUBLIC_APP_ORIGIN is set (e.g. https://app.deepfoot.ai), all app links use it.
+ * When NEXT_PUBLIC_APP_ORIGIN is set (e.g. https://app.deepfoot.io), all app links use it.
  * Otherwise we use relative /app paths for same-origin.
+ * Production: when on deepfoot.io we always use PRODUCTION_APP_ORIGIN so env typos don't break links.
  */
 function getAppOrigin(): string | null {
+  // In browser on production domain → always use correct app origin (avoids env typo like app.deepfoot.a)
+  if (typeof window !== "undefined") {
+    const h = window.location.hostname;
+    if (h === "deepfoot.io" || h === "www.deepfoot.io") return PRODUCTION_APP_ORIGIN;
+  }
   if (typeof process === "undefined") return null;
-  const origin = process.env.NEXT_PUBLIC_APP_ORIGIN;
-  return origin && origin.startsWith("http") ? origin.replace(/\/$/, "") : null;
+  let origin = (process.env.NEXT_PUBLIC_APP_ORIGIN || "").trim().replace(/\/$/, "");
+  if (!origin || !origin.startsWith("http")) return null;
+  // Force correct production URL (typo app.deepfoot.a or any wrong deepfoot domain in env)
+  if (origin.includes("deepfoot")) {
+    if (origin.includes("deepfoot.a") || !origin.includes("deepfoot.io")) {
+      origin = PRODUCTION_APP_ORIGIN;
+    }
+  }
+  return origin;
 }
 
 export function getAppHref(path: string = ""): string {
