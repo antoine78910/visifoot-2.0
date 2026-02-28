@@ -88,7 +88,7 @@ export default function HistoryPage() {
             </p>
             <Link
               href={`${basePath}/matches`}
-              className="mt-8 px-6 py-4 rounded-xl font-semibold text-white bg-gradient-to-r from-[#00ffe8] to-[#00ddcc] hover:opacity-90 transition shadow-glow"
+              className="mt-8 px-6 py-4 rounded-xl font-semibold text-black bg-gradient-to-r from-[#00ffe8] to-[#00ddcc] hover:opacity-90 transition shadow-glow"
             >
               {t("history.analyzeMatch")}
             </Link>

@@ -6,5 +6,5 @@ export default async function AppPage() {
   const headersList = await headers();
   const host = headersList.get("host") ?? "";
   const isAppSubdomain = host.startsWith("app.");
-  redirect(isAppSubdomain ? "/history" : getAppHref("/history"));
+  redirect(isAppSubdomain ? "/matches" : getAppHref("/matches"));
 }
