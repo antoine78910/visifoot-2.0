@@ -162,7 +162,7 @@ export function TeamAutocomplete({
       }
       if (reqId !== reqIdRef.current) return;
       const apiTeams = (data.teams || [])
-        .filter((t: TeamOption) => Boolean(t?.id) && Boolean(t?.crest))
+        .filter((t: TeamOption) => Boolean(t?.name))
         .filter((t: TeamOption) => teamMatchesQuery(t, qTrim));
       cacheRef.current.set(qNormalized, apiTeams);
       if (mountedRef.current) {
@@ -191,7 +191,7 @@ export function TeamAutocomplete({
         const data = await res.json();
         if (cancelled) return;
         const teams = (data.teams || [])
-          .filter((t: TeamOption) => Boolean(t?.id) && Boolean(t?.crest));
+          .filter((t: TeamOption) => Boolean(t?.name));
         warmTeamsRef.current = teams;
         writeTeamsToLocalCache(teams);
       } catch {
