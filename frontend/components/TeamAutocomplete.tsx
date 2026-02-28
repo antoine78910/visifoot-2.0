@@ -13,14 +13,17 @@ interface TeamAutocompleteProps {
   placeholder: string;
   disabled?: boolean;
   className?: string;
-  /** Debounce ms before fetching (default 30). Use 0 on landing for instant feedback. */
+  /** Debounce ms before fetching (default 0 = LP strategy). */
   debounceMs?: number;
-  /** Max teams to request from API (default 40). Use 20 on LP for faster response. */
+  /** Max teams to request from API (default 20 = LP strategy). */
   fetchLimit?: number;
+  /** Preload cache size (default 200 = LP strategy, fast). Use higher only if needed. */
+  preloadLimit?: number;
+  /** When true, never show the suggestions dropdown (e.g. team already chosen from upcoming match). */
+  suppressSuggestions?: boolean;
 }
 const MIN_QUERY_LENGTH = 2;
 const MIN_NETWORK_QUERY_LENGTH = 2;
-const PRELOAD_TEAMS_LIMIT = 1200;
 const LOCAL_CACHE_KEY = "df:teams:autocomplete:v1";
 const LOCAL_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const INSTANT_RESULTS_ENOUGH = 8;
@@ -66,7 +69,8 @@ function teamMatchesQuery(team: TeamOption, q: string): boolean {
   return expanded.some((term) => n.startsWith(term) || words.some((w) => w.startsWith(term)));
 }
 
-const DEFAULT_DEBOUNCE_MS = 30;
+const DEFAULT_DEBOUNCE_MS = 0;
+const DEFAULT_PRELOAD_LIMIT = 200;
 
 function readTeamsFromLocalCache(): TeamOption[] {
   try {
@@ -99,7 +103,9 @@ export function TeamAutocomplete({
   disabled,
   className = "",
   debounceMs = DEFAULT_DEBOUNCE_MS,
-  fetchLimit = 40,
+  fetchLimit = 20,
+  preloadLimit = DEFAULT_PRELOAD_LIMIT,
+  suppressSuggestions = false,
 }: TeamAutocompleteProps) {
   const [query, setQuery] = useState(value);
   const [options, setOptions] = useState<TeamOption[]>([]);
@@ -110,48 +116,48 @@ export function TeamAutocomplete({
   const reqIdRef = useRef(0);
   const cacheRef = useRef<Map<string, TeamOption[]>>(new Map());
   const warmTeamsRef = useRef<TeamOption[]>([]);
-  const abortRef = useRef<AbortController | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const justSelectedRef = useRef(false);
+  const mountedRef = useRef(true);
 
   const fetchTeams = useCallback(async (q: string) => {
     const qTrim = q.trim();
     if (!qTrim) {
-      setOptions([]);
-      setLoading(false);
+      if (mountedRef.current) {
+        setOptions([]);
+        setLoading(false);
+      }
       return;
     }
     if (qTrim.length < MIN_NETWORK_QUERY_LENGTH) {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
       return;
     }
     const qNormalized = normalize(qTrim);
     const cached = cacheRef.current.get(qNormalized);
     if (cached) {
-      setOptions(cached.slice(0, 20));
-      setLoading(false);
+      if (mountedRef.current) {
+        setOptions(cached.slice(0, 20));
+        setLoading(false);
+      }
       return;
     }
     const reqId = ++reqIdRef.current;
-    if (abortRef.current) abortRef.current.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    setLoading(true);
+    if (mountedRef.current) setLoading(true);
     try {
       let data: { teams?: TeamOption[] } = {};
       try {
         const res = await fetch(
           `${API_URL}/teams?q=${encodeURIComponent(qTrim)}&limit=${fetchLimit}`,
-          { signal: controller.signal }
+          {}
         );
         if (!res.ok) {
-          if (reqId === reqIdRef.current) setOptions([]);
+          if (mountedRef.current && reqId === reqIdRef.current) setOptions([]);
           return;
         }
         data = await res.json();
-      } catch {
-        if (controller.signal.aborted) return;
-        if (reqId === reqIdRef.current) setOptions([]);
+      } catch (err) {
+        if (mountedRef.current && reqId === reqIdRef.current) setOptions([]);
         return;
       }
       if (reqId !== reqIdRef.current) return;
@@ -159,25 +165,28 @@ export function TeamAutocomplete({
         .filter((t: TeamOption) => Boolean(t?.id) && Boolean(t?.crest))
         .filter((t: TeamOption) => teamMatchesQuery(t, qTrim));
       cacheRef.current.set(qNormalized, apiTeams);
-      setOptions(apiTeams.slice(0, 20));
-      setHighlight(-1);
+      if (mountedRef.current) {
+        setOptions(apiTeams.slice(0, 20));
+        setHighlight(-1);
+      }
     } catch {
       if (reqId !== reqIdRef.current) return;
-      setOptions([]);
+      if (mountedRef.current) setOptions([]);
     } finally {
-      if (reqId === reqIdRef.current) setLoading(false);
+      if (mountedRef.current && reqId === reqIdRef.current) setLoading(false);
     }
   }, [fetchLimit]);
 
   useEffect(() => {
     let cancelled = false;
+    mountedRef.current = true;
     const cached = readTeamsFromLocalCache();
     if (cached.length > 0) {
       warmTeamsRef.current = cached;
     }
     const preload = async () => {
       try {
-        const res = await fetch(`${API_URL}/teams?limit=${PRELOAD_TEAMS_LIMIT}`);
+        const res = await fetch(`${API_URL}/teams?limit=${preloadLimit}`);
         if (!res.ok) return;
         const data = await res.json();
         if (cancelled) return;
@@ -192,13 +201,17 @@ export function TeamAutocomplete({
     void preload();
     return () => {
       cancelled = true;
-      if (abortRef.current) abortRef.current.abort();
+      mountedRef.current = false;
     };
-  }, []);
+  }, [preloadLimit]);
 
   useEffect(() => {
     setQuery(value);
   }, [value]);
+
+  useEffect(() => {
+    if (suppressSuggestions) setOpen(false);
+  }, [suppressSuggestions]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -218,7 +231,7 @@ export function TeamAutocomplete({
       if (instant.length > 0) {
         setOptions(instant);
         setHighlight(-1);
-        setOpen(true);
+        if (!suppressSuggestions) setOpen(true);
       }
     }
     debounceRef.current = setTimeout(() => {
@@ -233,18 +246,18 @@ export function TeamAutocomplete({
         return;
       }
       void fetchTeams(query);
-      setOpen(true);
+      if (!suppressSuggestions) setOpen(true);
     }, debounceMs);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       // Don't abort here: the next fetchTeams() will abort the previous request.
       // Aborting in cleanup can trigger AbortError in the catch path.
     };
-  }, [query, fetchTeams, debounceMs]);
+  }, [query, fetchTeams, debounceMs, suppressSuggestions]);
 
   const onFocus = useCallback(() => {
-    if (query.length >= MIN_QUERY_LENGTH && options.length > 0) setOpen(true);
-  }, [query.length, options.length]);
+    if (!suppressSuggestions && query.length >= MIN_QUERY_LENGTH && options.length > 0) setOpen(true);
+  }, [query.length, options.length, suppressSuggestions]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -306,7 +319,7 @@ export function TeamAutocomplete({
           aria-expanded={open}
         />
       </div>
-      {open && (options.length > 0 || loading) && (
+      {!suppressSuggestions && open && (options.length > 0 || loading) && (
         <ul
           className="absolute z-50 w-full mt-1 rounded-xl bg-dark-card border border-dark-border shadow-glow max-h-64 overflow-y-auto"
           role="listbox"

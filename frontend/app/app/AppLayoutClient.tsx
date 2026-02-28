@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAppBasePath } from "@/contexts/AppBasePathContext";
 import { getUserFromStorage, clearAuthCookie, clearUserFromStorage, type UserInfo, type PlanId } from "@/lib/auth";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const navKeys = [
   { path: "/matches", key: "nav.matches", icon: BarChartIcon },
@@ -110,7 +111,13 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
     setUser(getUserFromStorage());
   }, []);
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    try {
+      const supabase = getSupabaseBrowserClient();
+      await supabase.auth.signOut();
+    } catch {
+      // ignore
+    }
     clearAuthCookie();
     clearUserFromStorage();
     window.location.href = "/";
@@ -119,12 +126,12 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-app-gradient text-zinc-200 flex">
       <aside className="w-64 flex-shrink-0 sticky top-0 h-screen overflow-y-auto border-r border-dark-border bg-dark-card/50 flex flex-col">
-        <div className="p-6">
-          <Link href={basePath || "/"} className="flex flex-col items-start gap-1">
+        <div className="px-5 pt-4 pb-3">
+          <Link href={basePath || "/"} className="flex flex-col items-start gap-0.5">
             <img
               src="/logo.png"
               alt="DEEPFOOT"
-              className="h-20 w-auto object-contain max-w-full"
+              className="h-14 w-auto object-contain max-w-full"
             />
             <span className="text-xs text-zinc-500">AI match analysis</span>
           </Link>

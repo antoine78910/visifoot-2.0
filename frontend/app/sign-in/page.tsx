@@ -8,7 +8,8 @@ import {
   displayNameFromEmail,
   type UserInfo,
 } from "@/lib/auth";
-import { getAppHref } from "@/lib/app-url";
+import { ANALYSE_HREF, getAppAuthCallbackUrl, getAppRootUrl } from "@/lib/app-url";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export default function SignInPage() {
   const [email, setEmail] = useState("");
@@ -26,21 +27,47 @@ export default function SignInPage() {
     };
     setAuthCookie();
     setUserInStorage(user);
-    // Redirect to app root: on app subdomain go to /, else app URL (subdomain or /app)
+    // Always redirect to the app after sign-in (app subdomain in dev, app origin in prod)
     const isApp = typeof window !== "undefined" && window.location.hostname.startsWith("app.");
-    const target = isApp ? `${window.location.origin}/` : getAppHref("/");
+    const target = isApp ? `${window.location.origin}/` : getAppRootUrl();
     window.location.href = target;
   };
 
+  const handleGoogle = async () => {
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const redirectTo = getAppAuthCallbackUrl();
+      await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo,
+        },
+      });
+    } catch (e: any) {
+      alert(e?.message || "Google sign-in is not configured.");
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-app-gradient flex flex-col items-center justify-center px-4 py-12">
-      <div className="bg-[#050816] border border-white/15 rounded-2xl p-8 max-w-md w-full shadow-2xl">
+    <div className="min-h-screen bg-app-gradient flex flex-col items-center justify-center px-4 py-12 relative overflow-hidden">
+      <div className="pointer-events-none absolute inset-0" aria-hidden>
+        <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full bg-[#00ffe8]/18 blur-[120px]" />
+        <div className="absolute top-1/3 -right-32 w-[520px] h-[520px] rounded-full bg-emerald-400/12 blur-[140px]" />
+        <div className="absolute -bottom-48 left-1/3 w-[520px] h-[520px] rounded-full bg-sky-400/10 blur-[150px]" />
+      </div>
+
+      <div className="relative w-full max-w-md isolate">
+        {/* Tight glow that follows the card contour (LP input-style) */}
+        <div className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-r from-[#00ffe8]/35 via-transparent to-emerald-400/30 blur-xl opacity-90" aria-hidden />
+        <div className="relative rounded-2xl p-[1px] bg-gradient-to-r from-[#00ffe8]/70 via-white/10 to-emerald-400/60">
+          <div className="bg-[#050816]/95 backdrop-blur rounded-2xl p-8 w-full shadow-2xl relative z-10">
         <h1 className="text-white text-2xl font-bold mb-2 text-center">Sign in</h1>
         <p className="text-white/60 text-center mb-6 text-sm">Sign in to your account to analyze matches</p>
 
         <form onSubmit={handleSignIn} className="space-y-3">
           <button
             type="button"
+            onClick={handleGoogle}
             className="w-full h-14 px-6 bg-white hover:bg-gray-100 text-gray-800 font-semibold rounded-lg transition-all duration-200 flex items-center justify-center gap-3 shadow-lg hover:shadow-xl"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -85,9 +112,9 @@ export default function SignInPage() {
         </form>
 
         <p className="text-center mt-4">
-          <Link href="/" className="text-teal-400 hover:text-teal-300 text-sm underline">
+          <a href={ANALYSE_HREF} className="text-teal-400 hover:text-teal-300 text-sm underline">
             Don&apos;t have an account? Sign up
-          </Link>
+          </a>
         </p>
 
         <Link
@@ -96,6 +123,8 @@ export default function SignInPage() {
         >
           Back to home
         </Link>
+        </div>
+        </div>
       </div>
     </div>
   );

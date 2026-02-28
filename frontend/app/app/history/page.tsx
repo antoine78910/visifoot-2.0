@@ -12,9 +12,25 @@ type HistoryItem = {
   id: string;
   home_team: string;
   away_team: string;
+  home_logo?: string | null;
+  away_logo?: string | null;
+  league?: string | null;
   created_at: string;
   result: Record<string, unknown>;
 };
+
+function readString(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const s = v.trim();
+  return s ? s : null;
+}
+
+function Logo({ src, alt }: { src: string | null; alt: string }) {
+  if (!src) {
+    return <div className="w-8 h-8 rounded-full bg-dark-input flex-shrink-0" aria-hidden />;
+  }
+  return <img src={src} alt={alt} className="w-8 h-8 object-contain flex-shrink-0" />;
+}
 
 function BarChartEmptyIcon() {
   return (
@@ -81,16 +97,38 @@ export default function HistoryPage() {
         <ul className="mt-8 space-y-3">
           {items.map((item) => (
             <li key={item.id}>
+              {(() => {
+                const r = item.result as Record<string, unknown>;
+                const homeLogo = item.home_logo ?? readString(r?.home_team_logo);
+                const awayLogo = item.away_logo ?? readString(r?.away_team_logo);
+                const league = item.league ?? readString(r?.league);
+                return (
               <button
                 type="button"
                 onClick={() => openAnalysis(item)}
                 className="w-full rounded-xl bg-dark-card border border-dark-border p-4 text-left hover:bg-dark-input/60 hover:border-accent-green/40 transition"
               >
-                <p className="font-semibold text-white">
-                  {item.home_team} vs {item.away_team}
-                </p>
-                <p className="text-zinc-500 text-sm mt-1">{formatDate(item.created_at)}</p>
+                <div className="flex items-center gap-3">
+                  <Logo src={homeLogo} alt={item.home_team} />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-white truncate">
+                      {item.home_team} <span className="text-zinc-500 font-normal mx-1">vs</span> {item.away_team}
+                    </p>
+                    <div className="flex items-center gap-2 flex-wrap mt-1">
+                      {league ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-zinc-400">
+                          <span className="text-amber-300">🏆</span>
+                          <span className="truncate max-w-[18rem]">{league}</span>
+                        </span>
+                      ) : null}
+                      <span className="text-zinc-500 text-xs">{formatDate(item.created_at)}</span>
+                    </div>
+                  </div>
+                  <Logo src={awayLogo} alt={item.away_team} />
+                </div>
               </button>
+                );
+              })()}
             </li>
           ))}
         </ul>

@@ -111,6 +111,7 @@ def _load_match_context_api_football(
         get_h2h_from_fixtures,
         get_fixtures_headtohead_multi_season,
         get_weighted_h2h_home_pct,
+        guess_common_league_name,
     )
     report("Resolving teams…", 5)
     home_id = resolve_team_name_to_id(home_team)
@@ -139,7 +140,8 @@ def _load_match_context_api_football(
             teams = f.get("teams") or {}
             f_home_id = (teams.get("home") or {}).get("id")
             f_away_id = (teams.get("away") or {}).get("id")
-            if f_home_id == home_id and f_away_id == away_id:
+            # Accept both orientations; users may enter teams in either order.
+            if {f_home_id, f_away_id} == {home_id, away_id}:
                 fix = f.get("fixture") or {}
                 # Date : format "2 March 2026 at 00:15"
                 date_val = fix.get("date") or ""
@@ -219,6 +221,10 @@ def _load_match_context_api_football(
                     venue = v_name
             if venue is None and home_info:
                 venue = home_info.get("stadium")
+
+    # If league is still missing, infer from the common league both teams play in (major + secondary).
+    if league is None:
+        league = guess_common_league_name(home_id, away_id)
     report("Computing features…", 58)
     hw = sum(1 for x in home_form if x == "W")
     hd = sum(1 for x in home_form if x == "D")

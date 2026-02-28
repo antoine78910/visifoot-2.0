@@ -2,21 +2,83 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { SIGN_IN_HREF } from "@/lib/app-url";
+import { getAppAuthCallbackUrl, SIGN_IN_HREF } from "@/lib/app-url";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+
+const PENDING_MATCH_KEY = "visifoot_pending_match";
 
 interface SignupModalProps {
   open: boolean;
   onClose: () => void;
   onSignIn?: () => void;
+  /** When set (e.g. from analyse form), after Google sign-in we redirect to /matches?home=...&away=... */
+  pendingMatch?: { home: string; away: string } | null;
 }
 
-export function SignupModal({ open, onClose, onSignIn }: SignupModalProps) {
+export function SignupModal({ open, onClose, onSignIn, pendingMatch }: SignupModalProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [emailSent, setEmailSent] = useState(false);
 
   const canSubmit = email.trim().length > 0 && password.trim().length >= 6;
 
   if (!open) return null;
+
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canSubmit || loading) return;
+    setError(null);
+    setLoading(true);
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const { data, error: err } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          emailRedirectTo: getAppAuthCallbackUrl(),
+        },
+      });
+      if (err) {
+        setError(err.message);
+        setLoading(false);
+        return;
+      }
+      if (data?.user && !data?.session) {
+        setEmailSent(true);
+      } else if (data?.session && onSignIn) {
+        onSignIn();
+        onClose();
+      }
+    } catch (e: any) {
+      setError(e?.message ?? "Sign up failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogle = async () => {
+    try {
+      if (pendingMatch?.home && pendingMatch?.away) {
+        try {
+          sessionStorage.setItem(PENDING_MATCH_KEY, JSON.stringify({ home: pendingMatch.home, away: pendingMatch.away }));
+        } catch {
+          // ignore
+        }
+      }
+      const supabase = getSupabaseBrowserClient();
+      const redirectTo = getAppAuthCallbackUrl();
+      await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo,
+        },
+      });
+    } catch (e: any) {
+      alert(e?.message || "Google sign-in is not configured.");
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70" onClick={onClose}>
@@ -28,9 +90,25 @@ export function SignupModal({ open, onClose, onSignIn }: SignupModalProps) {
         <h2 className="text-white text-2xl font-bold mb-2 text-center">Create account</h2>
         <p className="text-white/60 text-center mb-6 text-sm">Sign up for free to unlock the full analysis</p>
 
+        {emailSent ? (
+          <div className="rounded-xl bg-emerald-500/15 border border-emerald-400/40 p-4 text-center">
+            <p className="text-white font-medium mb-1">Check your email</p>
+            <p className="text-white/70 text-sm">
+              We sent a confirmation link to <span className="text-[#00ffe8] font-medium">{email}</span>. Click it to validate your account, then sign in.
+            </p>
+            <button
+              type="button"
+              onClick={() => { setEmailSent(false); setEmail(""); setPassword(""); }}
+              className="mt-4 text-teal-400 hover:text-teal-300 text-sm underline"
+            >
+              Use another email
+            </button>
+          </div>
+        ) : (
         <div className="space-y-3">
           <button
             type="button"
+            onClick={handleGoogle}
             className="w-full h-14 px-6 bg-white hover:bg-gray-100 text-gray-800 font-semibold rounded-lg transition-all duration-200 flex items-center justify-center gap-3 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -51,34 +129,46 @@ export function SignupModal({ open, onClose, onSignIn }: SignupModalProps) {
             </div>
           </div>
 
-          <div className="space-y-3">
+          {error && (
+            <p className="text-red-400 text-sm text-center -mb-1">{error}</p>
+          )}
+          <form onSubmit={handleSignUp} className="space-y-3">
             <input
               placeholder="Email"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => { setEmail(e.target.value); setError(null); }}
               className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent"
+              autoComplete="email"
             />
             <input
               placeholder="Password (min. 6 characters)"
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => { setPassword(e.target.value); setError(null); }}
               className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent"
+              autoComplete="new-password"
             />
             <button
-              type="button"
-              disabled={!canSubmit}
+              type="submit"
+              disabled={!canSubmit || loading}
               className="w-full h-12 px-6 bg-gradient-to-r from-teal-400 to-emerald-400 hover:from-teal-500 hover:to-emerald-500 text-black font-semibold rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect width="20" height="16" x="2" y="4" rx="2" />
-                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-              </svg>
-              <span>Sign up</span>
+              {loading ? (
+                <span className="inline-block w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect width="20" height="16" x="2" y="4" rx="2" />
+                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                  </svg>
+                  <span>Sign up</span>
+                </>
+              )}
             </button>
+          </form>
           </div>
-        </div>
+        )}
 
         <div className="text-center mt-4">
           <Link href={SIGN_IN_HREF} className="text-teal-400 hover:text-teal-300 text-sm underline" onClick={onClose}>

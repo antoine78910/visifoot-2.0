@@ -1,10 +1,20 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { LandingMatchSearch } from "@/components/LandingMatchSearch";
-import { APP_HREF, SIGN_IN_HREF, ANALYSE_HREF } from "@/lib/app-url";
+import { APP_HREF, SIGN_IN_HREF, ANALYSE_HREF, getAppAuthCallbackUrl } from "@/lib/app-url";
 
 export default function LandingPage() {
+  // If Supabase redirected here with tokens in hash (e.g. Site URL = localhost), send user to app callback
+  useEffect(() => {
+    const { hostname, hash } = window.location;
+    if ((hostname === "localhost" || hostname === "127.0.0.1") && hash && hash.includes("access_token=")) {
+      const appCallback = getAppAuthCallbackUrl();
+      window.location.replace(`${appCallback}${hash}`);
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-app-gradient text-zinc-200 flex flex-col relative overflow-hidden">
       {/* Background glow orbs */}
@@ -15,7 +25,7 @@ export default function LandingPage() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[400px] rounded-full bg-[#00ffe8]/5 blur-[150px]" />
       </div>
 
-      <header className="fixed top-0 left-0 right-0 z-20 w-full flex items-center justify-between px-4 sm:px-6 py-4 border-b border-white/10 bg-[#0a0a0e]/60 backdrop-blur-md">
+      <header className="fixed top-0 left-0 right-0 z-20 w-full flex items-center justify-between px-4 sm:px-6 py-3 border-b border-white/10 bg-[#0a0a0e]/60 backdrop-blur-md">
         <Link href="/" className="flex items-center gap-2">
           <img src="/logo.png" alt="DEEPFOOT" className="h-12 sm:h-14 w-auto object-contain" />
         </Link>
@@ -232,7 +242,7 @@ export default function LandingPage() {
             Ready to analyze your next match?
           </p>
           <Link
-            href="/analyse"
+            href={ANALYSE_HREF}
             className="inline-flex items-center justify-center px-6 py-3 rounded-xl font-semibold text-black bg-gradient-to-r from-[#00ffe8] to-[#00ddcc] hover:opacity-90 transition"
           >
             Open match analyzer →

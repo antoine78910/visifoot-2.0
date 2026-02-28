@@ -21,6 +21,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 type UpcomingFixture = {
   date: string;
   time: string;
+  league?: { name: string | null } | null;
   home: { name: string; logo: string | null };
   away: { name: string; logo: string | null };
 };
@@ -32,7 +33,8 @@ type MatchInputProps = {
   /** When true, submit will call onRequireAuth() instead of analyzing if !isLoggedIn */
   requireAuth?: boolean;
   isLoggedIn?: boolean;
-  onRequireAuth?: () => void;
+  /** Called when user tries to submit without being logged in. Receives the two teams so post-login can redirect to /matches with them. */
+  onRequireAuth?: (teams?: { home: string; away: string }) => void;
   /** When true, no analysis is run; show CTA to analyze in the app instead */
   displayOnly?: boolean;
 };
@@ -149,14 +151,6 @@ export function MatchInput({
       .finally(() => setLoadingUpcoming(false));
   }, [selectedHomeTeam, selectedHomeTeamId]);
 
-  const getOpponent = (f: UpcomingFixture): string => {
-    if (!selectedHomeTeam) return "";
-    const home = (f.home.name || "").trim();
-    const away = (f.away.name || "").trim();
-    const sel = selectedHomeTeam.trim().toLowerCase();
-    return (home.toLowerCase() === sel ? away : home) || "";
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (displayOnly) return;
@@ -166,7 +160,7 @@ export function MatchInput({
       return;
     }
     if (requireAuth && !isLoggedIn && onRequireAuth) {
-      onRequireAuth();
+      onRequireAuth({ home: homeTeam.trim(), away: awayTeam.trim() });
       return;
     }
     // Annuler une éventuelle requête précédente
@@ -238,6 +232,9 @@ export function MatchInput({
           id: crypto.randomUUID(),
           home_team: data.home_team,
           away_team: data.away_team,
+          home_logo: (data as any)?.home_team_logo ?? null,
+          away_logo: (data as any)?.away_team_logo ?? null,
+          league: (data as any)?.league ?? null,
           created_at: new Date().toISOString(),
           result: data,
         });
@@ -284,6 +281,9 @@ export function MatchInput({
           }}
           placeholder={t("matchInput.placeholderHome")}
           disabled={loading}
+          debounceMs={0}
+          fetchLimit={20}
+          suppressSuggestions={!!homeTeamOption}
         />
 
         <p className="text-center text-white font-semibold text-lg">VS</p>
@@ -294,6 +294,9 @@ export function MatchInput({
           onSelect={(team) => setAwayTeamOption(team)}
           placeholder={t("matchInput.placeholderAway")}
           disabled={loading}
+          debounceMs={0}
+          fetchLimit={20}
+          suppressSuggestions={!!awayTeamOption}
         />
 
         {(homeTeamOption || awayTeamOption) && (
@@ -359,7 +362,7 @@ export function MatchInput({
         )}
       </form>
 
-      {selectedHomeTeam && (
+      {selectedHomeTeam && !awayTeamOption && (
         <div className="mt-8 pt-6 border-t border-dark-border">
           <h3 className="text-sm font-semibold text-white mb-1">{t("matchInput.upcomingMatches")}</h3>
           <p className="text-zinc-500 text-xs mb-4">{t("matchInput.clickToFill")}</p>
@@ -370,33 +373,56 @@ export function MatchInput({
           ) : (
             <ul className="space-y-3">
               {upcoming.map((f, i) => {
-                const opponent = getOpponent(f);
                 return (
                   <li key={i}>
                     <button
                       type="button"
-                      onClick={() => opponent && setAwayTeam(opponent)}
-                      className="w-full flex items-center gap-4 rounded-xl bg-dark-input/60 border border-dark-border px-4 py-3 text-left transition hover:bg-dark-input hover:border-accent-green/40 cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent-green/50"
+                      onClick={() => {
+                        const homeName = (f.home.name || "").trim();
+                        const awayName = (f.away.name || "").trim();
+                        if (!homeName || !awayName) return;
+                        setHomeTeam(homeName);
+                        setAwayTeam(awayName);
+                        setSelectedHomeTeam(homeName);
+                        setSelectedHomeTeamId(null);
+                        setHomeTeamOption({ id: null, name: homeName, crest: f.home.logo ?? null });
+                        setAwayTeamOption({ id: null, name: awayName, crest: f.away.logo ?? null });
+                      }}
+                      className="w-full rounded-xl bg-dark-input/60 border border-dark-border px-4 py-2.5 text-left transition hover:bg-dark-input hover:border-accent-green/40 cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent-green/50"
                     >
-                      <span className="text-zinc-400 text-sm tabular-nums w-14 flex-shrink-0">
-                        {f.date} {f.time}
-                      </span>
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        {f.home.logo ? (
-                          <img src={f.home.logo} alt="" className="w-7 h-7 object-contain flex-shrink-0" />
-                        ) : (
-                          <div className="w-7 h-7 rounded-full bg-dark-card flex-shrink-0" />
-                        )}
-                        <span className="text-white text-sm font-medium truncate">{f.home.name}</span>
-                      </div>
-                      <span className="text-zinc-500 text-xs font-medium flex-shrink-0">VS</span>
-                      <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
-                        {f.away.logo ? (
-                          <img src={f.away.logo} alt="" className="w-7 h-7 object-contain flex-shrink-0" />
-                        ) : (
-                          <div className="w-7 h-7 rounded-full bg-dark-card flex-shrink-0" />
-                        )}
-                        <span className="text-white text-sm font-medium truncate text-right">{f.away.name}</span>
+                      <div className="flex items-center gap-3">
+                        <div className="w-32 flex-shrink-0">
+                          <div className="text-zinc-400 text-sm tabular-nums leading-tight whitespace-nowrap">
+                            {f.date} - {f.time}
+                          </div>
+                          {f.league?.name ? (
+                            <div className="text-[11px] text-zinc-500 leading-tight flex items-center gap-1 mt-0.5 min-w-0">
+                              <span className="text-amber-300">🏆</span>
+                              <span className="whitespace-nowrap overflow-hidden" title={f.league.name}>
+                                {f.league.name}
+                              </span>
+                            </div>
+                          ) : null}
+                        </div>
+                        <div className="flex items-center justify-center gap-4 flex-1 min-w-0">
+                          <div className="flex items-center gap-2 min-w-0 flex-[0_1_13rem]">
+                            {f.home.logo ? (
+                              <img src={f.home.logo} alt="" className="w-7 h-7 object-contain flex-shrink-0" />
+                            ) : (
+                              <div className="w-7 h-7 rounded-full bg-dark-card flex-shrink-0" />
+                            )}
+                            <span className="text-white text-sm font-medium truncate">{f.home.name}</span>
+                          </div>
+                          <span className="text-zinc-500 text-xs font-medium flex-shrink-0">VS</span>
+                          <div className="flex items-center gap-2 min-w-0 flex-[0_1_13rem] justify-end">
+                            <span className="text-white text-sm font-medium truncate text-right">{f.away.name}</span>
+                            {f.away.logo ? (
+                              <img src={f.away.logo} alt="" className="w-7 h-7 object-contain flex-shrink-0" />
+                            ) : (
+                              <div className="w-7 h-7 rounded-full bg-dark-card flex-shrink-0" />
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </button>
                   </li>

@@ -15,8 +15,15 @@ export function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
-  // Sign-in is public on app subdomain (no rewrite so root /sign-in is served)
-  if (pathname === "/sign-in" || pathname.startsWith("/sign-in/")) {
+  // Public routes on app subdomain: sign-in, analyse (signup funnel), auth callback
+  if (
+    pathname === "/sign-in" ||
+    pathname.startsWith("/sign-in/") ||
+    pathname === "/analyse" ||
+    pathname.startsWith("/analyse/") ||
+    pathname === "/auth/callback" ||
+    pathname.startsWith("/auth/callback/")
+  ) {
     return NextResponse.next();
   }
 

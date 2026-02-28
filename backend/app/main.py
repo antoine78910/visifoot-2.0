@@ -10,7 +10,17 @@ app = FastAPI(
 )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://*.vercel.app"],
+    # Local dev + Vercel preview/prod.
+    # Note: CORSMiddleware does not support wildcard entries in allow_origins (like https://*.vercel.app).
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+        "http://app.localhost:3000",
+        "http://app.127.0.0.1:3000",
+    ],
+    allow_origin_regex=r"^https://.*\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

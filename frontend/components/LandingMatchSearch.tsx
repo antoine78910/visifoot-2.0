@@ -9,6 +9,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 type UpcomingFixture = {
   date: string;
   time: string;
+  league?: { name: string | null } | null;
   home: { name: string; logo: string | null };
   away: { name: string; logo: string | null };
 };
@@ -98,27 +99,41 @@ export function LandingMatchSearch({ analyseHref = "/analyse" }: LandingMatchSea
                 <li key={i}>
                   <Link
                     href={`${analyseHref}?home=${encodeURIComponent(f.home.name)}&away=${encodeURIComponent(f.away.name)}`}
-                    className="flex items-center gap-3 rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-left transition hover:bg-white/10 hover:border-[#00ffe8]/30"
+                    className="rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-left transition hover:bg-white/10 hover:border-[#00ffe8]/30 block"
                   >
-                    <span className="text-zinc-400 text-sm tabular-nums w-14 flex-shrink-0">
-                      {f.date} {f.time}
-                    </span>
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      {f.home.logo ? (
-                        <img src={f.home.logo} alt="" className="w-7 h-7 object-contain flex-shrink-0" />
-                      ) : (
-                        <div className="w-7 h-7 rounded-full bg-white/10 flex-shrink-0" />
-                      )}
-                      <span className="text-white text-sm font-medium truncate">{f.home.name}</span>
-                    </div>
-                    <span className="text-zinc-500 text-xs font-medium flex-shrink-0">VS</span>
-                    <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
-                      {f.away.logo ? (
-                        <img src={f.away.logo} alt="" className="w-7 h-7 object-contain flex-shrink-0" />
-                      ) : (
-                        <div className="w-7 h-7 rounded-full bg-white/10 flex-shrink-0" />
-                      )}
-                      <span className="text-white text-sm font-medium truncate text-right">{f.away.name}</span>
+                    <div className="flex items-center gap-3">
+                      <div className="w-32 flex-shrink-0">
+                        <div className="text-zinc-400 text-sm tabular-nums leading-tight whitespace-nowrap">
+                          {f.date} - {f.time}
+                        </div>
+                        {f.league?.name ? (
+                          <div className="text-[11px] text-zinc-500 leading-tight flex items-center gap-1 mt-0.5 min-w-0">
+                            <span className="text-amber-300">🏆</span>
+                            <span className="whitespace-nowrap overflow-hidden" title={f.league.name}>
+                              {f.league.name}
+                            </span>
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="flex items-center justify-center gap-4 flex-1 min-w-0">
+                        <div className="flex items-center gap-2 min-w-0 flex-[0_1_13rem]">
+                          {f.home.logo ? (
+                            <img src={f.home.logo} alt="" className="w-7 h-7 object-contain flex-shrink-0" />
+                          ) : (
+                            <div className="w-7 h-7 rounded-full bg-white/10 flex-shrink-0" />
+                          )}
+                          <span className="text-white text-sm font-medium truncate">{f.home.name}</span>
+                        </div>
+                        <span className="text-zinc-500 text-xs font-medium flex-shrink-0">VS</span>
+                        <div className="flex items-center gap-2 min-w-0 flex-[0_1_13rem] justify-end">
+                          <span className="text-white text-sm font-medium truncate text-right">{f.away.name}</span>
+                          {f.away.logo ? (
+                            <img src={f.away.logo} alt="" className="w-7 h-7 object-contain flex-shrink-0" />
+                          ) : (
+                            <div className="w-7 h-7 rounded-full bg-white/10 flex-shrink-0" />
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </Link>
                 </li>

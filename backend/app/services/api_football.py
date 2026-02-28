@@ -6,6 +6,7 @@ Base: https://v3.football.api-sports.io/
 """
 from typing import Any, Optional
 import time
+import threading
 import httpx
 from app.core.config import get_settings
 from app.core.leagues import LEAGUE_IDS, current_season
@@ -14,9 +15,49 @@ from app.core.leagues import LEAGUE_IDS, current_season
 _teams_cache: dict[int, dict] = {}
 _teams_cache_filled = False
 
+_SUPPORTED_LEAGUES_TTL_SECONDS = 24 * 60 * 60
+_supported_leagues_cache: list[dict] = []
+_supported_leagues_ts: float = 0.0
+
 
 def _use_api() -> bool:
     return bool(get_settings().api_football_key)
+
+COUNTRY_FR: dict[str, str] = {
+    "England": "Angleterre",
+    "United Kingdom": "Royaume-Uni",
+    "Scotland": "Écosse",
+    "Wales": "Pays de Galles",
+    "Northern Ireland": "Irlande du Nord",
+    "Spain": "Espagne",
+    "France": "France",
+    "Germany": "Allemagne",
+    "Italy": "Italie",
+    "Netherlands": "Pays-Bas",
+    "Belgium": "Belgique",
+    "Portugal": "Portugal",
+    "Algeria": "Algérie",
+    "Morocco": "Maroc",
+    "Tunisia": "Tunisie",
+    "United States": "États-Unis",
+}
+COUNTRY_EN: dict[str, str] = {v: k for (k, v) in COUNTRY_FR.items()}
+
+
+def _country_bilingual(country: Optional[str]) -> Optional[str]:
+    c = (country or "").strip()
+    if not c:
+        return None
+    fr = COUNTRY_FR.get(c)
+    en = c
+    if fr is None and c in COUNTRY_EN:
+        en = COUNTRY_EN[c]
+        fr = c
+    if fr is None:
+        return c
+    if en.lower() == fr.lower():
+        return en
+    return f"{en} / {fr}"
 
 
 def _headers() -> dict[str, str]:
@@ -42,6 +83,187 @@ def _get(path: str, params: Optional[dict[str, Any]] = None) -> dict[str, Any]:
         if data.get("errors") and not data.get("response"):
             return {}
         return data
+
+
+def get_leagues(params: Optional[dict[str, Any]] = None) -> list[dict]:
+    """GET /leagues wrapper. Each item contains 'league', 'country', 'seasons'."""
+    data = _get("/leagues", params=params or {})
+    return data.get("response") or []
+
+
+def _is_bad_league_name(name: str) -> bool:
+    n = (name or "").lower()
+    bad = (
+        "women",
+        "femin",
+        "u17",
+        "u18",
+        "u19",
+        "u20",
+        "u21",
+        "u23",
+        "youth",
+        "reserve",
+        "reserves",
+        "friendly",
+        "amateur",
+        "regional",
+        "cup",  # We want leagues, not cups, for the core cache.
+        "play-offs",
+        "playoffs",
+    )
+    return any(b in n for b in bad)
+
+
+def get_supported_leagues(*, season: Optional[int] = None, force_refresh: bool = False) -> list[dict]:
+    """
+    Returns a curated list of supported leagues (major + secondary tiers) from API-Football.
+    We fetch leagues for a set of countries and keep only competitions of type 'League'
+    with standings/fixtures coverage, excluding youth/women/cups.
+    Cached for 24h.
+    """
+    global _supported_leagues_cache, _supported_leagues_ts
+    if not _use_api():
+        return []
+    now = time.time()
+    if not force_refresh and _supported_leagues_cache and (now - _supported_leagues_ts) < _SUPPORTED_LEAGUES_TTL_SECONDS:
+        return _supported_leagues_cache
+
+    season = season or current_season()
+    # One API call (fast) then filter client-side.
+    # This avoids N calls per country and keeps /predict fast.
+    keep_countries = {
+        "France",
+        "England",
+        "Spain",
+        "Germany",
+        "Italy",
+        "Portugal",
+        "Netherlands",
+        "Belgium",
+        "Turkey",
+        "Switzerland",
+        "Scotland",
+        "Austria",
+        "Greece",
+        "Denmark",
+        "Sweden",
+        "Norway",
+        "Poland",
+        "Czech Republic",
+        "Croatia",
+        "Serbia",
+        "Brazil",
+        "Argentina",
+        "USA",
+        "Mexico",
+        "Morocco",
+        "Algeria",
+        "Tunisia",
+    }
+
+    out: list[dict] = []
+    seen: set[int] = set()
+    raw = get_leagues(params={"season": season, "type": "league", "current": "true"})
+    for item in raw:
+        league = item.get("league") or {}
+        country = item.get("country") or {}
+        c_name = (country.get("name") or "").strip()
+        if c_name and c_name not in keep_countries:
+            continue
+        cov = item.get("coverage") or {}
+        if (league.get("type") or "").lower() != "league":
+            continue
+        lid = league.get("id")
+        name = (league.get("name") or "").strip()
+        if lid is None or not name:
+            continue
+        lid_i = int(lid)
+        if lid_i in seen:
+            continue
+        if _is_bad_league_name(name):
+            continue
+        standings_ok = bool((cov.get("standings") is True) or cov.get("standings") is None)
+        fixtures_ok = bool((cov.get("fixtures") is True) or isinstance(cov.get("fixtures"), dict) or cov.get("fixtures") is None)
+        if not (standings_ok and fixtures_ok):
+            continue
+        seen.add(lid_i)
+        out.append({"id": lid_i, "name": name, "country": c_name or None})
+
+    # Stable order: country then name
+    out.sort(key=lambda x: (x.get("country") or "", (x.get("name") or "").lower()))
+    _supported_leagues_cache = out
+    _supported_leagues_ts = now
+    return out
+
+
+def get_supported_league_ids(*, season: Optional[int] = None) -> list[int]:
+    leagues = get_supported_leagues(season=season)
+    if leagues:
+        return [int(x["id"]) for x in leagues if x.get("id") is not None]
+    # Fallback: minimal set (major + common secondary)
+    return [61, 62, 39, 40, 41, 140, 141, 78, 79, 135, 136, 88, 89, 94, 96]
+
+
+def get_team_leagues(team_id: int, season: Optional[int] = None) -> list[dict]:
+    """List leagues a team participates in for a given season."""
+    if not _use_api() or not team_id:
+        return []
+    season = season or current_season()
+    return get_leagues(params={"team": int(team_id), "season": season})
+
+
+def guess_common_league_name(home_id: int, away_id: int, season: Optional[int] = None) -> Optional[str]:
+    """
+    Guess the most relevant 'League' competition name shared by both teams for the season.
+    Useful when no upcoming fixture is found (or user enters home/away not matching schedule).
+    """
+    if not _use_api():
+        return None
+    season = season or current_season()
+    try:
+        a = get_team_leagues(int(home_id), season=season)
+        b = get_team_leagues(int(away_id), season=season)
+        a_map = {}
+        for it in a:
+            l = it.get("league") or {}
+            if (l.get("type") or "").lower() != "league":
+                continue
+            lid = l.get("id")
+            if lid is None:
+                continue
+            name = (l.get("name") or "").strip()
+            if not name or _is_bad_league_name(name):
+                continue
+            a_map[int(lid)] = name
+        shared = []
+        for it in b:
+            l = it.get("league") or {}
+            if (l.get("type") or "").lower() != "league":
+                continue
+            lid = l.get("id")
+            if lid is None:
+                continue
+            lid_i = int(lid)
+            if lid_i in a_map:
+                shared.append((lid_i, a_map[lid_i]))
+        if not shared:
+            return None
+        # Prefer common top leagues first, then alphabetical.
+        top_ids = {
+            39, 40, 41, 42, 43,  # England tiers
+            61, 62, 63,          # France tiers
+            78, 79, 80,          # Germany tiers
+            135, 136,            # Italy tiers
+            140, 141,            # Spain tiers
+            88, 89,              # Netherlands tiers
+            94, 96,              # Portugal tiers
+            144, 145,            # Belgium tiers
+        }
+        shared.sort(key=lambda x: (0 if x[0] in top_ids else 1, x[1].lower()))
+        return shared[0][1]
+    except Exception:
+        return None
 
 
 def get_teams_by_league(league_id: int, season: Optional[int] = None) -> list[dict]:
@@ -114,6 +336,7 @@ def _fill_teams_cache() -> None:
                         "name": (t.get("name") or "").strip(),
                         "shortName": (t.get("name") or "").strip(),
                         "crest": (t.get("logo") or "").strip() or None,
+                        "country": _country_bilingual(t.get("country") if isinstance(t, dict) else None),
                     }
         except Exception:
             continue
@@ -198,6 +421,38 @@ TEAM_SEARCH_ALIASES: dict[str, list[str]] = {
     "netherlands": ["netherlands"],
 }
 
+# Queries that should return national teams quickly (avoid heavy league cache fill).
+NATIONAL_QUERY_KEYS: set[str] = {
+    "france",
+    "angleterre",
+    "england",
+    "espagne",
+    "spain",
+    "allemagne",
+    "germany",
+    "italie",
+    "italy",
+    "pays-bas",
+    "netherlands",
+    "belgique",
+    "belgium",
+    "portugal",
+    "bresil",
+    "brazil",
+    "argentine",
+    "argentina",
+    "algerie",
+    "algérie",
+    "algeria",
+    "maroc",
+    "morocco",
+    "tunisie",
+    "tunisia",
+    "usa",
+    "united states",
+    "mexico",
+}
+
 # Priorité d'affichage pour les clubs principaux (plus petit = plus prioritaire)
 TOP_CLUB_PRIORITY: dict[str, int] = {
     "real madrid": 1,
@@ -230,6 +485,8 @@ TOP_CLUB_PRIORITY: dict[str, int] = {
 _SUPABASE_AUTOCOMPLETE_TTL_SECONDS = 600
 _supabase_teams_cache: list[dict] = []
 _supabase_teams_cache_ts: float = 0.0
+_supabase_cache_refreshing = False
+_supabase_cache_lock = threading.Lock()
 
 
 def _priority_for_name(n: str) -> int:
@@ -262,9 +519,13 @@ def _is_non_primary_team_name(name: str) -> bool:
     return False
 
 
-def _refresh_supabase_teams_cache_if_needed() -> Optional[list[dict]]:
-    """Charge les équipes Supabase en mémoire (TTL) pour un autocomplete instantané."""
-    global _supabase_teams_cache, _supabase_teams_cache_ts
+def _refresh_supabase_teams_cache_if_needed(allow_fetch: bool = True) -> Optional[list[dict]]:
+    """Charge les équipes Supabase en mémoire (TTL) pour un autocomplete instantané.
+
+    Si allow_fetch=False, ne bloque jamais la requête: renvoie le cache si chaud, sinon None
+    et déclenche un refresh en arrière-plan.
+    """
+    global _supabase_teams_cache, _supabase_teams_cache_ts, _supabase_cache_refreshing
     from app.core.config import get_settings
     s = get_settings()
     if not (s.supabase_url and s.supabase_key):
@@ -272,6 +533,21 @@ def _refresh_supabase_teams_cache_if_needed() -> Optional[list[dict]]:
     now = time.time()
     if _supabase_teams_cache and (now - _supabase_teams_cache_ts) < _SUPABASE_AUTOCOMPLETE_TTL_SECONDS:
         return _supabase_teams_cache
+    if not allow_fetch:
+        with _supabase_cache_lock:
+            if not _supabase_cache_refreshing:
+                _supabase_cache_refreshing = True
+
+                def _bg():
+                    global _supabase_cache_refreshing
+                    try:
+                        _refresh_supabase_teams_cache_if_needed(allow_fetch=True)
+                    finally:
+                        with _supabase_cache_lock:
+                            _supabase_cache_refreshing = False
+
+                threading.Thread(target=_bg, daemon=True).start()
+        return None
     try:
         from app.core.supabase_client import get_supabase
         supabase = get_supabase()
@@ -335,7 +611,9 @@ def get_teams_from_supabase(q: Optional[str] = None, limit: int = 80) -> Optiona
     if not (s.supabase_url and s.supabase_key):
         return None
     try:
-        data = _refresh_supabase_teams_cache_if_needed()
+        # Ne jamais bloquer l'autocomplete sur Supabase : si le cache n'est pas chaud,
+        # on laisse le routeur fallback sur API-Football.
+        data = _refresh_supabase_teams_cache_if_needed(allow_fetch=False)
         if data is None:
             return None
         q_clean = (q or "").strip()
@@ -344,7 +622,7 @@ def get_teams_from_supabase(q: Optional[str] = None, limit: int = 80) -> Optiona
                 "id": row.get("slug"),
                 "name": (row.get("name") or "").strip() or row.get("slug"),
                 "crest": row.get("logo_url"),
-                "country": (row.get("country") or "").strip() or None,
+                "country": _country_bilingual((row.get("country") or "").strip() or None),
             }
             for row in data
             if row.get("logo_url")
@@ -359,6 +637,25 @@ def get_teams_from_supabase(q: Optional[str] = None, limit: int = 80) -> Optiona
             teams.sort(key=lambda t: _team_relevance_score(t.get("name") or "", q_normalized))
         else:
             teams.sort(key=lambda t: ((t.get("name") or "").lower()))
+        # Enrich country from API cache when Supabase country is missing.
+        if _use_api():
+            missing = [t for t in teams if not (t.get("country") or "").strip()]
+            if missing:
+                try:
+                    _fill_teams_cache()
+                    for t in missing:
+                        tid_raw = t.get("id")
+                        if tid_raw is None:
+                            continue
+                        try:
+                            tid = int(tid_raw)
+                        except (ValueError, TypeError):
+                            continue
+                        cached = _teams_cache.get(tid) or {}
+                        if cached.get("country"):
+                            t["country"] = cached.get("country")
+                except Exception:
+                    pass
         return teams[:limit]
     except Exception:
         return None
@@ -396,6 +693,43 @@ def get_teams_for_autocomplete(q: Optional[str] = None, limit: int = 80) -> list
     """
     q_clean = (q or "").strip()
     q_normalized = _normalize_for_search(q_clean) if q_clean else ""
+
+    # Country/national team queries: serve instantly via API search (no league cache fill).
+    if q_normalized and q_normalized in NATIONAL_QUERY_KEYS and len(q_clean) >= 2:
+        raw = get_teams_search(q_clean, min_chars=2)
+        result = []
+        seen: set[int] = set()
+        for item in raw:
+            t = item.get("team") or item
+            if not isinstance(t, dict):
+                continue
+            tid = t.get("id")
+            name = (t.get("name") or "").strip()
+            if tid is None or not name:
+                continue
+            if int(tid) in seen:
+                continue
+            # Prefer national teams, then the rest.
+            logo = (t.get("logo") or "").strip() or None
+            if not logo:
+                continue
+            seen.add(int(tid))
+            result.append(
+                {
+                    "id": int(tid),
+                    "name": name,
+                    "crest": logo,
+                    "country": _country_bilingual(t.get("country")),
+                    "_national": bool(t.get("national") is True),
+                }
+            )
+            if len(result) >= limit * 4:
+                break
+        # Sort: national first, then name
+        result.sort(key=lambda x: (0 if x.get("_national") else 1, (x.get("name") or "").lower()))
+        out = [{k: v for (k, v) in r.items() if k != "_national"} for r in result[:limit]]
+        return out
+
     # Alias (aja, psg, om, …) : passer par le cache pour avoir la bonne équipe
     if q_normalized and q_normalized in TEAM_SEARCH_ALIASES:
         _fill_teams_cache()
@@ -408,7 +742,7 @@ def get_teams_for_autocomplete(q: Optional[str] = None, limit: int = 80) -> list
             if name in seen_names:
                 continue
             seen_names.add(name)
-            result.append({"id": t.get("id"), "name": name, "crest": t.get("crest"), "country": None})
+            result.append({"id": t.get("id"), "name": name, "crest": t.get("crest"), "country": t.get("country")})
             if len(result) >= limit:
                 break
         return result
@@ -429,7 +763,10 @@ def get_teams_for_autocomplete(q: Optional[str] = None, limit: int = 80) -> list
                 seen_names.add(name)
                 logo = t.get("logo")
                 crest = (logo or "").strip() or None
-                result.append({"id": t.get("id"), "name": name, "crest": crest, "country": None})
+                country = None
+                if isinstance(t, dict):
+                    country = _country_bilingual(t.get("country"))
+                result.append({"id": t.get("id"), "name": name, "crest": crest, "country": country})
                 if len(result) >= limit:
                     break
             return result
@@ -446,7 +783,7 @@ def get_teams_for_autocomplete(q: Optional[str] = None, limit: int = 80) -> list
         if name in seen_names:
             continue
         seen_names.add(name)
-        result.append({"id": t.get("id"), "name": name, "crest": t.get("crest"), "country": None})
+        result.append({"id": t.get("id"), "name": name, "crest": t.get("crest"), "country": t.get("country")})
         if len(result) >= limit:
             break
     return result

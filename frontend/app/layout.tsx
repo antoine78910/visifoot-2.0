@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 import { ClientProviders } from "@/components/ClientProviders";
 
@@ -51,10 +52,28 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+  const supabaseEnvScript =
+    supabaseUrl && supabaseAnonKey
+      ? `window.__SUPABASE_ENV__={url:${JSON.stringify(supabaseUrl)},anonKey:${JSON.stringify(supabaseAnonKey)}};`
+      : "";
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="antialiased min-h-screen bg-app-gradient text-zinc-200">
+        {supabaseEnvScript ? (
+          <script
+            dangerouslySetInnerHTML={{ __html: supabaseEnvScript }}
+          />
+        ) : null}
         <ClientProviders>{children}</ClientProviders>
+        <Script
+          src="https://datafa.st/js/script.js"
+          data-website-id="dfid_hXUwdw1eEOt3xICr0vj4y"
+          data-domain="deepfoot.io"
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );

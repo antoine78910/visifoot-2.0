@@ -12,16 +12,25 @@ def list_teams(q: Optional[str] = None, limit: int = 80):
     Priorité: Supabase (recherche rapide avec alias) → API-Football → démo.
     Pour une recherche instantanée, lancer une fois: python scripts/sync_teams_to_supabase.py
     """
-    from app.services.api_football import get_teams_from_supabase, _use_api, get_teams_for_autocomplete
+    from app.services.api_football import (
+        get_teams_from_supabase,
+        _use_api,
+        get_teams_for_autocomplete,
+    )
     from app.core.leagues import LEAGUES
 
     q_clean = (q or "").strip()
 
     # 1) Supabase en premier : pas d'appel API, recherche + alias + blasons
     teams_sb = get_teams_from_supabase(q=q, limit=limit)
-    # Si Supabase est configuré, on renvoie directement sa réponse (même vide)
-    # pour éviter la latence API et garder un comportement strict/prévisible.
+    # Si Supabase est configuré mais ne renvoie rien (table vide / pas encore sync),
+    # on fallback sur API-Football pour ne pas casser l'autocomplete.
     if teams_sb is not None:
+        if teams_sb:
+            return {"teams": teams_sb, "leagues": LEAGUES}
+        if _use_api():
+            teams = get_teams_for_autocomplete(q=q, limit=limit)
+            return {"teams": teams, "leagues": LEAGUES}
         return {"teams": teams_sb, "leagues": LEAGUES}
 
     # 2) Pas de Supabase disponible: fallback API/caches
@@ -94,6 +103,7 @@ def upcoming_fixtures(team: Optional[str] = None, team_id: Optional[int] = None,
     fixtures = []
     for f in raw:
         fix = f.get("fixture") or {}
+        league = f.get("league") or {}
         teams = f.get("teams") or {}
         home = teams.get("home") or {}
         away = teams.get("away") or {}
@@ -108,6 +118,7 @@ def upcoming_fixtures(team: Optional[str] = None, team_id: Optional[int] = None,
         fixtures.append({
             "date": day,
             "time": time,
+            "league": {"name": (league.get("name") or "").strip() or None},
             "home": {"name": home.get("name") or "", "logo": home.get("logo") or None},
             "away": {"name": away.get("name") or "", "logo": away.get("logo") or None},
         })

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Confirm your signup – DeepFoot</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #0f0f14; color: #e4e4e7; min-height: 100vh;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #0f0f14; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 440px;">
+          <tr>
+            <td style="padding-bottom: 24px; text-align: center;">
+              <span style="font-size: 22px; font-weight: 700; color: #00ffe8;">DeepFoot</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #18181b; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); padding: 32px 28px; box-shadow: 0 4px 24px rgba(0,0,0,0.3);">
+              <h2 style="margin: 0 0 8px 0; font-size: 20px; font-weight: 700; color: #ffffff;">Confirm your signup</h2>
+              <p style="margin: 0 0 24px 0; font-size: 15px; line-height: 1.5; color: #a1a1aa;">Follow this link to confirm your user:</p>
+              <table role="presentation" cellspacing="0" cellpadding="0" style="margin: 0;">
+                <tr>
+                  <td style="border-radius: 10px; background: linear-gradient(135deg, #00ffe8 0%, #00ddcc 100%);">
+                    <a href="{{ .ConfirmationURL }}" target="_blank" rel="noopener" style="display: inline-block; padding: 14px 28px; font-size: 15px; font-weight: 600; color: #0a0a0f; text-decoration: none;">Confirm your mail</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin: 24px 0 0 0; font-size: 13px; color: #71717a;">If you didn’t create an account, you can ignore this email.</p>
+              <p style="margin: 16px 0 0 0; font-size: 12px; color: #52525b;">If the button doesn’t work, copy and paste this link into your browser:<br /><a href="{{ .ConfirmationURL }}" style="color: #00ffe8; word-break: break-all;">{{ .ConfirmationURL }}</a></p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding-top: 24px; text-align: center;">
+              <p style="margin: 0; font-size: 12px; color: #52525b;">AI Football Predictions · deepfoot.ai</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

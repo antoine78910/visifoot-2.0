@@ -3,6 +3,7 @@
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useGeoCurrency } from "@/hooks/useGeoCurrency";
 import { formatPrice } from "@/lib/geoCurrency";
+import { getWhopCheckoutUrl } from "@/lib/whopCheckout";
 
 const PRO_FEATURE_KEYS = [
   "pricing.featureUnlimited",
@@ -77,6 +78,9 @@ export default function PricingPage() {
           </ul>
           <button
             type="button"
+            onClick={() => {
+              window.location.href = getWhopCheckoutUrl("pro", currencyConfig.currency);
+            }}
             className="mt-6 w-full py-3 px-4 rounded-xl font-medium text-white bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 transition"
           >
             {t("pricing.upgradePro")}
@@ -113,6 +117,9 @@ export default function PricingPage() {
           </ul>
           <button
             type="button"
+            onClick={() => {
+              window.location.href = getWhopCheckoutUrl("lifetime", currencyConfig.currency);
+            }}
             className="mt-6 w-full py-3 px-4 rounded-xl font-medium text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 transition"
           >
             {t("pricing.upgradeLifetime")}
