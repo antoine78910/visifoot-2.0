@@ -1,11 +1,12 @@
 "use client";
 
+import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { MatchInput } from "@/components/MatchInput";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAppBasePath } from "@/contexts/AppBasePathContext";
 
-export default function MatchesPage() {
+function MatchesContent() {
   const { t } = useLanguage();
   const basePath = useAppBasePath();
   const searchParams = useSearchParams();
@@ -25,5 +26,13 @@ export default function MatchesPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function MatchesPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-zinc-400 text-center">Loading...</div>}>
+      <MatchesContent />
+    </Suspense>
   );
 }

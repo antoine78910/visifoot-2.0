@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { SignupModal } from "@/components/SignupModal";
 import { MatchInput } from "@/components/MatchInput";
@@ -8,7 +8,7 @@ import Link from "next/link";
 import { AUTH_STORAGE_KEY } from "@/lib/auth";
 import { getAppHref } from "@/lib/app-url";
 
-export default function AnalysePage() {
+function AnalyseContent() {
   const [showSignupModal, setShowSignupModal] = useState(false);
   const [pendingMatch, setPendingMatch] = useState<{ home: string; away: string } | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -85,5 +85,17 @@ export default function AnalysePage() {
       </p>
       <SignupModal open={showSignupModal} onClose={handleCloseModal} onSignIn={handleSignIn} pendingMatch={pendingMatch} />
     </main>
+  );
+}
+
+export default function AnalysePage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen bg-app-gradient flex flex-col items-center justify-center px-4 py-12">
+        <div className="text-zinc-400">Loading...</div>
+      </main>
+    }>
+      <AnalyseContent />
+    </Suspense>
   );
 }
