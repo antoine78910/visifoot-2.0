@@ -54,6 +54,10 @@ type Result = {
   h2h_home_pct?: number;
   goals_home_pct?: number;
   overall_home_pct?: number;
+  match_over?: boolean;
+  final_score_home?: number;
+  final_score_away?: number;
+  match_statistics?: { type: string; home_value: string | number; away_value: string | number }[];
   [k: string]: unknown;
 };
 
@@ -198,6 +202,40 @@ const FLASHY_GOLD = "text-[#eab308]";
 const FLASHY_RED = "text-[#ef4444]";
 const FLASHY_BLUE = "text-[#00ffe8]";
 
+const STAT_TYPE_TO_KEY: Record<string, string> = {
+  "Ball Possession": "matchOver.stat.possession",
+  "Possession": "matchOver.stat.possession",
+  "Total Shots": "matchOver.stat.totalShots",
+  "Shots on Goal": "matchOver.stat.shotsOnTarget",
+  "Shots on target": "matchOver.stat.shotsOnTarget",
+  "Shots off Goal": "matchOver.stat.shotsOffTarget",
+  "Shots off target": "matchOver.stat.shotsOffTarget",
+  "Corner Kicks": "matchOver.stat.corners",
+  "Corners": "matchOver.stat.corners",
+  "Offsides": "matchOver.stat.offsides",
+  "Fouls": "matchOver.stat.fouls",
+  "Yellow Cards": "matchOver.stat.yellowCards",
+  "Passes %": "matchOver.stat.passAccuracy",
+  "Pass accuracy": "matchOver.stat.passAccuracy",
+};
+
+function statLabelFromType(type: string, t: (key: string) => string): string {
+  const key = STAT_TYPE_TO_KEY[type] ?? STAT_TYPE_TO_KEY[type.trim()];
+  return key ? t(key) : type;
+}
+
+function statIconFromType(type: string) {
+  const t = (type || "").toLowerCase();
+  if (t.includes("possession")) return <span className="text-base">⚽</span>;
+  if (t.includes("shot") || t.includes("goal")) return <span className="text-base">🎯</span>;
+  if (t.includes("corner")) return <span className="text-base">🚩</span>;
+  if (t.includes("offside")) return <span className="text-base">⛔</span>;
+  if (t.includes("foul")) return <span className="text-base">⚠️</span>;
+  if (t.includes("yellow")) return <span className="text-base">🟨</span>;
+  if (t.includes("pass")) return <span className="text-base">📊</span>;
+  return <span className="text-base">📈</span>;
+}
+
 export function AnalysisResult({ result }: { result: Result }) {
   const home = result.home_team ?? "Home";
   const away = result.away_team ?? "Away";
@@ -256,6 +294,92 @@ export function AnalysisResult({ result }: { result: Result }) {
           </div>
         )}
       </div>
+
+      {/* Match terminé : bandeau teal + score final + stats */}
+      {result.match_over && result.final_score_home != null && result.final_score_away != null && (
+        <>
+          <div className="rounded-2xl bg-[#0d4d47] border border-[#22c5ba]/30 p-5 text-white">
+            <p className="text-sm leading-relaxed">
+              {t("matchOver.banner")
+                .replace("{home}", home)
+                .replace("{away}", away)}
+            </p>
+          </div>
+          <section className="rounded-2xl bg-[#14141c] border border-white/10 p-6">
+            <h2 className="text-lg font-semibold text-white text-center mb-6">{t("matchOver.finalScore")}</h2>
+            <div className="flex items-center justify-center gap-6 flex-wrap">
+              <div className="flex flex-col items-center gap-2 min-w-[100px]">
+                {result.home_team_logo ? (
+                  <img src={result.home_team_logo} alt="" className="w-16 h-16 object-contain" />
+                ) : (
+                  <div className="w-16 h-16 rounded-xl bg-[#1c1c28] flex items-center justify-center text-white font-bold">{home.slice(0, 2)}</div>
+                )}
+                <span className="text-white font-medium">{home}</span>
+              </div>
+              <div className="flex flex-col items-center gap-0.5">
+                <span className="text-zinc-500 text-sm">–</span>
+                <div className="flex items-baseline gap-2">
+                  <span className={`text-3xl font-bold ${HOME_COLOR}`}>{result.final_score_home}</span>
+                  <span className="text-zinc-500 text-xl">-</span>
+                  <span className={`text-3xl font-bold ${AWAY_COLOR}`}>{result.final_score_away}</span>
+                </div>
+              </div>
+              <div className="flex flex-col items-center gap-2 min-w-[100px]">
+                {result.away_team_logo ? (
+                  <img src={result.away_team_logo} alt="" className="w-16 h-16 object-contain" />
+                ) : (
+                  <div className="w-16 h-16 rounded-xl bg-[#1c1c28] flex items-center justify-center text-white font-bold">{away.slice(0, 2)}</div>
+                )}
+                <span className="text-white font-medium">{away}</span>
+              </div>
+            </div>
+          </section>
+          {result.match_statistics && result.match_statistics.length > 0 && (
+            <section className="rounded-2xl bg-[#14141c] border border-white/10 p-6">
+              <h2 className="text-lg font-semibold text-white mb-5 flex items-center gap-2">
+                <span className="text-zinc-400">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                </span>
+                {t("matchOver.matchStatistics")}
+              </h2>
+              <div className="space-y-5">
+                {result.match_statistics.map((stat, idx) => {
+                  const label = statLabelFromType(stat.type, t);
+                  const homeVal = stat.home_value;
+                  const awayVal = stat.away_value;
+                  const homeNum = typeof homeVal === "string" ? parseFloat(String(homeVal).replace("%", "")) : Number(homeVal);
+                  const awayNum = typeof awayVal === "string" ? parseFloat(String(awayVal).replace("%", "")) : Number(awayVal);
+                  const total = homeNum + awayNum;
+                  const homePct = total > 0 ? (homeNum / total) * 100 : 50;
+                  const isPct = typeof homeVal === "string" && String(homeVal).includes("%");
+                  const homeDisplay = isPct ? `${homeNum}%` : String(homeVal);
+                  const awayDisplay = isPct ? `${awayNum}%` : String(awayVal);
+                  return (
+                    <div key={idx} className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-zinc-400 flex items-center gap-2">
+                          {statIconFromType(stat.type)}
+                          {label}
+                        </span>
+                        <span className="flex gap-4 tabular-nums">
+                          <span className={HOME_COLOR}>{homeDisplay}</span>
+                          <span className={AWAY_COLOR}>{awayDisplay}</span>
+                        </span>
+                      </div>
+                      <div className="h-3 bg-[#1c1c28] rounded-full overflow-hidden flex">
+                        <div className="h-full rounded-l-full transition-all" style={{ width: `${Math.min(100, Math.max(0, homePct))}%`, background: HOME_HEX }} />
+                        <div className="h-full flex-1 rounded-r-full opacity-80" style={{ background: AWAY_HEX }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+        </>
+      )}
 
       {/* Recent form - style flashy avec gros indicateurs */}
       <section className="rounded-2xl bg-[#14141c] border border-white/10 p-6">

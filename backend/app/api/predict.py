@@ -24,6 +24,109 @@ from app.services.api_football import get_predictions as api_get_predictions
 router = APIRouter(prefix="/predict", tags=["predict"])
 
 
+def _parse_pct(s: str) -> float:
+    if not s:
+        return 0.0
+    s = str(s).strip().rstrip("%")
+    try:
+        return round(float(s), 1)
+    except ValueError:
+        return 0.0
+
+
+def _implied_odds(p: float) -> float:
+    return round(100 / max(p, 0.5), 2) if p else 0.0
+
+
+def _out_from_api_predictions(api_pred: dict) -> dict:
+    """
+    Construit l'objet `out` UNIQUEMENT à partir de la réponse API-Football Predictions.
+    Aucune donnée de notre modèle Poisson : pas d'interférence.
+    Les champs que l'API ne fournit pas (BTTS, exact_scores, grille over/under complète)
+    sont mis en valeurs neutres (50/50, liste vide) pour garder le schéma de réponse valide.
+    """
+    pred = api_pred.get("predictions") or {}
+    pct = pred.get("percent") or {}
+    prob_home = _parse_pct(pct.get("home"))
+    prob_draw = _parse_pct(pct.get("draw"))
+    prob_away = _parse_pct(pct.get("away"))
+
+    # xG : l'API peut avoir teams.home.last_5.goals.for.average (string "0.6")
+    teams = api_pred.get("teams") or {}
+    home_team_data = teams.get("home") or {}
+    away_team_data = teams.get("away") or {}
+    home_goals = home_team_data.get("last_5") or {}
+    away_goals = away_team_data.get("last_5") or {}
+    h_for = (home_goals.get("goals") or {}).get("for") or {}
+    h_against = (home_goals.get("goals") or {}).get("against") or {}
+    a_for = (away_goals.get("goals") or {}).get("for") or {}
+    a_against = (away_goals.get("goals") or {}).get("against") or {}
+
+    def _avg(d: dict, key: str) -> float:
+        v = d.get(key) if isinstance(d, dict) else None
+        if v is None:
+            return 0.0
+        try:
+            return round(float(str(v).replace(",", ".")), 2)
+        except ValueError:
+            return 0.0
+
+    xg_home = _avg(h_for, "average") or 0.0
+    xg_away = _avg(a_for, "average") or 0.0
+    if xg_home == 0.0 and xg_away == 0.0:
+        xg_home = 1.0
+        xg_away = 1.0
+    xg_total = round(xg_home + xg_away, 2)
+
+    # Over/Under : l'API donne une seule ligne (ex. "-3.5" = under 3.5, "+2.5" = over 2.5). Les autres lignes en 50/50
+    under_over_raw = (pred.get("under_over") or "").strip()
+    api_line = under_over_raw.lstrip("+-").strip() if under_over_raw else None
+    over_under = []
+    for line in ["0.5", "1.5", "2.5", "3.5"]:
+        if api_line == line and under_over_raw.startswith("-"):
+            over_under.append({"line": line, "over_pct": 30.0, "under_pct": 70.0})
+        elif api_line == line and under_over_raw.startswith("+"):
+            over_under.append({"line": line, "over_pct": 70.0, "under_pct": 30.0})
+        else:
+            over_under.append({"line": line, "over_pct": 50.0, "under_pct": 50.0})
+
+    # Double chance dérivées uniquement du 1X2 API
+    double_chance_1x = round(prob_home + prob_draw, 1)
+    double_chance_x2 = round(prob_draw + prob_away, 1)
+    double_chance_12 = round(prob_home + prob_away, 1)
+    upset = round(min(prob_home, prob_away), 1)
+
+    return {
+        "xg_home": round(xg_home, 2),
+        "xg_away": round(xg_away, 2),
+        "xg_total": xg_total,
+        "prob_home": prob_home,
+        "prob_draw": prob_draw,
+        "prob_away": prob_away,
+        "implied_odds_home": _implied_odds(prob_home),
+        "implied_odds_draw": _implied_odds(prob_draw),
+        "implied_odds_away": _implied_odds(prob_away),
+        "btts_yes_pct": 50.0,
+        "btts_no_pct": 50.0,
+        "over_under": over_under,
+        "exact_scores": [],
+        "most_likely_score": {"home": 0, "away": 0, "probability": 0.0},
+        "total_goals_distribution": {"0": 25.0, "1": 25.0, "2": 25.0, "3+": 25.0},
+        "goal_difference_dist": {"1": 34.0, "2": 33.0, "3+": 33.0},
+        "double_chance_1x": double_chance_1x,
+        "double_chance_x2": double_chance_x2,
+        "double_chance_12": double_chance_12,
+        "asian_handicap": {
+            "home_neg1_pct": 50.0,
+            "home_plus1_pct": 50.0,
+            "away_neg1_pct": 50.0,
+            "away_plus1_pct": 50.0,
+        },
+        "upset_probability": upset,
+        "api_advice": (pred.get("advice") or "").strip() or None,
+    }
+
+
 def _build_response(
     ctx: dict,
     out: dict,
@@ -80,6 +183,10 @@ def _build_response(
         "h2h_home_pct": pcts.get("h2h_home_pct"),
         "goals_home_pct": pcts.get("goals_home_pct"),
         "overall_home_pct": pcts.get("overall_home_pct"),
+        "match_over": ctx.get("match_over"),
+        "final_score_home": ctx.get("final_score_home"),
+        "final_score_away": ctx.get("final_score_away"),
+        "match_statistics": ctx.get("match_statistics"),
     }
 
 
@@ -101,33 +208,16 @@ def run_predict_with_progress(
         away_team_id=payload.away_team_id,
     )
     report("Computing probabilities…", 62)
-    out = predict_all(ctx["lambda_home"], ctx["lambda_away"])
 
-    # Option: remplacer 1X2 par les prédictions API-Football si fixture trouvée
+    # Mode API : uniquement les données API-Football Predictions, aucune donnée de notre modèle
     if payload.use_api_predictions and ctx.get("fixture_id"):
         api_pred = api_get_predictions(ctx["fixture_id"])
         if api_pred:
-            pred = api_pred.get("predictions") or {}
-            pct = pred.get("percent") or {}
-            def _pct(s: str) -> float:
-                if not s:
-                    return 0.0
-                s = str(s).strip().rstrip("%")
-                try:
-                    return round(float(s), 1)
-                except ValueError:
-                    return 0.0
-            out["prob_home"] = _pct(pct.get("home"))
-            out["prob_draw"] = _pct(pct.get("draw"))
-            out["prob_away"] = _pct(pct.get("away"))
-            # Cotes implicites cohérentes avec les nouveaux 1X2
-            def _impl(p: float) -> float:
-                return round(100 / max(p, 0.5), 2) if p else 0.0
-            out["implied_odds_home"] = _impl(out["prob_home"])
-            out["implied_odds_draw"] = _impl(out["prob_draw"])
-            out["implied_odds_away"] = _impl(out["prob_away"])
-            if pred.get("advice"):
-                out["api_advice"] = pred.get("advice")
+            out = _out_from_api_predictions(api_pred)
+        else:
+            out = predict_all(ctx["lambda_home"], ctx["lambda_away"])
+    else:
+        out = predict_all(ctx["lambda_home"], ctx["lambda_away"])
 
     ai: dict = {}
     report("Generating AI summary…", 75)
@@ -152,7 +242,12 @@ def run_predict_with_progress(
         )
         if news_text:
             prompt_ctx = prompt_ctx + "\n\n" + news_text
-        ai = generate_ai_analysis(prompt_ctx, ctx["home_team"], ctx["away_team"])
+        ai = generate_ai_analysis(
+            prompt_ctx,
+            ctx["home_team"],
+            ctx["away_team"],
+            language=payload.language,
+        )
     except Exception:
         ai = {"quick_summary": None, "scenario_1": None}
 

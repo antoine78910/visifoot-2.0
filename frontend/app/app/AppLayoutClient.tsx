@@ -8,9 +8,9 @@ import { useAppBasePath } from "@/contexts/AppBasePathContext";
 import { getUserFromStorage, clearAuthCookie, clearUserFromStorage, type UserInfo, type PlanId } from "@/lib/auth";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
-const navKeys = [
+const navKeys: { path: string; key: string; icon: typeof BarChartIcon; soon?: boolean }[] = [
   { path: "/matches", key: "nav.matches", icon: BarChartIcon },
-  { path: "/competitions", key: "nav.competitions", icon: TrophyIcon },
+  { path: "/competitions", key: "nav.competitions", icon: TrophyIcon, soon: true },
   { path: "/history", key: "nav.history", icon: HistoryIcon },
 ];
 
@@ -139,15 +139,32 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
         <nav className="px-4 flex-1">
           <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider px-3 mb-2">Analysis</p>
           <ul className="space-y-0.5">
-            {navKeys.map(({ path, key, icon: Icon }) => {
+            {navKeys.map(({ path, key, icon: Icon, soon }) => {
               const href = `${basePath}${path}`;
               const internalPath = `/app${path}`;
               const label = t(key);
               const active =
-                pathname === href ||
-                pathname === internalPath ||
-                (path !== "/" && pathname?.startsWith(href)) ||
-                (path !== "/" && pathname?.startsWith(internalPath));
+                !soon &&
+                (pathname === href ||
+                  pathname === internalPath ||
+                  (path !== "/" && pathname?.startsWith(href)) ||
+                  (path !== "/" && pathname?.startsWith(internalPath)));
+              if (soon) {
+                return (
+                  <li key={path}>
+                    <span
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-zinc-500 cursor-not-allowed border border-transparent"
+                      aria-disabled
+                    >
+                      <Icon className="flex-shrink-0 opacity-60" />
+                      <span className="flex-1">{label}</span>
+                      <span className="text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded bg-zinc-700 text-zinc-400">
+                        {t("nav.soon")}
+                      </span>
+                    </span>
+                  </li>
+                );
+              }
               return (
                 <li key={path}>
                   <Link
@@ -211,6 +228,17 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
               </p>
             </div>
           </div>
+          <Link
+            href={`${basePath}/account`}
+            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
+              pathname === `${basePath}/account` || pathname === "/app/account"
+                ? "bg-[#00ffe8]/15 border border-[#00ffe8]/70 text-[#00ffe8]"
+                : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
+            }`}
+          >
+            <UserIcon className="flex-shrink-0" />
+            {t("nav.account")}
+          </Link>
           <Link
             href={`${basePath}/settings`}
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"

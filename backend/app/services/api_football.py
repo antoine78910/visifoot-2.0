@@ -823,6 +823,37 @@ def get_predictions(fixture_id: int) -> Optional[dict]:
     return raw[0]
 
 
+def get_fixture_statistics(
+    fixture_id: int,
+    home_team_id: int,
+    away_team_id: int,
+) -> Optional[list[dict]]:
+    """
+    GET /fixtures/statistics?fixture=X — statistiques du match (2 équipes).
+    Retourne une liste de { "type": str, "home_value": str|int, "away_value": str|int }.
+    """
+    if not _use_api():
+        return None
+    data = _get("/fixtures/statistics", params={"fixture": fixture_id})
+    raw = data.get("response") or []
+    if len(raw) < 2:
+        return None
+    by_team: dict[int, dict[str, Any]] = {}
+    for item in raw:
+        tid = (item.get("team") or {}).get("id")
+        if tid is None:
+            continue
+        by_team[tid] = {s.get("type"): s.get("value") for s in (item.get("statistics") or []) if s.get("type")}
+    stats_home = by_team.get(home_team_id) or {}
+    stats_away = by_team.get(away_team_id) or {}
+    all_types = sorted(set(stats_home.keys()) | set(stats_away.keys()))
+    return [
+        {"type": typ, "home_value": stats_home.get(typ), "away_value": stats_away.get(typ)}
+        for typ in all_types
+        if stats_home.get(typ) is not None or stats_away.get(typ) is not None
+    ]
+
+
 def get_team_by_id(team_id: int) -> Optional[dict]:
     """Infos d'une équipe (id, name, logo, venue/stadium). 1 requête par équipe."""
     if not _use_api():

@@ -118,6 +118,7 @@ def _load_match_context_api_football(
         get_fixtures_headtohead_multi_season,
         get_weighted_h2h_home_pct,
         guess_common_league_name,
+        get_fixture_statistics,
     )
     report("Resolving teams…", 5)
     home_id = home_team_id if home_team_id is not None else resolve_team_name_to_id(home_team)
@@ -255,6 +256,41 @@ def _load_match_context_api_football(
         h2h_h, h2h_d, h2h_a,
         h2h_home_pct_override=h2h_weighted_pct,
     )
+
+    # Si pas de prochain match mais un dernier H2H terminé (FT) : score final + stats du match
+    match_over = False
+    final_score_home: Any = None
+    final_score_away: Any = None
+    match_statistics: Any = None
+    if fixture_id is None and h2h_fixtures:
+        last_h2h = h2h_fixtures[0]
+        fix_last = last_h2h.get("fixture") or {}
+        status = (fix_last.get("status") or {}).get("short") if isinstance(fix_last.get("status"), dict) else str(fix_last.get("status") or "")
+        if status == "FT":
+            match_over = True
+            last_fid = fix_last.get("id")
+            teams_last = last_h2h.get("teams") or {}
+            f_home_id = (teams_last.get("home") or {}).get("id")
+            f_away_id = (teams_last.get("away") or {}).get("id")
+            goals_last = last_h2h.get("goals") or {}
+            g_h = goals_last.get("home")
+            g_a = goals_last.get("away")
+            if home_id == f_home_id:
+                final_score_home = g_h
+                final_score_away = g_a
+            else:
+                final_score_home = g_a
+                final_score_away = g_h
+            if last_fid and f_home_id is not None and f_away_id is not None:
+                stats_raw = get_fixture_statistics(last_fid, f_home_id, f_away_id)
+                if stats_raw and home_id != f_home_id:
+                    match_statistics = [
+                        {"type": s["type"], "home_value": s["away_value"], "away_value": s["home_value"]}
+                        for s in stats_raw
+                    ]
+                else:
+                    match_statistics = stats_raw
+
     return {
         "home_team": home_team,
         "away_team": away_team,
@@ -273,6 +309,10 @@ def _load_match_context_api_football(
         "fixture_id": fixture_id,
         "home_team_logo": home_team_logo,
         "away_team_logo": away_team_logo,
+        "match_over": match_over,
+        "final_score_home": final_score_home,
+        "final_score_away": final_score_away,
+        "match_statistics": match_statistics,
     }
 
 

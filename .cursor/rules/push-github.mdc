@@ -1,0 +1,15 @@
+---
+description: Push changes to GitHub at the end of modifications
+alwaysApply: true
+---
+
+# Push to GitHub after modifications
+
+At the **end of any session where you modified the codebase**:
+
+1. Stage and commit the changes with a clear message (e.g. `git add -A && git commit -m "feat: description of changes"`).
+2. Push to the remote: `git push` (or `git push origin main` / `git push origin master` according to the default branch).
+
+Do not push if the user explicitly asked not to, or if they are in the middle of a multi-step task and said they will push later.
+
+If the user has uncommitted changes from a previous session, you may offer to commit and push those as well when finishing your own modifications.

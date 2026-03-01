@@ -64,7 +64,7 @@ export function MatchInput({
   const [upcoming, setUpcoming] = useState<UpcomingFixture[]>([]);
   const [loadingUpcoming, setLoadingUpcoming] = useState(false);
   const router = useRouter();
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const submitIdRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -183,6 +183,7 @@ export function MatchInput({
         home_team: homeTeam.trim(),
         away_team: awayTeam.trim(),
         use_api_predictions: useApiPredictions,
+        language: lang,
       };
       const homeId = homeTeamOption?.id != null ? Number(homeTeamOption.id) : NaN;
       const awayId = awayTeamOption?.id != null ? Number(awayTeamOption.id) : NaN;

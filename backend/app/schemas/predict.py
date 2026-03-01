@@ -9,6 +9,7 @@ class PredictRequest(BaseModel):
     home_team_id: Optional[int] = Field(None, description="ID API équipe domicile (prioritaire si fourni)")
     away_team_id: Optional[int] = Field(None, description="ID API équipe extérieur (prioritaire si fourni)")
     use_api_predictions: bool = Field(False, description="Si True et fixture trouvée: 1X2 depuis API-Football Predictions au lieu du modèle Poisson")
+    language: Optional[str] = Field(None, description="Langue de l'analyse (fr, en). Si absent, déduit des noms d'équipes.")
 
 
 class ExactScoreItem(BaseModel):
@@ -106,3 +107,9 @@ class PredictResponse(BaseModel):
     h2h_home_pct: Optional[float] = None
     goals_home_pct: Optional[float] = None
     overall_home_pct: Optional[float] = None
+
+    # Match terminé : score final + stats d'après-match
+    match_over: Optional[bool] = None
+    final_score_home: Optional[int] = None
+    final_score_away: Optional[int] = None
+    match_statistics: Optional[list[dict]] = None  # [{ "type", "home_value", "away_value" }]

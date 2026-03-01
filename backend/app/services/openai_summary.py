@@ -82,10 +82,13 @@ def generate_scenario_1(context: str) -> str:
         return "Scenario based on expected goals and recent form."
 
 
-def generate_ai_analysis(context: str, home_team: str, away_team: str) -> dict:
+def generate_ai_analysis(
+    context: str, home_team: str, away_team: str, language: str | None = None
+) -> dict:
     """
     Single OpenAI call returning JSON: quick_summary, scenario_1, scenario_2, scenario_3, scenario_4,
     key_forces_home, key_forces_away. Speeds up analysis vs multiple calls.
+    language: "fr" or "en" to force output language; if None, infer from team names.
     """
     default = {
         "quick_summary": "Summary based on stats and form.",
@@ -99,13 +102,24 @@ def generate_ai_analysis(context: str, home_team: str, away_team: str) -> dict:
     client = _client()
     if not client:
         return default
-    system = """You are a football analysis assistant. Based on the match context, return a JSON object with exactly these keys (use the same language as the team names, e.g. French if teams are French):
+    lang_instruction = (
+        " Write the ENTIRE response (quick_summary, scenario_1, scenario_2, scenario_3, scenario_4, key_forces_home, key_forces_away) in French."
+        if (language or "").strip().lower() == "fr"
+        else (
+            " Write the ENTIRE response in English."
+            if (language or "").strip().lower() == "en"
+            else " Use the same language as the team names (e.g. French if teams are French)."
+        )
+    )
+    system = """You are a football analysis assistant. Based on the match context, return a JSON object with exactly these keys."""
+    system += lang_instruction
+    system += """
 - quick_summary: 2-3 sentences. Always use the REAL team names, league name, and venue from the context (e.g. "Monaco hosts Angers in a Ligue 1 match at Stade Louis II") — never output placeholder text like [Home], [Away], [League] or [Venue]. If "Latest football news" is provided in the context, add: "Our AI, connected to the latest football news, takes into account the latest info: " then briefly mention relevant news for each side. Otherwise give a neutral summary based on teams, form, and main takeaway.
 - scenario_1: One paragraph describing how the match might unfold (who dominates, when goals might come).
-- scenario_2: Object with title (short, e.g. "Home win"), body (2 sentences + optional "Professional tip: ..."), probability_pct (number or null).
-- scenario_3: Same structure as scenario_2 (e.g. "Offensive duel", "Goals galore", over 2.5).
-- scenario_4: Same structure (e.g. "Offensive inefficiency", BTTS No).
-- key_forces_home: Array of 2-4 short bullet points (e.g. "Good recent form", "Powerful attack"). You may derive from news if provided.
+- scenario_2: Object with title (short), body (2 sentences + optional "Professional tip: ..."), probability_pct (number or null).
+- scenario_3: Same structure as scenario_2 (e.g. offensive duel, goals galore, over 2.5).
+- scenario_4: Same structure (e.g. offensive inefficiency, BTTS No).
+- key_forces_home: Array of 2-4 short bullet points. You may derive from news if provided.
 - key_forces_away: Array of 2-4 short bullet points for the away team.
 Return only valid JSON, no markdown."""
     try:
