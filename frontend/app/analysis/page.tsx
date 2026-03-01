@@ -19,21 +19,21 @@ export default function AnalysisPage() {
         const away = typeof parsed?.away_team === "string" ? parsed.away_team.trim() : "";
         if (home && away) {
           const params = new URLSearchParams({ home_team: home, away_team: away });
+          params.set("_t", String(Date.now()));
           fetch(`${API_URL}/predict/match-result?${params}`)
             .then((r) => (r.ok ? r.json() : null))
             .then((enrich) => {
               if (enrich && typeof enrich === "object") {
-                setData((prev) =>
-                  prev
-                    ? {
-                        ...prev,
-                        match_over: enrich.match_over,
-                        final_score_home: enrich.final_score_home,
-                        final_score_away: enrich.final_score_away,
-                        match_statistics: enrich.match_statistics,
-                      }
-                    : prev
-                );
+                setData((prev) => {
+                  if (!prev) return prev;
+                  const next = { ...prev };
+                  if (enrich.match_over !== undefined) next.match_over = enrich.match_over;
+                  if (enrich.final_score_home !== undefined) next.final_score_home = enrich.final_score_home;
+                  if (enrich.final_score_away !== undefined) next.final_score_away = enrich.final_score_away;
+                  if (Array.isArray(enrich.match_statistics) && enrich.match_statistics.length > 0)
+                    next.match_statistics = enrich.match_statistics;
+                  return next;
+                });
               }
             })
             .catch(() => {});

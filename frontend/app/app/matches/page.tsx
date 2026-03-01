@@ -4,11 +4,9 @@ import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { MatchInput } from "@/components/MatchInput";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useAppBasePath } from "@/contexts/AppBasePathContext";
 
 function MatchesContent() {
   const { t } = useLanguage();
-  const basePath = useAppBasePath();
   const searchParams = useSearchParams();
   const home = searchParams.get("home") ?? "";
   const away = searchParams.get("away") ?? "";
@@ -23,7 +21,7 @@ function MatchesContent() {
         </p>
         <div className="mt-8">
           <MatchInput
-            redirectTo={`${basePath}/analysis`}
+            redirectTo="/app/analysis"
             initialHome={home}
             initialAway={away}
             useApiPredictions={false}

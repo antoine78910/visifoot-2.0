@@ -4,14 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AnalysisResult } from "@/components/AnalysisResult";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useAppBasePath } from "@/contexts/AppBasePathContext";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export default function AppAnalysisPage() {
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   const { t } = useLanguage();
-  const basePath = useAppBasePath();
 
   useEffect(() => {
     const raw = sessionStorage.getItem("visifoot_analysis");
@@ -23,21 +21,21 @@ export default function AppAnalysisPage() {
         const away = typeof parsed?.away_team === "string" ? parsed.away_team.trim() : "";
         if (home && away) {
           const params = new URLSearchParams({ home_team: home, away_team: away });
+          params.set("_t", String(Date.now()));
           fetch(`${API_URL}/predict/match-result?${params}`)
             .then((r) => (r.ok ? r.json() : null))
             .then((enrich) => {
               if (enrich && typeof enrich === "object") {
-                setData((prev) =>
-                  prev
-                    ? {
-                        ...prev,
-                        match_over: enrich.match_over,
-                        final_score_home: enrich.final_score_home,
-                        final_score_away: enrich.final_score_away,
-                        match_statistics: enrich.match_statistics,
-                      }
-                    : prev
-                );
+                setData((prev) => {
+                  if (!prev) return prev;
+                  const next = { ...prev };
+                  if (enrich.match_over !== undefined) next.match_over = enrich.match_over;
+                  if (enrich.final_score_home !== undefined) next.final_score_home = enrich.final_score_home;
+                  if (enrich.final_score_away !== undefined) next.final_score_away = enrich.final_score_away;
+                  if (Array.isArray(enrich.match_statistics) && enrich.match_statistics.length > 0)
+                    next.match_statistics = enrich.match_statistics;
+                  return next;
+                });
               }
             })
             .catch(() => {});
@@ -55,7 +53,7 @@ export default function AppAnalysisPage() {
       <div className="p-8 w-full flex flex-col items-center">
         <div className="w-full max-w-xl mx-auto">
           <p className="text-zinc-400 mb-4">{t("analysis.noData")}</p>
-          <Link href={`${basePath}/matches`} className="text-accent-cyan hover:underline">{t("history.analyzeMatch")}</Link>
+          <Link href="/app/matches" className="text-accent-cyan hover:underline">{t("history.analyzeMatch")}</Link>
         </div>
       </div>
     );
@@ -64,7 +62,7 @@ export default function AppAnalysisPage() {
   return (
     <div className="p-8 pb-16 w-full flex flex-col items-center">
       <div className="w-full max-w-4xl mx-auto">
-        <Link href={`${basePath}/matches`} className="inline-block text-zinc-500 hover:text-accent-cyan text-sm mb-8">
+        <Link href="/app/matches" className="inline-block text-zinc-500 hover:text-accent-cyan text-sm mb-8">
           ← {t("analysis.newAnalysis")}
         </Link>
         <AnalysisResult result={data} />

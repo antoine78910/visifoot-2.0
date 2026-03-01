@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     api_football_key: str = ""
     api_football_base_url: str = "https://v3.football.api-sports.io"
     admin_api_key: str = ""  # Si défini, requiert X-Admin-Key pour /admin/*
+    # Polling matchs terminés (FT) : intervalle en secondes (10 = test, 3600 = 1h)
+    polling_interval_seconds: int = 10
     # NewsAPI.org (optionnel) — actualités pour le quick summary style Visifoot
     news_api_key: str = ""
 

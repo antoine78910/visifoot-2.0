@@ -34,3 +34,6 @@ npm-debug.log*
 
 # Supabase
 .supabase/
+
+# Polling state (matchs traités)
+backend/data/

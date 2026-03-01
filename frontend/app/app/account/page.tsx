@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useAppBasePath } from "@/contexts/AppBasePathContext";
 import { getUserFromStorage } from "@/lib/auth";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { UnsubscribeOfferModal } from "@/components/UnsubscribeOfferModal";
@@ -65,7 +64,6 @@ const PLAN_KEYS: Record<string, string> = {
 
 export default function AccountPage() {
   const { t } = useLanguage();
-  const basePath = useAppBasePath();
   const { config: currencyConfig } = useGeoCurrency();
   const [user, setUser] = useState<ReturnType<typeof getUserFromStorage>>(null);
   const [unsubscribeModalOpen, setUnsubscribeModalOpen] = useState(false);
@@ -193,7 +191,7 @@ export default function AccountPage() {
 
         <div className="flex flex-wrap gap-3">
           <Link
-            href={`${basePath}/pricing`}
+            href="/app/pricing"
             className="px-4 py-2.5 rounded-xl bg-zinc-700 hover:bg-zinc-600 text-white text-sm font-medium transition"
           >
             {t("account.seeAllPlans")}

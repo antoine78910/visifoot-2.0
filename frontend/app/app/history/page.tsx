@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useAppBasePath } from "@/contexts/AppBasePathContext";
 
 const HISTORY_KEY = "visifoot_history";
 
@@ -57,7 +56,6 @@ export default function HistoryPage() {
   const [items, setItems] = useState<HistoryItem[]>([]);
   const router = useRouter();
   const { t } = useLanguage();
-  const basePath = useAppBasePath();
 
   useEffect(() => {
     try {
@@ -75,7 +73,7 @@ export default function HistoryPage() {
       fromHistory: "true",
       predictionId: item.id,
     });
-    router.push(`${basePath}/analyze?${params.toString()}`);
+    router.push(`/app/analyze?${params.toString()}`);
   };
 
   return (
@@ -92,7 +90,7 @@ export default function HistoryPage() {
               {t("history.startBy")}
             </p>
             <Link
-              href={`${basePath}/matches`}
+              href="/app/matches"
               className="mt-8 px-6 py-4 rounded-xl font-semibold text-black bg-gradient-to-r from-[#00ffe8] to-[#00ddcc] hover:opacity-90 transition shadow-glow"
             >
               {t("history.analyzeMatch")}

@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useAppBasePath } from "@/contexts/AppBasePathContext";
 import { getUserFromStorage, clearAuthCookie, clearUserFromStorage, type UserInfo, type PlanId } from "@/lib/auth";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -102,7 +101,6 @@ const PLAN_KEYS: Record<PlanId, string> = {
 export function AppLayoutClient({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { t } = useLanguage();
-  const basePath = useAppBasePath();
   const [user, setUser] = useState<UserInfo | null>(null);
   const analysesUsed = 0;
   const analysesLimit = 1;
@@ -127,7 +125,7 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-app-gradient text-zinc-200 flex">
       <aside className="w-64 flex-shrink-0 sticky top-0 h-screen overflow-y-auto border-r border-dark-border bg-dark-card/50 flex flex-col">
         <div className="px-5 pt-4 pb-3 flex justify-center">
-          <Link href={basePath || "/"} className="flex items-center justify-center">
+          <Link href="/app" className="flex items-center justify-center">
             <img
               src="/logo.png"
               alt="DEEPFOOT"
@@ -140,15 +138,11 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
           <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider px-3 mb-2">Analysis</p>
           <ul className="space-y-0.5">
             {navKeys.map(({ path, key, icon: Icon, soon }) => {
-              const href = `${basePath}${path}`;
-              const internalPath = `/app${path}`;
+              const href = `/app${path}`;
               const label = t(key);
               const active =
                 !soon &&
-                (pathname === href ||
-                  pathname === internalPath ||
-                  (path !== "/" && pathname?.startsWith(href)) ||
-                  (path !== "/" && pathname?.startsWith(internalPath)));
+                (pathname === href || (path !== "/" && pathname?.startsWith(href)));
               if (soon) {
                 return (
                   <li key={path}>
@@ -183,7 +177,7 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
             })}
             <li>
               <Link
-                href={`${basePath}/pricing`}
+                href="/app/pricing"
                 className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm border border-amber-500/50 bg-[#15171c]/80 text-zinc-200 hover:bg-zinc-800/50 hover:border-amber-500/70 transition-colors"
               >
                 <CreditCardIcon className="flex-shrink-0" />
@@ -225,9 +219,9 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <Link
-            href={`${basePath}/account`}
+            href="/app/account"
             className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
-              pathname === `${basePath}/account` || pathname === "/app/account"
+              pathname === "/app/account" || pathname?.startsWith("/app/account")
                 ? "bg-[#00ffe8]/15 border border-[#00ffe8]/70 text-[#00ffe8]"
                 : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
             }`}
@@ -236,14 +230,14 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
             {t("nav.account")}
           </Link>
           <Link
-            href={`${basePath}/settings`}
+            href="/app/settings"
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
           >
             <SettingsIcon className="flex-shrink-0" />
             {t("nav.settings")}
           </Link>
           <Link
-            href={`${basePath}/support`}
+            href="/app/support"
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
           >
             <SupportIcon className="flex-shrink-0" />
