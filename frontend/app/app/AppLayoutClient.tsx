@@ -229,13 +229,23 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
               <BarChartIcon className="w-4 h-4" />
               {t("nav.todayAnalyses")}
             </p>
-            <p className="text-lg font-bold text-white">{analysesUsed}/{analysesLimit == null ? "∞" : analysesLimit}</p>
+            <p className={`text-lg font-bold ${analysesLimit === 0 ? "text-red-400" : "text-white"}`}>
+              {analysesUsed}/{analysesLimit == null ? "∞" : analysesLimit}
+            </p>
             <div className="h-1.5 bg-zinc-800 rounded-full mt-1 overflow-hidden">
               <div
-                className="h-full bg-accent-green rounded-full transition-all"
-                style={{ width: `${analysesLimit != null && analysesLimit > 0 ? Math.min(100, (analysesUsed / analysesLimit) * 100) : 0}%` }}
+                className={`h-full rounded-full transition-all ${analysesLimit === 0 ? "bg-red-500" : "bg-accent-green"}`}
+                style={{ width: `${analysesLimit === 0 ? 100 : analysesLimit != null && analysesLimit > 0 ? Math.min(100, (analysesUsed / analysesLimit) * 100) : 0}%` }}
               />
             </div>
+            {analysesLimit === 0 && (
+              <p className="text-xs text-zinc-400 mt-2">
+                {t("nav.limitReached")} •{" "}
+                <Link href="/app/pricing" className="text-[#00ffe8] hover:underline">
+                  {t("nav.upgradeForMore")}
+                </Link>
+              </p>
+            )}
           </div>
         </nav>
 
@@ -301,13 +311,13 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
             <SettingsIcon className="flex-shrink-0" />
             {t("nav.settings")}
           </Link>
-          <Link
-            href="/app/support"
+          <a
+            href="mailto:app@deepfoot.io"
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
           >
             <SupportIcon className="flex-shrink-0" />
             {t("nav.support")}
-          </Link>
+          </a>
           <button
             type="button"
             onClick={handleSignOut}

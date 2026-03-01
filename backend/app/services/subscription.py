@@ -69,8 +69,8 @@ def get_analysis_limit(plan: str) -> tuple[int | None, bool]:
         return (None, True)
     if plan == PLAN_STARTER:
         return (1, True)  # 1 analyse complète par jour
-    # free
-    return (get_settings().free_analyses_per_day, False)  # 1 par jour, toujours partielle
+    # free : 0 analyse par jour, affichage "0/0" et "Limit reached • Upgrade for more"
+    return (0, False)
 
 
 def can_analyze(user_id: str) -> tuple[bool, str, bool]:
@@ -88,7 +88,7 @@ def can_analyze(user_id: str) -> tuple[bool, str, bool]:
     if limit is None:
         return (True, "", full_analysis)
     if used >= limit:
-        return (False, "Limite atteinte : 1 analyse par jour pour ce plan. Passez à Pro pour des analyses illimitées.", full_analysis)
+        return (False, "Limite atteinte. Passez à un plan payant pour effectuer des analyses.", full_analysis)
     return (True, "", full_analysis)
 
 
