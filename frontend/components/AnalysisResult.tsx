@@ -261,30 +261,8 @@ export function AnalysisResult({ result }: { result: Result }) {
     if (fullAnalysis) return content;
     return (
       <div className="relative">
-        <div className="select-none pointer-events-none blur-md opacity-80" aria-hidden>
+        <div className="select-none pointer-events-none blur-md opacity-90" aria-hidden>
           {content}
-        </div>
-        <div className="absolute inset-0 flex flex-col items-center justify-center min-h-[220px] bg-[#0d0d12]/95 rounded-2xl border border-white/10 p-6">
-          <h3 className="text-lg sm:text-xl font-bold text-white text-center">
-            {t("analysis.limitedAccessTitle")}
-          </h3>
-          <div className="w-full max-w-xs h-2 bg-zinc-700 rounded-full mt-4 overflow-hidden">
-            <div
-              className="h-full bg-[#00ffe8] rounded-full transition-all duration-500"
-              style={{ width: "15%" }}
-            />
-          </div>
-          <p className="text-zinc-300 text-sm text-center mt-4 max-w-md">
-            {t("analysis.limitedAccessDesc")}
-          </p>
-          <button
-            type="button"
-            onClick={openUnlockStep1}
-            className="mt-6 inline-flex items-center gap-2 px-5 py-3 rounded-xl font-semibold text-[#0d0d12] bg-[#00ffe8] hover:bg-[#00ffe8]/90 transition"
-          >
-            <span className="text-lg" aria-hidden>🏆</span>
-            {t("analysis.unlockFullAnalysis")}
-          </button>
         </div>
         <UnlockFullAnalysisModal
           open={showUnlockModal1}
@@ -538,6 +516,32 @@ export function AnalysisResult({ result }: { result: Result }) {
           </div>
         );
       })()}
+
+      {/* Unlock banner — visible for free plan, placed high so it's seen directly */}
+      {!fullAnalysis && (
+        <section className="rounded-2xl bg-[#14141c]/90 border-2 border-[#00ffe8]/30 p-6">
+          <h3 className="text-lg sm:text-xl font-bold text-white text-center">
+            {t("analysis.limitedAccessTitle")}
+          </h3>
+          <div className="w-full max-w-xs h-2 bg-zinc-700 rounded-full mt-4 mx-auto overflow-hidden">
+            <div
+              className="h-full bg-[#00ffe8] rounded-full transition-all duration-500"
+              style={{ width: "15%" }}
+            />
+          </div>
+          <p className="text-zinc-300 text-sm text-center mt-4 max-w-md mx-auto">
+            {t("analysis.limitedAccessDesc")}
+          </p>
+          <button
+            type="button"
+            onClick={openUnlockStep1}
+            className="mt-6 w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-semibold text-[#0d0d12] bg-[#00ffe8] hover:bg-[#00ffe8]/90 transition"
+          >
+            <span className="text-lg" aria-hidden>🏆</span>
+            {t("analysis.unlockFullAnalysis")}
+          </button>
+        </section>
+      )}
 
       {/* From here: blurred for free plan — exact probabilities, distributions, scenarios, etc. */}
       {blurWrap(

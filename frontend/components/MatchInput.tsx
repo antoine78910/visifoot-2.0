@@ -263,7 +263,7 @@ export function MatchInput({
       setProgress(100);
       setProgressStep("Done");
       await new Promise((r) => setTimeout(r, 300));
-      const analyzeUrl = `/app/analyze?${new URLSearchParams({
+      const analyzeUrl = `/analyze?${new URLSearchParams({
         team1: String(data.home_team ?? ""),
         team2: String(data.away_team ?? ""),
         fromHistory: "true",

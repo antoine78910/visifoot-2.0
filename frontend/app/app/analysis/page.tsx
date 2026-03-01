@@ -59,7 +59,7 @@ export default function AppAnalysisPage() {
       <div className="p-8 w-full flex flex-col items-center">
         <div className="w-full max-w-xl mx-auto">
           <p className="text-zinc-400 mb-4">{t("analysis.noData")}</p>
-          <Link href="/app/matches" className="text-accent-cyan hover:underline">{t("history.analyzeMatch")}</Link>
+          <Link href="/matches" className="text-accent-cyan hover:underline">{t("history.analyzeMatch")}</Link>
         </div>
       </div>
     );
@@ -68,7 +68,7 @@ export default function AppAnalysisPage() {
   return (
     <div className="p-8 pb-16 w-full flex flex-col items-center">
       <div className="w-full max-w-4xl mx-auto">
-        <Link href="/app/matches" className="inline-block text-zinc-500 hover:text-accent-cyan text-sm mb-8">
+        <Link href="/matches" className="inline-block text-zinc-500 hover:text-accent-cyan text-sm mb-8">
           ← {t("analysis.newAnalysis")}
         </Link>
         <AnalysisResult result={data} />

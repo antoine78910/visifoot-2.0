@@ -7,8 +7,34 @@ import { useGeoCurrency } from "@/hooks/useGeoCurrency";
 import { formatPrice } from "@/lib/geoCurrency";
 import { getWhopCheckoutUrl } from "@/lib/whopCheckout";
 import { getUserFromStorage } from "@/lib/auth";
+import { Medal, Check, Gem } from "lucide-react";
 
 const ACCENT = "#00ffe8";
+
+function LightningIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z" />
+    </svg>
+  );
+}
+
+function CrownIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z" />
+      <path d="M5 21h14" />
+    </svg>
+  );
+}
+
+function InfinityIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 12c-2-2.67-4-4-6-4a4 4 0 1 0 0 8c2 0 4-1.33 6-4Zm0 0c2 2.67 4 4 6 4a4 4 0 0 0 0-8c-2 0-4 1.33-6 4Z" />
+    </svg>
+  );
+}
 
 export function UnlockPricingModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useLanguage();
@@ -34,12 +60,12 @@ export function UnlockPricingModal({ open, onClose }: { open: boolean; onClose: 
   const modal = (
     <div className="fixed inset-0 z-[101] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
       <div
-        className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl bg-[#101217] border border-white/10 shadow-2xl"
+        className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-[#101217]/90 border border-white/10 shadow-2xl backdrop-blur-md"
         role="dialog"
         aria-modal="true"
         aria-labelledby="pricing-modal-title"
       >
-        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 p-6 pb-4 bg-[#101217] border-b border-white/5">
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 p-6 pb-4 bg-[#101217]/95 border-b border-white/5 backdrop-blur-sm">
           <div>
             <h2 id="pricing-modal-title" className="text-xl sm:text-2xl font-bold text-white">
               {t("unlockModal2.title")}
@@ -63,7 +89,9 @@ export function UnlockPricingModal({ open, onClose }: { open: boolean; onClose: 
             {/* Starter */}
             <div className="rounded-xl bg-[#14141c] border border-zinc-600/60 p-5 flex flex-col">
               <div className="flex items-center gap-2">
-                <span className="text-xl">⚡</span>
+                <span className="w-6 h-6 flex-shrink-0" style={{ color: ACCENT }}>
+                  <LightningIcon className="w-full h-full" />
+                </span>
                 <h3 className="text-lg font-bold text-white">{t("pricing.starter")}</h3>
               </div>
               <div className="mt-3 flex items-baseline gap-1">
@@ -74,16 +102,16 @@ export function UnlockPricingModal({ open, onClose }: { open: boolean; onClose: 
               </div>
               <ul className="mt-4 space-y-2 flex-1 text-sm text-zinc-300">
                 <li className="flex items-center gap-2">
-                  <span className="text-[#00ffe8]">✓</span> {t("pricing.starterFeature1")}
+                  <Check className="w-4 h-4 flex-shrink-0 text-[#00ffe8]" strokeWidth={2.5} /> {t("pricing.starterFeature1")}
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="text-[#00ffe8]">✓</span> {t("pricing.starterFeatureReduced")}
+                  <Check className="w-4 h-4 flex-shrink-0 text-[#00ffe8]" strokeWidth={2.5} /> {t("pricing.starterFeatureReduced")}
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="text-[#00ffe8]">✓</span> {t("pricing.starterFeatureKeyStats")}
+                  <Check className="w-4 h-4 flex-shrink-0 text-[#00ffe8]" strokeWidth={2.5} /> {t("pricing.starterFeatureKeyStats")}
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="text-[#00ffe8]">✓</span> {t("pricing.starterFeatureExactProb")}
+                  <Check className="w-4 h-4 flex-shrink-0 text-[#00ffe8]" strokeWidth={2.5} /> {t("pricing.starterFeatureExactProb")}
                 </li>
               </ul>
               <button
@@ -92,8 +120,7 @@ export function UnlockPricingModal({ open, onClose }: { open: boolean; onClose: 
                   window.location.href = getWhopCheckoutUrl("starter", currencyConfig.currency);
                 }}
                 disabled={currentPlan === "starter"}
-                className="mt-4 w-full py-2.5 px-4 rounded-xl font-semibold text-white text-sm transition disabled:opacity-50"
-                style={{ background: "linear-gradient(135deg, #2070F7 0%, #3AD9B0 100%)" }}
+                className="mt-4 w-full py-2.5 px-4 rounded-xl font-semibold text-sm transition-all duration-300 disabled:opacity-50 disabled:bg-zinc-800/50 disabled:border-zinc-600 disabled:text-zinc-400 disabled:shadow-none bg-transparent border-2 border-[#00ffe8]/50 hover:border-[#00ffe8] text-[#00ffe8] hover:shadow-[0_0_18px_4px_rgba(0,255,232,0.45)]"
               >
                 {currentPlan === "starter"
                   ? t("pricing.currentPlan")
@@ -102,15 +129,18 @@ export function UnlockPricingModal({ open, onClose }: { open: boolean; onClose: 
             </div>
 
             {/* Pro - Popular */}
-            <div className="relative rounded-xl bg-[#14141c] border-2 flex flex-col p-5" style={{ borderColor: `${ACCENT}70` }}>
+            <div className="relative rounded-xl bg-[#14141c]/70 border-2 flex flex-col p-4 backdrop-blur-sm" style={{ borderColor: `${ACCENT}70` }}>
               <div
-                className="absolute -top-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium text-white"
+                className="absolute top-2 right-2 flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium text-[#00ffe8]"
                 style={{ background: `${ACCENT}25`, border: `1px solid ${ACCENT}50` }}
               >
-                <span>★</span><span>☆</span> {t("pricing.popular")}
+                <Medal className="w-3.5 h-3.5 flex-shrink-0" stroke="currentColor" />
+                {t("pricing.popular")}
               </div>
               <div className="flex items-center gap-2 mt-1">
-                <span className="text-xl">👑</span>
+                <span className="w-6 h-6 flex-shrink-0" style={{ color: ACCENT }}>
+                  <CrownIcon className="w-full h-full" />
+                </span>
                 <h3 className="text-lg font-bold text-white">{t("pricing.pro")}</h3>
               </div>
               <div className="mt-3 flex items-baseline gap-1">
@@ -122,20 +152,20 @@ export function UnlockPricingModal({ open, onClose }: { open: boolean; onClose: 
               <p className="text-zinc-400 text-xs mt-0.5">{t("pricing.proDesc")}</p>
               <ul className="mt-3 space-y-2 flex-1 text-sm text-zinc-300">
                 <li className="flex items-center gap-2">
-                  <span className="text-[#00ffe8]">✓</span> {t("pricing.featureUnlimited")}
+                  <Check className="w-4 h-4 flex-shrink-0 text-[#00ffe8]" strokeWidth={2.5} /> {t("pricing.featureUnlimited")}
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="text-[#00ffe8]">✓</span> {t("pricing.featureFullAnalysis")}
+                  <Check className="w-4 h-4 flex-shrink-0 text-[#00ffe8]" strokeWidth={2.5} /> {t("pricing.featureFullAnalysis")}
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="text-[#00ffe8]">✓</span> {t("pricing.featureScenarios")}
+                  <Check className="w-4 h-4 flex-shrink-0 text-[#00ffe8]" strokeWidth={2.5} /> {t("pricing.featureScenarios")}
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="text-[#00ffe8]">✓</span> Advanced stats + news
+                  <Check className="w-4 h-4 flex-shrink-0 text-[#00ffe8]" strokeWidth={2.5} /> Advanced stats + news
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="text-[#00ffe8]">✓</span>{" "}
-                  <span>💬 {t("pricing.featurePersonalAI")} (1 {t("pricing.perDay")})</span>
+                  <Gem className="w-4 h-4 flex-shrink-0 text-[#00ffe8]" strokeWidth={2.5} />
+                  <span>{t("pricing.featurePersonalAI")} (1 {t("pricing.perDay")})</span>
                 </li>
               </ul>
               <button
@@ -144,7 +174,7 @@ export function UnlockPricingModal({ open, onClose }: { open: boolean; onClose: 
                   window.location.href = getWhopCheckoutUrl("pro", currencyConfig.currency);
                 }}
                 disabled={currentPlan === "pro"}
-                className="mt-4 w-full py-2.5 px-4 rounded-xl font-semibold text-[#0d0d12] text-sm transition disabled:opacity-50"
+                className="mt-4 w-full py-2.5 px-4 rounded-xl font-semibold text-[#0d0d12] text-sm transition-all duration-300 disabled:opacity-50 hover:shadow-[0_0_20px_5px_rgba(0,255,232,0.5)]"
                 style={{ background: `linear-gradient(135deg, ${ACCENT} 0%, #6FE7C0 100%)` }}
               >
                 {currentPlan === "pro"
@@ -154,12 +184,17 @@ export function UnlockPricingModal({ open, onClose }: { open: boolean; onClose: 
             </div>
 
             {/* Lifetime */}
-            <div className="relative rounded-xl bg-[#14141c] border-2 border-amber-500/60 p-5 flex flex-col">
-              <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-500/20 border border-amber-500/50 text-amber-400 text-xs font-medium">
-                <span>∞</span> <span>∞</span> {t("pricing.forLife")}
+            <div className="relative rounded-xl bg-[#14141c]/70 border-2 border-amber-500/60 p-4 flex flex-col backdrop-blur-sm">
+              <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-full bg-amber-500/20 border border-amber-500/50 text-amber-400 text-xs font-medium">
+                <span className="w-3.5 h-3.5 flex-shrink-0 inline-block text-amber-400">
+                  <InfinityIcon className="w-full h-full" />
+                </span>
+                {t("pricing.forLife")}
               </div>
               <div className="flex items-center gap-2 mt-1">
-                <span className="text-xl">∞</span>
+                <span className="w-6 h-6 flex-shrink-0 text-amber-400">
+                  <InfinityIcon className="w-full h-full" />
+                </span>
                 <h3 className="text-lg font-bold text-white">{t("pricing.lifetime")}</h3>
               </div>
               <div className="mt-3 flex items-baseline gap-1">
@@ -171,19 +206,20 @@ export function UnlockPricingModal({ open, onClose }: { open: boolean; onClose: 
               <p className="text-[#00ffe8] text-xs font-medium mt-1">{currencyConfig.saveText}</p>
               <ul className="mt-3 space-y-2 flex-1 text-sm text-zinc-300">
                 <li className="flex items-center gap-2">
-                  <span className="text-amber-400">✓</span> {t("pricing.lifetimeUnlimited")}
+                  <Check className="w-4 h-4 flex-shrink-0 text-amber-400" strokeWidth={2.5} /> {t("pricing.lifetimeUnlimited")}
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="text-amber-400">✓</span> {t("pricing.featureFullAnalysis")}
+                  <Check className="w-4 h-4 flex-shrink-0 text-amber-400" strokeWidth={2.5} /> {t("pricing.featureFullAnalysis")}
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="text-amber-400">✓</span> {t("pricing.lifetimeNoPayments")}
+                  <Check className="w-4 h-4 flex-shrink-0 text-amber-400" strokeWidth={2.5} /> {t("pricing.lifetimeNoPayments")}
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="text-amber-400">✓</span> {t("pricing.lifetimePriority")}
+                  <Check className="w-4 h-4 flex-shrink-0 text-amber-400" strokeWidth={2.5} /> {t("pricing.lifetimePriority")}
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="text-amber-400">✓</span> 💬 {t("pricing.lifetimeUnlimitedAI")}
+                  <Gem className="w-4 h-4 flex-shrink-0 text-amber-400" strokeWidth={2.5} />
+                  <span>{t("pricing.lifetimeUnlimitedAI")}</span>
                 </li>
               </ul>
               <button
@@ -192,7 +228,7 @@ export function UnlockPricingModal({ open, onClose }: { open: boolean; onClose: 
                   window.location.href = getWhopCheckoutUrl("lifetime", currencyConfig.currency);
                 }}
                 disabled={currentPlan === "lifetime"}
-                className="mt-4 w-full py-2.5 px-4 rounded-xl font-semibold text-white text-sm bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 transition disabled:opacity-50"
+                className="mt-4 w-full py-2.5 px-4 rounded-xl font-semibold text-[#0d0d12] text-sm bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 hover:shadow-[0_0_18px_5px_rgba(245,158,11,0.45)] transition-all duration-300 disabled:opacity-50 disabled:text-zinc-500"
               >
                 {currentPlan === "lifetime"
                   ? t("pricing.currentPlan")

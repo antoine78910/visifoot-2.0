@@ -22,23 +22,25 @@ export function useGeoCurrency(): {
   useEffect(() => {
     let cancelled = false;
     setError(false);
-    fetch(GEO_API)
-      .then((res) => res.json())
-      .then((data) => {
+
+    (async () => {
+      try {
+        const res = await fetch(GEO_API);
+        const data = await res.json();
         if (cancelled) return;
         const country = data?.country_code ?? null;
         const currency = getCurrencyFromCountry(country) as PricingCurrency;
         setConfig(getCurrencyConfig(currency));
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) {
           setError(true);
           setConfig(getCurrencyConfig("EUR"));
         }
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setIsLoading(false);
-      });
+      }
+    })();
+
     return () => {
       cancelled = true;
     };

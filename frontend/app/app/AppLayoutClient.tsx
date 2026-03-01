@@ -66,15 +66,6 @@ function UserIcon({ className }: { className?: string }) {
   );
 }
 
-function SettingsIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  );
-}
-
 function SupportIcon({ className }: { className?: string }) {
   return (
     <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -122,7 +113,7 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
   const { t, lang, setLang } = useLanguage();
   const [user, setUser] = useState<UserInfo | null>(null);
   const [analysesUsed, setAnalysesUsed] = useState(0);
-  const [analysesLimit, setAnalysesLimit] = useState<number | null>(1);
+  const [analysesLimit, setAnalysesLimit] = useState<number | null>(null);
   const [langOpen, setLangOpen] = useState(false);
 
   useEffect(() => {
@@ -131,17 +122,23 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const uid = user?.id;
+    if (!API_URL || API_URL === "undefined") return;
+    const ac = new AbortController();
     const headers: Record<string, string> = {};
     if (uid) headers["X-User-Id"] = uid;
-    fetch(`${API_URL}/me`, { headers })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: { analyses_used_today?: number; analyses_limit?: number | null } | null) => {
-        if (data) {
+    (async () => {
+      try {
+        const r = await fetch(`${API_URL}/me`, { headers, signal: ac.signal });
+        const data = r.ok ? (await r.json()) : null;
+        if (data && typeof data === "object") {
           setAnalysesUsed(Number(data.analyses_used_today) || 0);
           setAnalysesLimit(data.analyses_limit ?? 1);
         }
-      })
-      .catch(() => {});
+      } catch {
+        // Ignore: network error, abort, or invalid JSON (e.g. Failed to fetch when changing language / backend unreachable)
+      }
+    })();
+    return () => ac.abort();
   }, [user?.id]);
 
   const handleSignOut = async () => {
@@ -160,7 +157,7 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-app-gradient text-zinc-200 flex">
       <aside className="w-64 flex-shrink-0 sticky top-0 h-screen overflow-y-auto border-r border-dark-border bg-dark-card/50 flex flex-col">
         <div className="px-5 pt-4 pb-3 flex justify-center">
-          <Link href="/app" className="flex items-center justify-center">
+          <Link href="/" className="flex items-center justify-center">
             <img
               src="/logo.png"
               alt="DEEPFOOT"
@@ -173,11 +170,11 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
           <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider px-3 mb-2">Analysis</p>
           <ul className="space-y-0.5">
             {navKeys.map(({ path, key, icon: Icon, soon }) => {
-              const href = `/app${path}`;
+              const href = path === "/" ? "/" : path;
               const label = t(key);
               const active =
                 !soon &&
-                (pathname === href || (path !== "/" && pathname?.startsWith(href)));
+                (pathname === href || pathname === `/app${path}` || (path !== "/" && (pathname?.startsWith(href) || pathname?.startsWith(`/app${path}`))));
               if (soon) {
                 return (
                   <li key={path}>
@@ -198,9 +195,9 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
                 <li key={path}>
                   <Link
                     href={href}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-200 ${
                       active
-                        ? "bg-[#00ffe8]/15 border border-[#00ffe8]/70 text-[#00ffe8]"
+                        ? "bg-[#00ffe8]/15 border border-[#00ffe8]/70 text-[#00ffe8] shadow-[0_0_10px_2px_rgba(0,255,232,0.2)]"
                         : "border border-transparent text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
                     }`}
                   >
@@ -212,8 +209,12 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
             })}
             <li>
               <Link
-                href="/app/pricing"
-                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm border border-amber-500/50 bg-[#15171c]/80 text-zinc-200 hover:bg-zinc-800/50 hover:border-amber-500/70 transition-colors"
+                href="/pricing"
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm border transition-all duration-200 ${
+                  pathname === "/pricing" || pathname === "/app/pricing" || pathname?.startsWith("/app/pricing")
+                    ? "border-amber-500/70 bg-amber-500/15 text-amber-400 shadow-[0_0_10px_2px_rgba(245,158,11,0.2)]"
+                    : "border-amber-500/50 bg-[#15171c]/80 text-zinc-200 hover:bg-zinc-800/50 hover:border-amber-500/70"
+                }`}
               >
                 <CreditCardIcon className="flex-shrink-0" />
                 <span className="flex-1">{t("nav.pricing")}</span>
@@ -229,19 +230,19 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
               <BarChartIcon className="w-4 h-4" />
               {t("nav.todayAnalyses")}
             </p>
-            <p className={`text-lg font-bold ${analysesLimit === 0 ? "text-red-400" : "text-white"}`}>
-              {analysesUsed}/{analysesLimit == null ? "∞" : analysesLimit}
+            <p className={`text-lg font-bold ${analysesLimit === 0 || (analysesLimit == null && (user?.plan ?? "free") === "free") ? "text-red-400" : "text-white"}`}>
+              {(user?.plan ?? "free") === "free" ? "0/0" : `${analysesUsed}/${analysesLimit == null ? "∞" : analysesLimit}`}
             </p>
             <div className="h-1.5 bg-zinc-800 rounded-full mt-1 overflow-hidden">
               <div
-                className={`h-full rounded-full transition-all ${analysesLimit === 0 ? "bg-red-500" : "bg-accent-green"}`}
-                style={{ width: `${analysesLimit === 0 ? 100 : analysesLimit != null && analysesLimit > 0 ? Math.min(100, (analysesUsed / analysesLimit) * 100) : 0}%` }}
+                className={`h-full rounded-full transition-all ${analysesLimit === 0 || (analysesLimit == null && (user?.plan ?? "free") === "free") ? "bg-red-500" : "bg-accent-green"}`}
+                style={{ width: `${analysesLimit === 0 ? 100 : analysesLimit != null && analysesLimit > 0 ? Math.min(100, (analysesUsed / analysesLimit) * 100) : (user?.plan ?? "free") === "free" ? 100 : 0}%` }}
               />
             </div>
-            {analysesLimit === 0 && (
+            {(analysesLimit === 0 || ((user?.plan ?? "free") === "free" && analysesLimit == null)) && (
               <p className="text-xs text-zinc-400 mt-2">
                 {t("nav.limitReached")} •{" "}
-                <Link href="/app/pricing" className="text-[#00ffe8] hover:underline">
+                <Link href="/pricing" className="text-[#00ffe8] hover:underline">
                   {t("nav.upgradeForMore")}
                 </Link>
               </p>
@@ -249,32 +250,52 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
           </div>
         </nav>
 
-        <div className="p-4 border-t border-dark-border">
-          <Link
-            href="/app/account"
-            className={`flex items-center gap-3 px-3 py-2 mb-2 rounded-lg text-sm transition-colors ${
-              pathname === "/app/account" || pathname?.startsWith("/app/account")
-                ? "bg-[#00ffe8]/15 border border-[#00ffe8]/70 text-[#00ffe8]"
-                : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200 border border-transparent"
-            }`}
-          >
-            <div className="w-8 h-8 rounded-full bg-zinc-700 flex items-center justify-center flex-shrink-0">
-              <UserIcon className="w-4 h-4 text-zinc-400" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-white truncate">
-                {user?.displayName ?? user?.email ?? "—"}
-              </p>
-              <p className="text-xs text-zinc-500">
-                {user?.plan ? t(PLAN_KEYS[user.plan]) : t("nav.free")}
-              </p>
-            </div>
-          </Link>
-          <div className="relative mb-2">
+        <div className="p-4 pt-6 mt-4 border-t border-dark-border flex flex-col flex-1 min-h-0">
+          <div className="mt-auto space-y-1">
+            <Link
+              href="/account"
+              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
+                pathname === "/account" || pathname === "/app/account" || pathname?.startsWith("/app/account")
+                  ? "bg-[#00ffe8]/15 border border-[#00ffe8]/70 text-[#00ffe8] shadow-[0_0_10px_2px_rgba(0,255,232,0.2)]"
+                  : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200 border border-transparent"
+              }`}
+            >
+              <div className="w-8 h-8 rounded-full bg-zinc-700 flex items-center justify-center flex-shrink-0">
+                <UserIcon className="w-4 h-4 text-zinc-400" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-white truncate">
+                  {user?.displayName ?? user?.email ?? "—"}
+                </p>
+                <p className="text-xs text-zinc-500">
+                  {user?.plan ? t(PLAN_KEYS[user.plan]) : t("nav.free")}
+                </p>
+              </div>
+            </Link>
+            <button
+              type="button"
+              onClick={handleSignOut}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200 text-left"
+            >
+              <LogOutIcon className="flex-shrink-0" />
+              {t("nav.signOut")}
+            </button>
+            <a
+              href="mailto:app@deepfoot.io"
+              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
+            >
+              <SupportIcon className="flex-shrink-0" />
+              {t("nav.support")}
+            </a>
+            <div className="relative pt-2">
             <button
               type="button"
               onClick={() => setLangOpen((o) => !o)}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200 border border-transparent text-left"
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm border text-left transition-all duration-200 ${
+                langOpen
+                  ? "bg-[#00ffe8]/15 border-[#00ffe8]/70 text-[#00ffe8] shadow-[0_0_10px_2px_rgba(0,255,232,0.2)]"
+                  : "border-transparent text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
+              }`}
             >
               <GlobeIcon className="flex-shrink-0" />
               <span className="flex-1">
@@ -283,7 +304,7 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
             </button>
             {langOpen && (
               <>
-                <div className="absolute left-0 right-0 top-full z-20 mt-0.5 rounded-xl bg-[#1c1c28] border border-white/10 shadow-xl overflow-hidden">
+                <div className="absolute left-0 right-0 bottom-full z-20 mb-0.5 rounded-xl bg-[#1c1c28] border border-white/10 shadow-xl overflow-hidden">
                   {LANG_OPTIONS.map((opt) => (
                     <button
                       key={opt.code}
@@ -293,7 +314,7 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
                         setLangOpen(false);
                       }}
                       className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm text-left ${
-                        opt.code === lang ? "bg-[#00ffe8]/15 text-[#00ffe8]" : "text-zinc-300 hover:bg-zinc-800/50"
+                        opt.code === lang ? "bg-[#00ffe8]/15 text-[#00ffe8] shadow-[0_0_10px_2px_rgba(0,255,232,0.25)]" : "text-zinc-300 hover:bg-zinc-800/50"
                       }`}
                     >
                       {opt.flag} {t(opt.labelKey)}
@@ -303,29 +324,8 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
                 <div className="fixed inset-0 z-10" aria-hidden onClick={() => setLangOpen(false)} />
               </>
             )}
+            </div>
           </div>
-          <Link
-            href="/app/settings"
-            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
-          >
-            <SettingsIcon className="flex-shrink-0" />
-            {t("nav.settings")}
-          </Link>
-          <a
-            href="mailto:app@deepfoot.io"
-            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
-          >
-            <SupportIcon className="flex-shrink-0" />
-            {t("nav.support")}
-          </a>
-          <button
-            type="button"
-            onClick={handleSignOut}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200 text-left"
-          >
-            <LogOutIcon className="flex-shrink-0" />
-            {t("nav.signOut")}
-          </button>
         </div>
       </aside>
 

@@ -73,7 +73,7 @@ export default function HistoryPage() {
       fromHistory: "true",
       predictionId: item.id,
     });
-    router.push(`/app/analyze?${params.toString()}`);
+    router.push(`/analyze?${params.toString()}`);
   };
 
   return (
@@ -90,7 +90,7 @@ export default function HistoryPage() {
               {t("history.startBy")}
             </p>
             <Link
-              href="/app/matches"
+              href="/matches"
               className="mt-8 px-6 py-4 rounded-xl font-semibold text-black bg-gradient-to-r from-[#00ffe8] to-[#00ddcc] hover:opacity-90 transition shadow-glow"
             >
               {t("history.analyzeMatch")}

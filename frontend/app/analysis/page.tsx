@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AnalysisResult } from "@/components/AnalysisResult";
+import { getUserFromStorage } from "@/lib/auth";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -61,12 +62,16 @@ export default function AnalysisPage() {
     );
   }
 
+  const user = getUserFromStorage();
+  const isFree = (user?.plan ?? "free") === "free";
+  const resultToShow = isFree ? { ...data, full_analysis: false } : data;
+
   return (
     <main className="min-h-screen px-4 py-8 pb-16 max-w-4xl mx-auto">
       <Link href="/" className="inline-block text-zinc-500 hover:text-[#00ffe8] text-sm mb-8">
         ← New analysis
       </Link>
-      <AnalysisResult result={data} />
+      <AnalysisResult result={resultToShow} />
     </main>
   );
 }

@@ -8,6 +8,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { UnsubscribeOfferModal } from "@/components/UnsubscribeOfferModal";
 import { getWhopCheckoutUrl } from "@/lib/whopCheckout";
 import { useGeoCurrency } from "@/hooks/useGeoCurrency";
+import { Check } from "lucide-react";
 
 function PersonIcon({ className }: { className?: string }) {
   return (
@@ -55,6 +56,14 @@ function MailIcon({ className }: { className?: string }) {
   );
 }
 
+function InfinityIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 12c-2-2.67-4-4-6-4a4 4 0 1 0 0 8c2 0 4-1.33 6-4Zm0 0c2 2.67 4 4 6 4a4 4 0 0 0 0-8c-2 0-4 1.33-6 4Z" />
+    </svg>
+  );
+}
+
 const PLAN_KEYS: Record<string, string> = {
   free: "nav.free",
   starter: "nav.starter",
@@ -68,10 +77,48 @@ export default function AccountPage() {
   const [user, setUser] = useState<ReturnType<typeof getUserFromStorage>>(null);
   const [unsubscribeModalOpen, setUnsubscribeModalOpen] = useState(false);
   const [subscribedSince, setSubscribedSince] = useState<string>("26 February 2026");
+  const [editingEmail, setEditingEmail] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [emailMessage, setEmailMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [emailLoading, setEmailLoading] = useState(false);
 
   useEffect(() => {
     setUser(getUserFromStorage());
   }, []);
+
+  const startEditEmail = () => {
+    setEditingEmail(true);
+    setNewEmail(user?.email ?? "");
+    setEmailMessage(null);
+  };
+
+  const cancelEditEmail = () => {
+    setEditingEmail(false);
+    setNewEmail("");
+    setEmailMessage(null);
+  };
+
+  const saveEmail = async () => {
+    const trimmed = newEmail.trim();
+    if (!trimmed || trimmed === user?.email) {
+      cancelEditEmail();
+      return;
+    }
+    setEmailLoading(true);
+    setEmailMessage(null);
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const { error } = await supabase.auth.updateUser({ email: trimmed });
+      if (error) throw error;
+      setEmailMessage({ type: "success", text: t("account.emailConfirmSent") });
+      setEditingEmail(false);
+      setNewEmail("");
+    } catch {
+      setEmailMessage({ type: "error", text: t("account.emailChangeError") });
+    } finally {
+      setEmailLoading(false);
+    }
+  };
 
   const handleSignOut = async () => {
     try {
@@ -99,7 +146,7 @@ export default function AccountPage() {
   };
 
   return (
-    <div className="p-8 max-w-3xl">
+    <div className="p-8 max-w-3xl mx-auto">
       <h1 className="text-2xl font-bold text-white">{t("account.title")}</h1>
       <p className="text-zinc-500 mt-1">{t("account.subtitle")}</p>
 
@@ -112,20 +159,57 @@ export default function AccountPage() {
         <div className="space-y-4">
           <div>
             <label className="block text-sm text-zinc-500 mb-1">{t("account.emailAddress")}</label>
-            <div className="flex gap-2">
-              <input
-                type="email"
-                readOnly
-                value={user?.email ?? ""}
-                className="flex-1 rounded-xl bg-dark-input border border-dark-border px-4 py-3 text-white read-only:opacity-90"
-              />
-              <button
-                type="button"
-                className="px-4 py-3 rounded-xl bg-zinc-700 hover:bg-zinc-600 text-white text-sm font-medium transition"
-              >
-                {t("account.edit")}
-              </button>
-            </div>
+            {editingEmail ? (
+              <div className="space-y-2">
+                <input
+                  type="email"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  className="w-full rounded-xl bg-dark-input border border-dark-border px-4 py-3 text-white"
+                  placeholder={user?.email ?? ""}
+                  disabled={emailLoading}
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={saveEmail}
+                    disabled={emailLoading || !newEmail.trim() || newEmail.trim() === user?.email}
+                    className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition disabled:opacity-50"
+                  >
+                    {emailLoading ? "…" : t("account.save")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelEditEmail}
+                    disabled={emailLoading}
+                    className="px-4 py-2.5 rounded-xl bg-zinc-700 hover:bg-zinc-600 text-white text-sm font-medium transition disabled:opacity-50"
+                  >
+                    {t("account.cancel")}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  readOnly
+                  value={user?.email ?? ""}
+                  className="flex-1 rounded-xl bg-dark-input border border-dark-border px-4 py-3 text-white read-only:opacity-90"
+                />
+                <button
+                  type="button"
+                  onClick={startEditEmail}
+                  className="px-4 py-3 rounded-xl bg-zinc-700 hover:bg-zinc-600 text-white text-sm font-medium transition"
+                >
+                  {t("account.edit")}
+                </button>
+              </div>
+            )}
+            {emailMessage && (
+              <p className={`mt-2 text-sm ${emailMessage.type === "success" ? "text-emerald-400" : "text-red-400"}`}>
+                {emailMessage.text}
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-sm text-zinc-500 mb-1">{t("account.subscribedSince")}</label>
@@ -151,39 +235,37 @@ export default function AccountPage() {
         <div className="mb-6">
           <p className="text-sm text-zinc-500">{t("account.status")}</p>
           <p className="flex items-center gap-2 mt-0.5 text-emerald-400">
-            <span>✓</span> {t("account.active")}
+            <Check className="w-4 h-4 flex-shrink-0" strokeWidth={2.5} /> {t("account.active")}
           </p>
         </div>
 
-        {/* Go Lifetime card */}
-        <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 p-5 mb-6">
-          <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-full bg-orange-500/20 flex items-center justify-center flex-shrink-0 text-white text-2xl">
-              ∞
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="text-lg font-bold text-white">{t("account.goLifetime")}</h3>
-              <p className="text-zinc-400 text-sm mt-0.5">{t("account.lifetimeAccess")}</p>
-              <ul className="mt-3 space-y-1.5 text-sm text-zinc-300">
-                <li className="flex items-center gap-2">
-                  <span className="text-emerald-400">✓</span> {t("account.noMonthlyPayments")}
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-emerald-400">✓</span> {t("account.unlimitedAnalyses")}
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-emerald-400">✓</span> {t("account.allPremiumFeatures")}
-                </li>
-              </ul>
-            </div>
-            <p className="text-lg font-bold text-amber-400 flex-shrink-0">⚡ {t("account.priceOnce")}</p>
+        {/* Go Lifetime card - same branding as pricing */}
+        <div className="relative rounded-2xl bg-[#14141c]/70 border-2 border-amber-500/60 p-5 mb-6 backdrop-blur-sm shadow-[0_0_30px_-5px_rgba(245,158,11,0.2)] hover:shadow-[0_0_45px_-5px_rgba(245,158,11,0.35)] transition-all duration-300">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="w-6 h-6 flex-shrink-0 text-amber-400">
+              <InfinityIcon className="w-full h-full" />
+            </span>
+            <h3 className="text-lg font-bold text-white">{t("account.goLifetime")}</h3>
           </div>
+          <p className="text-zinc-400 text-sm mt-0.5">{t("account.lifetimeAccess")}</p>
+          <ul className="mt-3 space-y-1.5 text-sm text-zinc-300">
+            <li className="flex items-center gap-2">
+              <Check className="w-4 h-4 flex-shrink-0 text-amber-400" strokeWidth={2.5} /> {t("account.noMonthlyPayments")}
+            </li>
+            <li className="flex items-center gap-2">
+              <Check className="w-4 h-4 flex-shrink-0 text-amber-400" strokeWidth={2.5} /> {t("account.unlimitedAnalyses")}
+            </li>
+            <li className="flex items-center gap-2">
+              <Check className="w-4 h-4 flex-shrink-0 text-amber-400" strokeWidth={2.5} /> {t("account.allPremiumFeatures")}
+            </li>
+          </ul>
+          <p className="text-xl font-bold text-amber-400 mt-4">⚡ {t("account.priceOnce")}</p>
           <button
             type="button"
             onClick={() => {
               window.location.href = getWhopCheckoutUrl("lifetime", currencyConfig.currency);
             }}
-            className="mt-4 w-full py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 transition"
+            className="mt-4 w-full py-3 px-4 rounded-xl font-semibold text-[#0d0d12] bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 hover:shadow-[0_0_22px_6px_rgba(245,158,11,0.45)] transition-all duration-300 shadow-[0_0_20px_-5px_rgba(245,158,11,0.4)]"
           >
             {t("account.upgradeToLifetime")}
           </button>
@@ -191,7 +273,7 @@ export default function AccountPage() {
 
         <div className="flex flex-wrap gap-3">
           <Link
-            href="/app/pricing"
+            href="/pricing"
             className="px-4 py-2.5 rounded-xl bg-zinc-700 hover:bg-zinc-600 text-white text-sm font-medium transition"
           >
             {t("account.seeAllPlans")}

@@ -64,13 +64,14 @@ def get_analysis_limit(plan: str) -> tuple[int | None, bool]:
     """
     Retourne (limite_par_jour, full_analysis).
     None = illimité. full_analysis = True si l'analyse est complète (pas de flou).
+    Free : analyses illimitées mais contenu partiel (début visible, reste flouté).
     """
     if plan in (PLAN_PRO, PLAN_LIFETIME):
         return (None, True)
     if plan == PLAN_STARTER:
         return (1, True)  # 1 analyse complète par jour
-    # free : 0 analyse par jour, affichage "0/0" et "Limit reached • Upgrade for more"
-    return (0, False)
+    # free : analyses illimitées, full_analysis = False (affichage partiel + flou)
+    return (None, False)
 
 
 def can_analyze(user_id: str) -> tuple[bool, str, bool]:

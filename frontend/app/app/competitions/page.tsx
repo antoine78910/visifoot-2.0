@@ -16,7 +16,7 @@ export default function CompetitionsPage() {
           <h1 className="text-2xl font-bold text-white mb-2">{t("competitions.comingSoon")}</h1>
           <p className="text-zinc-400 text-sm mb-6">{t("competitions.comingSoonDesc")}</p>
           <Link
-            href="/app/matches"
+            href="/matches"
             className="inline-flex items-center justify-center px-4 py-2.5 rounded-lg text-sm font-medium bg-[#00ffe8]/20 text-[#00ffe8] border border-[#00ffe8]/50 hover:bg-[#00ffe8]/30 transition-colors"
           >
             ← {t("nav.matches")}

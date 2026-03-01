@@ -15,6 +15,6 @@ export default function AppAnalyseRedirectPage({
     }
   }
   const s = qs.toString();
-  redirect(s ? `/app/matches?${s}` : "/app/matches");
+  redirect(s ? `/matches?${s}` : "/matches");
 }
 

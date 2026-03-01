@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AnalysisResult } from "@/components/AnalysisResult";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { getUserFromStorage } from "@/lib/auth";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const HISTORY_KEY = "visifoot_history";
@@ -78,11 +79,11 @@ function AnalyzeContent() {
       <div className="p-8 w-full flex flex-col items-center">
         <div className="w-full max-w-xl mx-auto">
           <p className="text-zinc-400 mb-4">{t("analysis.noData")}</p>
-          <Link href="/app/history" className="text-accent-cyan hover:underline">
+          <Link href="/history" className="text-accent-cyan hover:underline">
             ← {t("history.title")}
           </Link>
           <span className="text-zinc-500 mx-2">|</span>
-          <Link href="/app/matches" className="text-accent-cyan hover:underline">
+          <Link href="/matches" className="text-accent-cyan hover:underline">
             {t("history.analyzeMatch")}
           </Link>
         </div>
@@ -100,13 +101,17 @@ function AnalyzeContent() {
     );
   }
 
+  const user = getUserFromStorage();
+  const isFree = (user?.plan ?? "free") === "free";
+  const resultToShow = isFree ? { ...data, full_analysis: false } : data;
+
   return (
     <div className="p-8 pb-16 w-full flex flex-col items-center">
       <div className="w-full max-w-4xl mx-auto">
-        <Link href="/app/history" className="inline-block text-zinc-500 hover:text-accent-cyan text-sm mb-8">
+        <Link href="/history" className="inline-block text-zinc-500 hover:text-accent-cyan text-sm mb-8">
           ← {t("history.title")}
         </Link>
-        <AnalysisResult result={data} />
+        <AnalysisResult result={resultToShow} />
       </div>
     </div>
   );

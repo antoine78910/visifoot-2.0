@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
+import { Lock } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 const ACCENT = "#00ffe8";
@@ -90,7 +91,7 @@ export function UnlockFullAnalysisModal({
                 { key: "unlockModal1.featureBookmaker", icon: "💡" },
               ].map(({ key, icon }) => (
                 <li key={key} className="flex items-center gap-3 text-sm text-zinc-300">
-                  <span className="text-zinc-500" aria-hidden>🔒</span>
+                  <Lock className="w-4 h-4 flex-shrink-0 text-zinc-500" aria-hidden />
                   <span>{t(key)}</span>
                   <span className="ml-auto text-base opacity-80" aria-hidden>{icon}</span>
                 </li>
