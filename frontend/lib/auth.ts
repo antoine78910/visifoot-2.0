@@ -8,6 +8,7 @@ export const USER_STORAGE_KEY = "visifoot_user";
 export type PlanId = "free" | "starter" | "pro" | "lifetime";
 
 export type UserInfo = {
+  id?: string; // Supabase user id (pour X-User-Id et /me)
   displayName: string;
   email: string;
   plan: PlanId;
@@ -30,7 +31,7 @@ export function getUserFromStorage(): UserInfo | null {
     if (!raw) return null;
     const data = JSON.parse(raw) as UserInfo;
     if (data && typeof data.displayName === "string" && typeof data.plan === "string") {
-      return data;
+      return { ...data, id: data.id ?? undefined };
     }
   } catch {
     // ignore

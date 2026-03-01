@@ -115,3 +115,6 @@ class PredictResponse(BaseModel):
     final_score_home: Optional[int] = None
     final_score_away: Optional[int] = None
     match_statistics: Optional[list[dict]] = None  # [{ "type", "home_value", "away_value" }]
+
+    # Plan : si False, le front n'affiche que les premières stats et floute le reste (free)
+    full_analysis: Optional[bool] = True

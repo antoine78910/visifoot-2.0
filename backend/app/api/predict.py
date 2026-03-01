@@ -4,7 +4,7 @@ import queue
 import threading
 from typing import Callable, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Header
 from fastapi.responses import StreamingResponse
 
 from app.schemas.predict import (
@@ -20,6 +20,7 @@ from app.ml.poisson import predict_all
 from app.services.openai_summary import build_prompt_context, generate_ai_analysis
 from app.services.news_fetcher import fetch_football_news
 from app.services.api_football import get_predictions as api_get_predictions
+from app.services.subscription import can_analyze, consume_analysis
 
 router = APIRouter(prefix="/predict", tags=["predict"])
 
@@ -286,21 +287,42 @@ def get_match_result(
 
 
 @router.post("", response_model=PredictResponse)
-def predict(payload: PredictRequest):
+def predict(
+    payload: PredictRequest,
+    x_user_id: str | None = Header(None, alias="X-User-Id"),
+):
     """
     Analyse un match : probabilités 1X2, Over/Under, BTTS, xG, score exact.
-    Optionnel : résumé et scénario #1 via OpenAI.
+    X-User-Id optionnel : si fourni, applique les limites du plan (free/starter/pro/lifetime).
     """
+    user_id = (x_user_id or "").strip()
+    allowed, msg, full_analysis = can_analyze(user_id)
+    if not allowed:
+        raise HTTPException(status_code=403, detail=msg)
     data = run_predict_with_progress(payload, progress_callback=None)
+    data["full_analysis"] = full_analysis
+    if user_id:
+        consume_analysis(user_id)
     return PredictResponse(**data)
 
 
 @router.post("/stream")
-def predict_stream(payload: PredictRequest):
+def predict_stream(
+    payload: PredictRequest,
+    x_user_id: str | None = Header(None, alias="X-User-Id"),
+):
     """
     Same as POST /predict but streams NDJSON: progress events { "type": "progress", "step": "...", "percent": n }
     then a final { "type": "result", "data": { ... } } or { "type": "error", "message": "..." }.
+    X-User-Id optionnel : applique les limites du plan et ajoute full_analysis dans data.
     """
+    user_id = (x_user_id or "").strip()
+    allowed, msg, full_analysis = can_analyze(user_id)
+    if not allowed:
+        def error_stream():
+            yield json.dumps({"type": "error", "message": msg}, ensure_ascii=False) + "\n"
+        return StreamingResponse(error_stream(), media_type="application/x-ndjson")
+
     progress_queue: queue.Queue = queue.Queue()
 
     def on_progress(step: str, percent: int) -> None:
@@ -309,6 +331,9 @@ def predict_stream(payload: PredictRequest):
     def run() -> None:
         try:
             result = run_predict_with_progress(payload, progress_callback=on_progress)
+            result["full_analysis"] = full_analysis
+            if user_id:
+                consume_analysis(user_id)
             progress_queue.put({"type": "result", "data": result})
         except Exception as e:  # noqa: BLE001
             progress_queue.put({"type": "error", "message": str(e)})

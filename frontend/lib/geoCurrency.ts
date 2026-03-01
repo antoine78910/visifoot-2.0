@@ -41,8 +41,10 @@ export type CurrencyConfig = {
   currency: PricingCurrency;
   symbol: string;
   symbolLeft: boolean;
+  starterAmount: number;
   proAmount: number;
   lifetimeAmount: number;
+  starterSuffix: string;
   proSuffix: string;
   lifetimeSuffix: string;
   saveText: string;
@@ -53,8 +55,10 @@ const CONFIGS: Record<PricingCurrency, CurrencyConfig> = {
     currency: "GBP",
     symbol: "£",
     symbolLeft: true,
+    starterAmount: 9,
     proAmount: 16,
     lifetimeAmount: 85,
+    starterSuffix: "/month",
     proSuffix: "/month",
     lifetimeSuffix: " one time",
     saveText: "Save +£100/year vs monthly",
@@ -63,8 +67,10 @@ const CONFIGS: Record<PricingCurrency, CurrencyConfig> = {
     currency: "EUR",
     symbol: "€",
     symbolLeft: false,
+    starterAmount: 10,
     proAmount: 19,
     lifetimeAmount: 99,
+    starterSuffix: "/month",
     proSuffix: "/month",
     lifetimeSuffix: " one time",
     saveText: "Save +€100/year vs monthly",
@@ -73,8 +79,10 @@ const CONFIGS: Record<PricingCurrency, CurrencyConfig> = {
     currency: "USD",
     symbol: "$",
     symbolLeft: true,
+    starterAmount: 9,
     proAmount: 19,
     lifetimeAmount: 99,
+    starterSuffix: "/month",
     proSuffix: "/month",
     lifetimeSuffix: " one time",
     saveText: "Save +$100/year vs monthly",

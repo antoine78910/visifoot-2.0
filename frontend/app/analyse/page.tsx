@@ -66,7 +66,6 @@ function AnalyseContent() {
       </div>
       <div className="w-full max-w-xl mx-auto">
         <MatchInput
-          redirectTo="/app/analysis"
           initialHome={initialHome}
           initialAway={initialAway}
           requireAuth

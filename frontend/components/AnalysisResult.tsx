@@ -1,6 +1,10 @@
 "use client";
 
+import { useState } from "react";
+import Link from "next/link";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { UnlockFullAnalysisModal } from "@/components/UnlockFullAnalysisModal";
+import { UnlockPricingModal } from "@/components/UnlockPricingModal";
 
 type OverUnderItem = { line: string; over_pct: number; under_pct: number };
 type ExactScoreItem = { home: number; away: number; probability: number };
@@ -58,6 +62,7 @@ type Result = {
   final_score_home?: number;
   final_score_away?: number;
   match_statistics?: { type: string; home_value: string | number; away_value: string | number }[];
+  full_analysis?: boolean;
   [k: string]: unknown;
 };
 
@@ -240,6 +245,58 @@ export function AnalysisResult({ result }: { result: Result }) {
   const home = result.home_team ?? "Home";
   const away = result.away_team ?? "Away";
   const { t } = useLanguage();
+  const fullAnalysis = result.full_analysis !== false;
+  const [showUnlockModal1, setShowUnlockModal1] = useState(false);
+  const [showUnlockModal2, setShowUnlockModal2] = useState(false);
+
+  const openUnlockStep1 = () => setShowUnlockModal1(true);
+  const closeUnlockStep1 = () => setShowUnlockModal1(false);
+  const openUnlockStep2 = () => {
+    setShowUnlockModal1(false);
+    setShowUnlockModal2(true);
+  };
+  const closeUnlockStep2 = () => setShowUnlockModal2(false);
+
+  const blurWrap = (content: React.ReactNode) => {
+    if (fullAnalysis) return content;
+    return (
+      <div className="relative">
+        <div className="select-none pointer-events-none blur-md opacity-80" aria-hidden>
+          {content}
+        </div>
+        <div className="absolute inset-0 flex flex-col items-center justify-center min-h-[220px] bg-[#0d0d12]/95 rounded-2xl border border-white/10 p-6">
+          <h3 className="text-lg sm:text-xl font-bold text-white text-center">
+            {t("analysis.limitedAccessTitle")}
+          </h3>
+          <div className="w-full max-w-xs h-2 bg-zinc-700 rounded-full mt-4 overflow-hidden">
+            <div
+              className="h-full bg-[#00ffe8] rounded-full transition-all duration-500"
+              style={{ width: "15%" }}
+            />
+          </div>
+          <p className="text-zinc-300 text-sm text-center mt-4 max-w-md">
+            {t("analysis.limitedAccessDesc")}
+          </p>
+          <button
+            type="button"
+            onClick={openUnlockStep1}
+            className="mt-6 inline-flex items-center gap-2 px-5 py-3 rounded-xl font-semibold text-[#0d0d12] bg-[#00ffe8] hover:bg-[#00ffe8]/90 transition"
+          >
+            <span className="text-lg" aria-hidden>🏆</span>
+            {t("analysis.unlockFullAnalysis")}
+          </button>
+        </div>
+        <UnlockFullAnalysisModal
+          open={showUnlockModal1}
+          onClose={closeUnlockStep1}
+          onUnlockClick={openUnlockStep2}
+          matchLabel={`${home} vs ${away}`}
+          matchCountdown={t("unlockModal1.countdownPlaceholder")}
+        />
+        <UnlockPricingModal open={showUnlockModal2} onClose={closeUnlockStep2} />
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-8">
@@ -433,7 +490,7 @@ export function AnalysisResult({ result }: { result: Result }) {
         </div>
       </section>
 
-      {/* Quick summary - icône bulle bleue */}
+      {/* Quick summary - visible for free plan */}
       {result.quick_summary && (
         <section className="rounded-2xl bg-[#14141c] border border-white/10 p-6">
           <h2 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
@@ -444,7 +501,7 @@ export function AnalysisResult({ result }: { result: Result }) {
         </section>
       )}
 
-      {/* Scenario #1 */}
+      {/* Scenario #1 - visible for free plan */}
       {result.scenario_1 && (
         <section className="rounded-2xl bg-[#14141c] border border-white/10 p-6">
           <h2 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
@@ -454,7 +511,7 @@ export function AnalysisResult({ result }: { result: Result }) {
         </section>
       )}
 
-      {/* AI confidence — barre de progression */}
+      {/* AI confidence — visible for free plan, blur starts after this */}
       {result.ai_confidence && (() => {
         const label = String(result.ai_confidence).trim();
         const confLower = label.toLowerCase();
@@ -482,7 +539,9 @@ export function AnalysisResult({ result }: { result: Result }) {
         );
       })()}
 
-      {/* Exact probabilities — barres 1X2 + cotes implicites */}
+      {/* From here: blurred for free plan — exact probabilities, distributions, scenarios, etc. */}
+      {blurWrap(
+        <>
       <section className="rounded-2xl bg-[#14141c] border border-white/10 p-6">
         <div className="flex items-center gap-2 mb-4">
           <h2 className="text-lg font-semibold text-white">📊 Exact probabilities</h2>
@@ -717,6 +776,8 @@ export function AnalysisResult({ result }: { result: Result }) {
             )}
           </div>
         </section>
+      )}
+        </>
       )}
 
       <p className="text-center text-zinc-500 text-xs">This analysis is provided for informational purposes only.</p>

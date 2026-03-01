@@ -21,7 +21,6 @@ function MatchesContent() {
         </p>
         <div className="mt-8">
           <MatchInput
-            redirectTo="/app/analysis"
             initialHome={home}
             initialAway={away}
             useApiPredictions={false}

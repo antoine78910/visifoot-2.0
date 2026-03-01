@@ -30,10 +30,16 @@ export default function AppAnalysisPage() {
                   if (!prev) return prev;
                   const next = { ...prev };
                   if (enrich.match_over !== undefined) next.match_over = enrich.match_over;
-                  if (enrich.final_score_home !== undefined) next.final_score_home = enrich.final_score_home;
-                  if (enrich.final_score_away !== undefined) next.final_score_away = enrich.final_score_away;
-                  if (Array.isArray(enrich.match_statistics) && enrich.match_statistics.length > 0)
-                    next.match_statistics = enrich.match_statistics;
+                  if (enrich.match_over === true) {
+                    next.final_score_home = typeof enrich.final_score_home === "number" ? enrich.final_score_home : Number(enrich.final_score_home) || 0;
+                    next.final_score_away = typeof enrich.final_score_away === "number" ? enrich.final_score_away : Number(enrich.final_score_away) || 0;
+                    if (Array.isArray(enrich.match_statistics)) next.match_statistics = enrich.match_statistics;
+                  } else {
+                    if (enrich.final_score_home !== undefined) next.final_score_home = typeof enrich.final_score_home === "number" ? enrich.final_score_home : Number(enrich.final_score_home) ?? 0;
+                    if (enrich.final_score_away !== undefined) next.final_score_away = typeof enrich.final_score_away === "number" ? enrich.final_score_away : Number(enrich.final_score_away) ?? 0;
+                    if (Array.isArray(enrich.match_statistics) && enrich.match_statistics.length > 0)
+                      next.match_statistics = enrich.match_statistics;
+                  }
                   return next;
                 });
               }

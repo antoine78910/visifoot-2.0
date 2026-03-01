@@ -1,11 +1,17 @@
 # backend/app/services/subscription.py
 """
-Vérification limite d'analyses : 1/jour (free) vs illimité (premium).
+Limites d'analyses par plan : free (1/jour, partielle), starter (1 complète/jour), pro/lifetime (illimité).
 Sans Supabase configuré, on autorise toujours (mode démo).
 """
 from datetime import date, timezone
 from app.core.config import get_settings
 from app.core.supabase_client import get_supabase
+
+# Plans reconnus : free, starter, pro, lifetime (premium mappé sur pro)
+PLAN_FREE = "free"
+PLAN_STARTER = "starter"
+PLAN_PRO = "pro"
+PLAN_LIFETIME = "lifetime"
 
 
 def _use_supabase() -> bool:
@@ -13,19 +19,30 @@ def _use_supabase() -> bool:
     return bool(s.supabase_url and s.supabase_key)
 
 
+def _normalize_plan(plan: str) -> str:
+    p = (plan or "free").lower().strip()
+    if p in (PLAN_PRO, "premium"):
+        return PLAN_PRO
+    if p == PLAN_STARTER:
+        return PLAN_STARTER
+    if p == PLAN_LIFETIME:
+        return PLAN_LIFETIME
+    return PLAN_FREE
+
+
 def get_plan_and_usage(user_id: str) -> tuple[str, int, date | None]:
     """
-    Récupère plan ('free' | 'premium'), analyses_used_today, last_analysis_date.
-    Si pas de ligne profile, considère free avec 0 usage.
+    Récupère plan normalisé (free|starter|pro|lifetime), analyses_used_today, last_analysis_date.
+    Si pas de ligne profile ou user_id vide, considère free avec 0 usage.
     """
-    if not _use_supabase():
-        return ("free", 0, None)
+    if not user_id or not _use_supabase():
+        return (PLAN_FREE, 0, None)
     supabase = get_supabase()
     r = supabase.table("profiles").select("plan, analyses_used_today, last_analysis_date").eq("id", user_id).execute()
     if not r.data or len(r.data) == 0:
-        return ("free", 0, None)
+        return (PLAN_FREE, 0, None)
     row = r.data[0]
-    plan = row.get("plan") or "free"
+    plan = _normalize_plan(str(row.get("plan") or "free"))
     used = int(row.get("analyses_used_today") or 0)
     last = row.get("last_analysis_date")
     if last:
@@ -43,28 +60,41 @@ def reset_if_new_day(used: int, last: date | None, today: date) -> int:
     return used
 
 
-def can_analyze(user_id: str) -> tuple[bool, str]:
+def get_analysis_limit(plan: str) -> tuple[int | None, bool]:
     """
-    Retourne (True, "") si l'utilisateur peut faire une analyse, sinon (False, message).
+    Retourne (limite_par_jour, full_analysis).
+    None = illimité. full_analysis = True si l'analyse est complète (pas de flou).
+    """
+    if plan in (PLAN_PRO, PLAN_LIFETIME):
+        return (None, True)
+    if plan == PLAN_STARTER:
+        return (1, True)  # 1 analyse complète par jour
+    # free
+    return (get_settings().free_analyses_per_day, False)  # 1 par jour, toujours partielle
+
+
+def can_analyze(user_id: str) -> tuple[bool, str, bool]:
+    """
+    Retourne (autorisé, message_erreur, full_analysis).
+    full_analysis = True si la prochaine analyse sera complète (non floutée).
     """
     if not _use_supabase():
-        return (True, "")
+        return (True, "", True)
     today = date.today(timezone.utc)
     plan, used, last = get_plan_and_usage(user_id)
     used = reset_if_new_day(used, last, today)
+    limit, full_analysis = get_analysis_limit(plan)
 
-    if plan == "premium":
-        return (True, "")
-
-    limit = get_settings().free_analyses_per_day
+    if limit is None:
+        return (True, "", full_analysis)
     if used >= limit:
-        return (False, f"Limite atteinte : {limit} analyse(s) gratuite(s) par jour.")
-    return (True, "")
+        return (False, "Limite atteinte : 1 analyse par jour pour ce plan. Passez à Pro pour des analyses illimitées.", full_analysis)
+    return (True, "", full_analysis)
 
 
 def consume_analysis(user_id: str) -> None:
     """Incrémente analyses_used_today et met à jour last_analysis_date."""
-    if not _use_supabase():
+    if not user_id or not _use_supabase():
         return
     today = date.today(timezone.utc).isoformat()
     supabase = get_supabase()

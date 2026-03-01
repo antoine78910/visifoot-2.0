@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { TeamAutocomplete, type TeamOption } from "./TeamAutocomplete";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getAppHref } from "@/lib/app-url";
+import { getUserFromStorage } from "@/lib/auth";
 
 function LoaderSpinner({ className }: { className?: string }) {
   return (
@@ -27,7 +28,6 @@ type UpcomingFixture = {
 };
 
 type MatchInputProps = {
-  redirectTo?: string;
   initialHome?: string;
   initialAway?: string;
   /** When true, submit will call onRequireAuth() instead of analyzing if !isLoggedIn */
@@ -42,7 +42,6 @@ type MatchInputProps = {
 };
 
 export function MatchInput({
-  redirectTo = "/analysis",
   initialHome = "",
   initialAway = "",
   requireAuth = false,
@@ -190,9 +189,13 @@ export function MatchInput({
       if (Number.isInteger(homeId)) body.home_team_id = homeId;
       if (Number.isInteger(awayId)) body.away_team_id = awayId;
 
+      const user = getUserFromStorage();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (user?.id) headers["X-User-Id"] = user.id;
+
       const res = await fetch(`${API_URL}/predict/stream`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(body),
         signal: controller.signal,
       });
@@ -239,11 +242,12 @@ export function MatchInput({
       sessionStorage.setItem("visifoot_analysis", JSON.stringify(data));
       const historyKey = "visifoot_history";
       const maxHistory = 50;
+      const predictionId = crypto.randomUUID();
       try {
         const raw = localStorage.getItem(historyKey);
         const list = raw ? JSON.parse(raw) : [];
         list.unshift({
-          id: crypto.randomUUID(),
+          id: predictionId,
           home_team: data.home_team,
           away_team: data.away_team,
           home_logo: (data as any)?.home_team_logo ?? null,
@@ -259,7 +263,13 @@ export function MatchInput({
       setProgress(100);
       setProgressStep("Done");
       await new Promise((r) => setTimeout(r, 300));
-      router.push(redirectTo);
+      const analyzeUrl = `/app/analyze?${new URLSearchParams({
+        team1: String(data.home_team ?? ""),
+        team2: String(data.away_team ?? ""),
+        fromHistory: "true",
+        predictionId,
+      }).toString()}`;
+      router.push(analyzeUrl);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analysis failed.");
       setProgress(0);

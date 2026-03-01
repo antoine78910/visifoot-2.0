@@ -53,6 +53,7 @@ export default function AuthCallbackPage() {
           (email ? displayNameFromEmail(email) : "User");
 
         const info: UserInfo = {
+          id: user?.id,
           displayName,
           email: email || "unknown",
           plan: "free",

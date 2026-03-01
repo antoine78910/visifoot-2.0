@@ -274,8 +274,13 @@ def _load_match_context_api_football(
                 match_over = True
                 f_home_id = fixture_result.get("home_team_id")
                 f_away_id = fixture_result.get("away_team_id")
-                g_h = fixture_result.get("goals_home")
-                g_a = fixture_result.get("goals_away")
+                try:
+                    g_h = fixture_result.get("goals_home")
+                    g_a = fixture_result.get("goals_away")
+                    g_h = int(g_h) if g_h is not None else None
+                    g_a = int(g_a) if g_a is not None else None
+                except (TypeError, ValueError):
+                    g_h, g_a = None, None
                 if home_id == f_home_id:
                     final_score_home = g_h
                     final_score_away = g_a

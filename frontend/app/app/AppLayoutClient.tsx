@@ -6,6 +6,9 @@ import { usePathname } from "next/navigation";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getUserFromStorage, clearAuthCookie, clearUserFromStorage, type UserInfo, type PlanId } from "@/lib/auth";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import type { Lang } from "@/lib/translations";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 const navKeys: { path: string; key: string; icon: typeof BarChartIcon; soon?: boolean }[] = [
   { path: "/matches", key: "nav.matches", icon: BarChartIcon },
@@ -91,6 +94,22 @@ function LogOutIcon({ className }: { className?: string }) {
   );
 }
 
+function GlobeIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <line x1="2" y1="12" x2="22" y2="12" />
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    </svg>
+  );
+}
+
+const LANG_OPTIONS: { code: Lang; labelKey: string; flag: string }[] = [
+  { code: "fr", labelKey: "lang.fr", flag: "FR" },
+  { code: "en", labelKey: "lang.en", flag: "GB" },
+  { code: "es", labelKey: "lang.es", flag: "ES" },
+];
+
 const PLAN_KEYS: Record<PlanId, string> = {
   free: "nav.free",
   starter: "nav.starter",
@@ -100,14 +119,30 @@ const PLAN_KEYS: Record<PlanId, string> = {
 
 export function AppLayoutClient({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { t } = useLanguage();
+  const { t, lang, setLang } = useLanguage();
   const [user, setUser] = useState<UserInfo | null>(null);
-  const analysesUsed = 0;
-  const analysesLimit = 1;
+  const [analysesUsed, setAnalysesUsed] = useState(0);
+  const [analysesLimit, setAnalysesLimit] = useState<number | null>(1);
+  const [langOpen, setLangOpen] = useState(false);
 
   useEffect(() => {
     setUser(getUserFromStorage());
   }, []);
+
+  useEffect(() => {
+    const uid = user?.id;
+    const headers: Record<string, string> = {};
+    if (uid) headers["X-User-Id"] = uid;
+    fetch(`${API_URL}/me`, { headers })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { analyses_used_today?: number; analyses_limit?: number | null } | null) => {
+        if (data) {
+          setAnalysesUsed(Number(data.analyses_used_today) || 0);
+          setAnalysesLimit(data.analyses_limit ?? 1);
+        }
+      })
+      .catch(() => {});
+  }, [user?.id]);
 
   const handleSignOut = async () => {
     try {
@@ -194,22 +229,29 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
               <BarChartIcon className="w-4 h-4" />
               {t("nav.todayAnalyses")}
             </p>
-            <p className="text-lg font-bold text-white">{analysesUsed}/{analysesLimit}</p>
+            <p className="text-lg font-bold text-white">{analysesUsed}/{analysesLimit == null ? "∞" : analysesLimit}</p>
             <div className="h-1.5 bg-zinc-800 rounded-full mt-1 overflow-hidden">
               <div
                 className="h-full bg-accent-green rounded-full transition-all"
-                style={{ width: `${(analysesUsed / analysesLimit) * 100}%` }}
+                style={{ width: `${analysesLimit != null && analysesLimit > 0 ? Math.min(100, (analysesUsed / analysesLimit) * 100) : 0}%` }}
               />
             </div>
           </div>
         </nav>
 
         <div className="p-4 border-t border-dark-border">
-          <div className="flex items-center gap-3 px-3 py-2 mb-2">
-            <div className="w-8 h-8 rounded-full bg-zinc-700 flex items-center justify-center">
+          <Link
+            href="/app/account"
+            className={`flex items-center gap-3 px-3 py-2 mb-2 rounded-lg text-sm transition-colors ${
+              pathname === "/app/account" || pathname?.startsWith("/app/account")
+                ? "bg-[#00ffe8]/15 border border-[#00ffe8]/70 text-[#00ffe8]"
+                : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200 border border-transparent"
+            }`}
+          >
+            <div className="w-8 h-8 rounded-full bg-zinc-700 flex items-center justify-center flex-shrink-0">
               <UserIcon className="w-4 h-4 text-zinc-400" />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-white truncate">
                 {user?.displayName ?? user?.email ?? "—"}
               </p>
@@ -217,18 +259,41 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
                 {user?.plan ? t(PLAN_KEYS[user.plan]) : t("nav.free")}
               </p>
             </div>
-          </div>
-          <Link
-            href="/app/account"
-            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
-              pathname === "/app/account" || pathname?.startsWith("/app/account")
-                ? "bg-[#00ffe8]/15 border border-[#00ffe8]/70 text-[#00ffe8]"
-                : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
-            }`}
-          >
-            <UserIcon className="flex-shrink-0" />
-            {t("nav.account")}
           </Link>
+          <div className="relative mb-2">
+            <button
+              type="button"
+              onClick={() => setLangOpen((o) => !o)}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200 border border-transparent text-left"
+            >
+              <GlobeIcon className="flex-shrink-0" />
+              <span className="flex-1">
+                {LANG_OPTIONS.find((o) => o.code === lang)?.flag ?? "GB"} {t(`lang.${lang}`)}
+              </span>
+            </button>
+            {langOpen && (
+              <>
+                <div className="absolute left-0 right-0 top-full z-20 mt-0.5 rounded-xl bg-[#1c1c28] border border-white/10 shadow-xl overflow-hidden">
+                  {LANG_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.code}
+                      type="button"
+                      onClick={() => {
+                        setLang(opt.code);
+                        setLangOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm text-left ${
+                        opt.code === lang ? "bg-[#00ffe8]/15 text-[#00ffe8]" : "text-zinc-300 hover:bg-zinc-800/50"
+                      }`}
+                    >
+                      {opt.flag} {t(opt.labelKey)}
+                    </button>
+                  ))}
+                </div>
+                <div className="fixed inset-0 z-10" aria-hidden onClick={() => setLangOpen(false)} />
+              </>
+            )}
+          </div>
           <Link
             href="/app/settings"
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
