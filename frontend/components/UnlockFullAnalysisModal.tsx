@@ -1,11 +1,19 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Lock } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 const ACCENT = "#00ffe8";
+
+const BULLET_ITEMS = [
+  { key: "unlockModal1.featureProbableScore" as const, icon: "🎯" },
+  { key: "unlockModal1.featureDetailedProb" as const, icon: "📊" },
+  { key: "unlockModal1.featureScenarios" as const, icon: "✨" },
+  { key: "unlockModal1.featureFullAnalysis" as const, icon: "📄" },
+  { key: "unlockModal1.featureBookmaker" as const, icon: "💡" },
+];
 
 export function UnlockFullAnalysisModal({
   open,
@@ -21,6 +29,19 @@ export function UnlockFullAnalysisModal({
   matchCountdown?: string;
 }) {
   const { t } = useLanguage();
+  const [visibleCount, setVisibleCount] = useState(0);
+
+  useEffect(() => {
+    if (!open) {
+      setVisibleCount(0);
+      return;
+    }
+    setVisibleCount(0);
+    const delays = BULLET_ITEMS.map((_, i) =>
+      setTimeout(() => setVisibleCount((c) => Math.max(c, i + 1)), 120 + i * 100)
+    );
+    return () => delays.forEach(clearTimeout);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -40,17 +61,18 @@ export function UnlockFullAnalysisModal({
   const modal = (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
       <div
-        className="relative w-full max-w-md rounded-2xl bg-[#14141c] border border-white/10 shadow-2xl overflow-hidden"
+        className="relative w-full max-w-md rounded-2xl bg-[#14141c] border-2 shadow-2xl overflow-hidden"
+        style={{ borderColor: `${ACCENT}40`, boxShadow: `0 0 40px -5px ${ACCENT}20` }}
         role="dialog"
         aria-modal="true"
         aria-labelledby="unlock-modal-title"
       >
-        {/* Green success banner */}
+        {/* Banner — branding accent */}
         <div
           className="flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white"
-          style={{ background: `linear-gradient(135deg, ${ACCENT}40 0%, #22c55e50 100%)`, borderBottom: `1px solid ${ACCENT}30` }}
+          style={{ background: `linear-gradient(135deg, ${ACCENT}30 0%, ${ACCENT}15 100%)`, borderBottom: `1px solid ${ACCENT}40` }}
         >
-          <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ color: ACCENT }}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
           </svg>
           <span>{t("unlockModal1.banner")}</span>
@@ -60,7 +82,8 @@ export function UnlockFullAnalysisModal({
         <button
           type="button"
           onClick={onClose}
-          className="absolute top-3 right-3 p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition"
+          className="absolute top-3 right-3 p-1.5 rounded-lg transition hover:bg-white/10"
+          style={{ color: ACCENT }}
           aria-label="Close"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -72,42 +95,43 @@ export function UnlockFullAnalysisModal({
           <h2 id="unlock-modal-title" className="text-xl font-bold text-white pr-8">
             {t("unlockModal1.title")}
           </h2>
-          <p className="flex items-center gap-1.5 text-sm text-zinc-400 mt-1">
+          <p className="flex items-center gap-1.5 text-sm mt-1" style={{ color: `${ACCENT}cc` }}>
             <span aria-hidden>👥</span>
             {t("unlockModal1.socialProof")}
           </p>
 
-          {/* What you'll unlock */}
-          <div className="mt-6 rounded-xl bg-[#1c1c28] border border-white/5 p-4">
-            <p className="text-xs font-medium uppercase tracking-wider text-zinc-500 mb-3">
+          {/* What you'll unlock — bullets appear one by one */}
+          <div className="mt-6 rounded-xl p-4 border" style={{ backgroundColor: "#1c1c28", borderColor: `${ACCENT}25` }}>
+            <p className="text-xs font-medium uppercase tracking-wider mb-3" style={{ color: ACCENT }}>
               {t("unlockModal1.whatYouUnlock")}
             </p>
             <ul className="space-y-2.5">
-              {[
-                { key: "unlockModal1.featureProbableScore", icon: "🎯" },
-                { key: "unlockModal1.featureDetailedProb", icon: "📊" },
-                { key: "unlockModal1.featureScenarios", icon: "✨" },
-                { key: "unlockModal1.featureFullAnalysis", icon: "📄" },
-                { key: "unlockModal1.featureBookmaker", icon: "💡" },
-              ].map(({ key, icon }) => (
-                <li key={key} className="flex items-center gap-3 text-sm text-zinc-300">
-                  <Lock className="w-4 h-4 flex-shrink-0 text-zinc-500" aria-hidden />
+              {BULLET_ITEMS.map(({ key, icon }, index) => (
+                <li
+                  key={key}
+                  className="flex items-center gap-3 text-sm text-zinc-300 transition-all duration-300 ease-out"
+                  style={{
+                    opacity: index < visibleCount ? 1 : 0,
+                    transform: index < visibleCount ? "translateY(0)" : "translateY(8px)",
+                  }}
+                >
+                  <Lock className="w-4 h-4 flex-shrink-0" style={{ color: index < visibleCount ? ACCENT : "#71717a" }} aria-hidden />
                   <span>{t(key)}</span>
-                  <span className="ml-auto text-base opacity-80" aria-hidden>{icon}</span>
+                  <span className="ml-auto text-base opacity-90" aria-hidden>{icon}</span>
                 </li>
               ))}
             </ul>
           </div>
 
-          {/* Match countdown block */}
+          {/* Match countdown block — accent branding */}
           {(matchLabel || matchCountdown) && (
-            <div className="mt-4 rounded-xl bg-amber-900/40 border border-amber-600/40 p-4 flex items-center gap-3">
+            <div className="mt-4 rounded-xl p-4 flex items-center gap-3 border" style={{ backgroundColor: `${ACCENT}12`, borderColor: `${ACCENT}35` }}>
               <span className="text-2xl" aria-hidden>⏰</span>
               <div>
                 <p className="text-white font-medium text-sm">
                   {matchLabel ?? "Match"} {t("unlockModal1.matchStartsIn")}
                 </p>
-                <p className="text-amber-200 font-semibold text-sm mt-0.5">
+                <p className="font-semibold text-sm mt-0.5" style={{ color: ACCENT }}>
                   {matchCountdown ?? "—"}
                 </p>
               </div>
@@ -117,13 +141,16 @@ export function UnlockFullAnalysisModal({
           <button
             type="button"
             onClick={onUnlockClick}
-            className="mt-6 w-full py-3.5 px-4 rounded-xl font-semibold text-[#0d0d12] transition flex items-center justify-center gap-2"
-            style={{ background: `linear-gradient(135deg, ${ACCENT} 0%, #22c55e 100%)` }}
+            className="mt-6 w-full py-3.5 px-4 rounded-xl font-semibold text-[#0d0d12] transition flex items-center justify-center gap-2 hover:opacity-95"
+            style={{
+              background: `linear-gradient(135deg, ${ACCENT} 0%, #00ddcc 100%)`,
+              boxShadow: `0 0 20px -2px ${ACCENT}50`,
+            }}
           >
             <span aria-hidden>🏆</span>
             {t("unlockModal1.cta")}
           </button>
-          <p className="text-center text-xs text-zinc-500 mt-3">
+          <p className="text-center text-xs mt-3" style={{ color: `${ACCENT}99` }}>
             {t("unlockModal1.instantAccess")}
           </p>
         </div>

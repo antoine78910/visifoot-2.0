@@ -6,7 +6,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { getUserFromStorage } from "@/lib/auth";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { UnsubscribeOfferModal } from "@/components/UnsubscribeOfferModal";
-import { getWhopCheckoutUrl } from "@/lib/whopCheckout";
+import { getWhopCheckoutUrl, getDatafastVisitorId } from "@/lib/whopCheckout";
 import { useGeoCurrency } from "@/hooks/useGeoCurrency";
 import { Check } from "lucide-react";
 
@@ -137,7 +137,7 @@ export default function AccountPage() {
 
   const handleEnjoyOffer = () => {
     setUnsubscribeModalOpen(false);
-    window.location.href = getWhopCheckoutUrl("pro", currencyConfig.currency);
+    window.location.href = getWhopCheckoutUrl("pro", currencyConfig.currency, getDatafastVisitorId());
   };
 
   const handleConfirmCancel = () => {
@@ -146,7 +146,7 @@ export default function AccountPage() {
   };
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-3xl mx-auto">
       <h1 className="text-2xl font-bold text-white">{t("account.title")}</h1>
       <p className="text-zinc-500 mt-1">{t("account.subtitle")}</p>
 
@@ -263,7 +263,7 @@ export default function AccountPage() {
           <button
             type="button"
             onClick={() => {
-              window.location.href = getWhopCheckoutUrl("lifetime", currencyConfig.currency);
+              window.location.href = getWhopCheckoutUrl("lifetime", currencyConfig.currency, getDatafastVisitorId());
             }}
             className="mt-4 w-full py-3 px-4 rounded-xl font-semibold text-[#0d0d12] bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 hover:shadow-[0_0_22px_6px_rgba(245,158,11,0.45)] transition-all duration-300 shadow-[0_0_20px_-5px_rgba(245,158,11,0.4)]"
           >

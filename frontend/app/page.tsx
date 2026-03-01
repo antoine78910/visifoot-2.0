@@ -2,7 +2,9 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { BGPattern } from "@/components/BGPattern";
 import { LandingMatchSearch } from "@/components/LandingMatchSearch";
+import { LeagueLogosScroller } from "@/components/LeagueLogosScroller";
 import { APP_HREF, SIGN_IN_HREF, ANALYSE_HREF, getAppAuthCallbackUrl } from "@/lib/app-url";
 
 export default function LandingPage() {
@@ -17,7 +19,9 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-app-gradient text-zinc-200 flex flex-col relative overflow-hidden">
-      {/* Background glow orbs */}
+      {/* Grid background — behind gradient orbs, subtle teal tint */}
+      <BGPattern variant="grid" mask="fade-edges" size={24} fill="rgba(0,255,232,0.07)" className="fixed inset-0" />
+      {/* Background glow orbs (main color gradient) */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
         <div className="absolute -top-40 -left-40 w-80 h-80 rounded-full bg-[#00ffe8]/15 blur-[100px]" />
         <div className="absolute top-1/3 -right-32 w-96 h-96 rounded-full bg-[#00ffe8]/10 blur-[120px]" />
@@ -55,6 +59,8 @@ export default function LandingPage() {
           </p>
           <LandingMatchSearch analyseHref={ANALYSE_HREF} />
         </section>
+
+        <LeagueLogosScroller />
 
         {/* Banner: Based on millions of data points */}
         <section className="w-full max-w-4xl mx-auto mt-16 sm:mt-20 px-4">

@@ -23,7 +23,23 @@ const CHECKOUT_URLS: Record<PricingCurrency, Record<WhopPlanId, string>> = {
   },
 };
 
-export function getWhopCheckoutUrl(plan: WhopPlanId, currency: PricingCurrency): string {
-  return CHECKOUT_URLS[currency][plan];
+/** Read DataFast visitor ID from cookie (for revenue attribution). Call only in browser. */
+export function getDatafastVisitorId(): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(/\bdatafast_visitor_id=([^;]+)/);
+  return match ? decodeURIComponent(match[1].trim()) : null;
+}
+
+export function getWhopCheckoutUrl(
+  plan: WhopPlanId,
+  currency: PricingCurrency,
+  datafastVisitorId?: string | null
+): string {
+  let url = CHECKOUT_URLS[currency][plan];
+  if (datafastVisitorId?.trim()) {
+    const sep = url.includes("?") ? "&" : "?";
+    url += `${sep}datafast_visitor_id=${encodeURIComponent(datafastVisitorId.trim())}`;
+  }
+  return url;
 }
 

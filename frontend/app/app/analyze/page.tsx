@@ -76,7 +76,7 @@ function AnalyzeContent() {
 
   if (notFound) {
     return (
-      <div className="p-8 w-full flex flex-col items-center">
+      <div className="p-4 sm:p-8 w-full flex flex-col items-center">
         <div className="w-full max-w-xl mx-auto">
           <p className="text-zinc-400 mb-4">{t("analysis.noData")}</p>
           <Link href="/history" className="text-accent-cyan hover:underline">
@@ -93,7 +93,7 @@ function AnalyzeContent() {
 
   if (data === null) {
     return (
-      <div className="p-8 w-full flex flex-col items-center">
+      <div className="p-4 sm:p-8 w-full flex flex-col items-center">
         <div className="w-full max-w-xl mx-auto">
           <p className="text-zinc-400">Loading…</p>
         </div>
@@ -106,7 +106,7 @@ function AnalyzeContent() {
   const resultToShow = isFree ? { ...data, full_analysis: false } : data;
 
   return (
-    <div className="p-8 pb-16 w-full flex flex-col items-center">
+    <div className="p-4 sm:p-8 pb-16 w-full flex flex-col items-center">
       <div className="w-full max-w-4xl mx-auto">
         <Link href="/history" className="inline-block text-zinc-500 hover:text-accent-cyan text-sm mb-8">
           ← {t("history.title")}

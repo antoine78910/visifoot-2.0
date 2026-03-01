@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     polling_interval_seconds: int = 10
     # NewsAPI.org (optionnel) — actualités pour le quick summary style Visifoot
     news_api_key: str = ""
+    # DataFast — attribution des revenus (Payment API)
+    datafast_api_key: str = ""
+    # Whop — secret du webhook pour vérifier la signature (ws_...)
+    whop_webhook_secret: str = ""
 
     class Config:
         # .env.local override .env (secrets locaux sans les commiter)

@@ -264,13 +264,31 @@ export function AnalysisResult({ result }: { result: Result }) {
         <div className="select-none pointer-events-none blur-md opacity-90" aria-hidden>
           {content}
         </div>
-        <UnlockFullAnalysisModal
-          open={showUnlockModal1}
-          onClose={closeUnlockStep1}
-          onUnlockClick={openUnlockStep2}
-          matchLabel={`${home} vs ${away}`}
-          matchCountdown={t("unlockModal1.countdownPlaceholder")}
-        />
+        {/* CTA overlay on the blur — positioned higher so visible without scrolling */}
+        <div className="absolute inset-0 flex items-start justify-center pt-6 sm:pt-10 p-4 pb-20 bg-black/30">
+          <div className="rounded-2xl bg-[#14141c]/95 border-2 border-[#00ffe8]/30 p-5 sm:p-6 max-w-md w-full shadow-xl">
+            <h3 className="text-lg sm:text-xl font-bold text-white text-center">
+              {t("analysis.limitedAccessTitle")}
+            </h3>
+            <div className="w-full max-w-xs h-2 bg-zinc-700 rounded-full mt-4 mx-auto overflow-hidden">
+              <div
+                className="h-full bg-[#00ffe8] rounded-full transition-all duration-500"
+                style={{ width: "15%" }}
+              />
+            </div>
+            <p className="text-zinc-300 text-sm text-center mt-4">
+              {t("analysis.limitedAccessDesc")}
+            </p>
+            <button
+              type="button"
+              onClick={openUnlockStep2}
+              className="mt-6 w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-semibold text-[#0d0d12] bg-[#00ffe8] hover:bg-[#00ffe8]/90 transition"
+            >
+              <span className="text-lg" aria-hidden>🏆</span>
+              {t("analysis.unlockFullAnalysis")}
+            </button>
+          </div>
+        </div>
         <UnlockPricingModal open={showUnlockModal2} onClose={closeUnlockStep2} />
       </div>
     );
@@ -369,7 +387,8 @@ export function AnalysisResult({ result }: { result: Result }) {
               </div>
             </div>
           </section>
-          {result.match_statistics && result.match_statistics.length > 0 && (
+          {/* Match statistics title only when match over — content is inside blur below for free plan */}
+          {result.match_statistics && result.match_statistics.length > 0 && fullAnalysis && (
             <section className="rounded-2xl bg-[#14141c] border border-white/10 p-6">
               <h2 className="text-lg font-semibold text-white mb-5 flex items-center gap-2">
                 <span className="text-zinc-400">
@@ -517,35 +536,60 @@ export function AnalysisResult({ result }: { result: Result }) {
         );
       })()}
 
-      {/* Unlock banner — visible for free plan, placed high so it's seen directly */}
+      {/* Visible "Statistics" title for free plan — blur starts right after so users see we blur the stats */}
       {!fullAnalysis && (
-        <section className="rounded-2xl bg-[#14141c]/90 border-2 border-[#00ffe8]/30 p-6">
-          <h3 className="text-lg sm:text-xl font-bold text-white text-center">
-            {t("analysis.limitedAccessTitle")}
-          </h3>
-          <div className="w-full max-w-xs h-2 bg-zinc-700 rounded-full mt-4 mx-auto overflow-hidden">
-            <div
-              className="h-full bg-[#00ffe8] rounded-full transition-all duration-500"
-              style={{ width: "15%" }}
-            />
-          </div>
-          <p className="text-zinc-300 text-sm text-center mt-4 max-w-md mx-auto">
-            {t("analysis.limitedAccessDesc")}
-          </p>
-          <button
-            type="button"
-            onClick={openUnlockStep1}
-            className="mt-6 w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-semibold text-[#0d0d12] bg-[#00ffe8] hover:bg-[#00ffe8]/90 transition"
-          >
-            <span className="text-lg" aria-hidden>🏆</span>
-            {t("analysis.unlockFullAnalysis")}
-          </button>
+        <section className="rounded-2xl bg-[#14141c] border border-white/10 p-6">
+          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+            <span className="text-zinc-400">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </span>
+            {t("analysis.statistics")}
+          </h2>
         </section>
       )}
 
-      {/* From here: blurred for free plan — exact probabilities, distributions, scenarios, etc. */}
+      {/* From here: blurred for free plan — stats content + exact probabilities, distributions, scenarios, etc. */}
       {blurWrap(
         <>
+      {/* Match statistics content (when match over) — first thing in blur so title above is visible */}
+      {result.match_over && result.match_statistics && result.match_statistics.length > 0 && (
+        <section className="rounded-2xl bg-[#14141c] border border-white/10 p-6">
+          <div className="space-y-5">
+            {result.match_statistics.map((stat, idx) => {
+              const label = statLabelFromType(stat.type, t);
+              const homeVal = stat.home_value;
+              const awayVal = stat.away_value;
+              const homeNum = typeof homeVal === "string" ? parseFloat(String(homeVal).replace("%", "")) : Number(homeVal);
+              const awayNum = typeof awayVal === "string" ? parseFloat(String(awayVal).replace("%", "")) : Number(awayVal);
+              const total = homeNum + awayNum;
+              const homePct = total > 0 ? (homeNum / total) * 100 : 50;
+              const isPct = typeof homeVal === "string" && String(homeVal).includes("%");
+              const homeDisplay = isPct ? `${homeNum}%` : String(homeVal);
+              const awayDisplay = isPct ? `${awayNum}%` : String(awayVal);
+              return (
+                <div key={idx} className="space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-zinc-400 flex items-center gap-2">
+                      {statIconFromType(stat.type)}
+                      {label}
+                    </span>
+                    <span className="flex gap-4 tabular-nums">
+                      <span className={HOME_COLOR}>{homeDisplay}</span>
+                      <span className={AWAY_COLOR}>{awayDisplay}</span>
+                    </span>
+                  </div>
+                  <div className="h-3 bg-[#1c1c28] rounded-full overflow-hidden flex">
+                    <div className="h-full rounded-l-full transition-all" style={{ width: `${Math.min(100, Math.max(0, homePct))}%`, background: HOME_HEX }} />
+                    <div className="h-full flex-1 rounded-r-full opacity-80" style={{ background: AWAY_HEX }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
       <section className="rounded-2xl bg-[#14141c] border border-white/10 p-6">
         <div className="flex items-center gap-2 mb-4">
           <h2 className="text-lg font-semibold text-white">📊 Exact probabilities</h2>

@@ -77,7 +77,7 @@ export default function HistoryPage() {
   };
 
   return (
-    <div className="p-8 w-full flex flex-col items-center">
+    <div className="p-4 sm:p-8 w-full flex flex-col items-center">
       <div className="w-full max-w-xl mx-auto">
         <h1 className="text-2xl font-bold text-white">{t("history.title")}</h1>
         <p className="text-zinc-500 mt-1">{t("history.subtitle")}</p>

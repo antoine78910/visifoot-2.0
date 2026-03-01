@@ -17,3 +17,6 @@ openai>=1.12.0
 
 # HTTP
 httpx>=0.26.0
+
+# Whop webhook signature (Standard Webhooks)
+standardwebhooks>=1.0.0

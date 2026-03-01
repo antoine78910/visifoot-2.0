@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { BGPattern } from "@/components/BGPattern";
 import { getUserFromStorage, clearAuthCookie, clearUserFromStorage, type UserInfo, type PlanId } from "@/lib/auth";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { Lang } from "@/lib/translations";
@@ -108,6 +109,24 @@ const PLAN_KEYS: Record<PlanId, string> = {
   lifetime: "nav.lifetime",
 };
 
+function MenuIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="4" y1="12" x2="20" y2="12" />
+      <line x1="4" y1="6" x2="20" y2="6" />
+      <line x1="4" y1="18" x2="20" y2="18" />
+    </svg>
+  );
+}
+
+function XIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 6L6 18M6 6l12 12" />
+    </svg>
+  );
+}
+
 export function AppLayoutClient({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { t, lang, setLang } = useLanguage();
@@ -115,6 +134,7 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
   const [analysesUsed, setAnalysesUsed] = useState(0);
   const [analysesLimit, setAnalysesLimit] = useState<number | null>(null);
   const [langOpen, setLangOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     setUser(getUserFromStorage());
@@ -153,17 +173,61 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
     window.location.href = "/";
   };
 
+  const closeSidebar = () => setSidebarOpen(false);
+
   return (
-    <div className="min-h-screen bg-app-gradient text-zinc-200 flex">
-      <aside className="w-64 flex-shrink-0 sticky top-0 h-screen overflow-y-auto border-r border-dark-border bg-dark-card/50 flex flex-col">
-        <div className="px-5 pt-4 pb-3 flex justify-center">
-          <Link href="/" className="flex items-center justify-center">
+    <div className="min-h-screen bg-app-gradient text-zinc-200 flex flex-col md:flex-row relative">
+      <BGPattern variant="grid" mask="fade-edges" size={24} fill="rgba(0,255,232,0.07)" className="fixed inset-0" />
+      {/* Mobile header: logo + hamburger */}
+      <header className="md:hidden flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-dark-border bg-dark-card/80 backdrop-blur-md sticky top-0 z-30">
+        <Link href="/" className="flex items-center">
+          <img src="/logo.png" alt="DEEPFOOT" className="h-12 w-auto object-contain" />
+        </Link>
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(true)}
+          className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition"
+          aria-label="Open menu"
+        >
+          <MenuIcon className="w-6 h-6" />
+        </button>
+      </header>
+
+      {/* Sidebar: overlay on mobile, static on md+ */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
+          aria-hidden
+          onClick={closeSidebar}
+        />
+      )}
+      <aside
+        className={`
+          w-64 flex-shrink-0 flex flex-col
+          fixed md:static inset-y-0 left-0 z-50 md:z-auto
+          h-full md:h-screen
+          transform transition-transform duration-200 ease-out
+          md:translate-x-0 md:sticky md:top-0
+          overflow-y-auto border-r border-dark-border bg-dark-card/50
+          ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+        `}
+      >
+        <div className="px-5 pt-4 pb-3 flex items-center justify-between md:justify-center">
+          <Link href="/" className="flex items-center justify-center" onClick={closeSidebar}>
             <img
               src="/logo.png"
               alt="DEEPFOOT"
               className="h-14 w-auto object-contain max-w-full"
             />
           </Link>
+          <button
+            type="button"
+            onClick={closeSidebar}
+            className="md:hidden p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10"
+            aria-label="Close menu"
+          >
+            <XIcon className="w-5 h-5" />
+          </button>
         </div>
 
         <nav className="px-4 flex-1">
@@ -195,6 +259,7 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
                 <li key={path}>
                   <Link
                     href={href}
+                    onClick={closeSidebar}
                     className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-200 ${
                       active
                         ? "bg-[#00ffe8]/15 border border-[#00ffe8]/70 text-[#00ffe8] shadow-[0_0_10px_2px_rgba(0,255,232,0.2)]"
@@ -210,6 +275,7 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
             <li>
               <Link
                 href="/pricing"
+                onClick={closeSidebar}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm border transition-all duration-200 ${
                   pathname === "/pricing" || pathname === "/app/pricing" || pathname?.startsWith("/app/pricing")
                     ? "border-amber-500/70 bg-amber-500/15 text-amber-400 shadow-[0_0_10px_2px_rgba(245,158,11,0.2)]"
@@ -254,6 +320,7 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
           <div className="mt-auto space-y-1">
             <Link
               href="/account"
+              onClick={closeSidebar}
               className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
                 pathname === "/account" || pathname === "/app/account" || pathname?.startsWith("/app/account")
                   ? "bg-[#00ffe8]/15 border border-[#00ffe8]/70 text-[#00ffe8] shadow-[0_0_10px_2px_rgba(0,255,232,0.2)]"
@@ -329,7 +396,7 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-auto min-w-0 px-4 md:px-0 py-4 md:py-0">
         {children}
       </main>
     </div>

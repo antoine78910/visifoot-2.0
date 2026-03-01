@@ -1,0 +1,158 @@
+"""
+Webhooks: Whop payment.succeeded → DataFast Payment API for revenue attribution.
+Whop uses Standard Webhooks (webhook-id, webhook-timestamp, webhook-signature).
+"""
+import json
+import logging
+from fastapi import APIRouter, Request, HTTPException
+
+router = APIRouter(prefix="/webhooks", tags=["webhooks"])
+logger = logging.getLogger(__name__)
+
+DATAFAST_PAYMENTS_URL = "https://datafa.st/api/v1/payments"
+
+
+def _extract_whop_payment(body: dict) -> dict | None:
+    """
+    Extract amount (float), currency (str), transaction_id (str), datafast_visitor_id (str | None)
+    from Whop payment.succeeded webhook payload. Adapt keys if Whop schema differs.
+    """
+    # Whop may send: { "event": "payment.succeeded", "data": { "object": { ... } } } or similar
+    data = body.get("data") or body
+    obj = data.get("object") if isinstance(data, dict) else None
+    payload = obj if isinstance(obj, dict) else data if isinstance(data, dict) else body
+
+    if not isinstance(payload, dict):
+        return None
+
+    # Amount: might be in cents (integer) or units (float)
+    amount_raw = payload.get("amount") or payload.get("amount_total") or payload.get("total")
+    if amount_raw is None:
+        return None
+    try:
+        amount = float(amount_raw)
+        if amount > 1000 and amount == int(amount):
+            amount = amount / 100  # assume cents
+    except (TypeError, ValueError):
+        return None
+
+    # Currency
+    currency = (payload.get("currency") or payload.get("currency_code") or "USD")
+    if isinstance(currency, str):
+        currency = currency.upper()[:3]
+    else:
+        currency = "USD"
+
+    # Transaction id
+    txn = payload.get("id") or payload.get("transaction_id") or payload.get("payment_id") or ""
+    transaction_id = str(txn) if txn else None
+    if not transaction_id:
+        return None
+
+    # DataFast visitor ID: from metadata (if Whop echoes query params / custom metadata)
+    metadata = payload.get("metadata") or payload.get("custom_data") or {}
+    if isinstance(metadata, dict):
+        visitor_id = metadata.get("datafast_visitor_id")
+    else:
+        visitor_id = None
+    visitor_id = visitor_id or payload.get("datafast_visitor_id")
+
+    return {
+        "amount": round(amount, 2),
+        "currency": currency,
+        "transaction_id": transaction_id,
+        "datafast_visitor_id": str(visitor_id).strip() if visitor_id else None,
+    }
+
+
+def _verify_whop_signature(raw_body: bytes, headers: dict, secret: str) -> bool:
+    """Verify Whop webhook using Standard Webhooks (HMAC). Accepts ws_ or whsec_ prefix."""
+    if not secret or not raw_body:
+        return False
+    try:
+        from standardwebhooks.webhooks import Webhook
+        # Library expects whsec_<base64>; Whop may give ws_<base64> — normalize
+        normalized = secret.strip()
+        for prefix in ("ws_", "whsec_"):
+            if normalized.startswith(prefix):
+                normalized = "whsec_" + normalized[len(prefix):]
+                break
+        wh = Webhook(normalized)
+        wh.verify(raw_body, headers)
+        return True
+    except Exception as e:
+        logger.warning("Whop webhook signature verification failed: %s", e)
+        return False
+
+
+@router.post("/whop")
+async def whop_webhook(request: Request):
+    """
+    Receive Whop payment.succeeded (and optionally other events).
+    On payment.succeeded, forward to DataFast Payment API for revenue attribution.
+    If WHOP_WEBHOOK_SECRET is set, verifies Standard Webhooks signature.
+    """
+    raw_body = await request.body()
+    try:
+        body = json.loads(raw_body) if raw_body else {}
+    except json.JSONDecodeError as e:
+        logger.warning("Whop webhook invalid JSON: %s", e)
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    from app.core.config import get_settings
+    settings = get_settings()
+    secret = (settings.whop_webhook_secret or "").strip()
+    if secret:
+        if not _verify_whop_signature(raw_body, dict(request.headers), secret):
+            raise HTTPException(status_code=401, detail="Invalid webhook signature")
+
+    event = (body.get("event") or body.get("type") or "").strip().lower()
+
+    if event != "payment.succeeded":
+        return {"ok": True, "ignored": True, "event": event}
+
+    parsed = _extract_whop_payment(body)
+    if not parsed:
+        logger.warning("Whop webhook: could not parse payment from body keys %s", list(body.keys()))
+        return {"ok": True, "forwarded": False, "reason": "parse_failed"}
+
+    api_key = (settings.datafast_api_key or "").strip()
+    if not api_key:
+        logger.debug("DataFast API key not set, skip forwarding")
+        return {"ok": True, "forwarded": False, "reason": "no_datafast_key"}
+
+    if not parsed["datafast_visitor_id"]:
+        logger.info("Whop webhook: no datafast_visitor_id in payload, skip DataFast (pass it in checkout metadata or URL)")
+        return {"ok": True, "forwarded": False, "reason": "no_visitor_id"}
+
+    # POST to DataFast
+    payload = {
+        "amount": parsed["amount"],
+        "currency": parsed["currency"],
+        "transaction_id": parsed["transaction_id"],
+        "datafast_visitor_id": parsed["datafast_visitor_id"],
+    }
+    import httpx
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.post(
+                DATAFAST_PAYMENTS_URL,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+                timeout=10.0,
+            )
+        if r.status_code >= 400:
+            logger.warning("DataFast Payment API error: %s %s", r.status_code, r.text)
+            return {"ok": True, "forwarded": False, "datafast_status": r.status_code}
+        vid = parsed["datafast_visitor_id"]
+        logger.info(
+            "DataFast: payment attributed amount=%s %s txn=%s visitor=%s",
+            parsed["amount"], parsed["currency"], parsed["transaction_id"], (vid[:8] + "...") if len(vid) > 8 else vid
+        )
+        return {"ok": True, "forwarded": True}
+    except Exception as e:
+        logger.exception("DataFast request failed: %s", e)
+        return {"ok": True, "forwarded": False, "error": str(e)}
