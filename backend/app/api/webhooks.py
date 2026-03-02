@@ -33,6 +33,24 @@ def _pick_first(obj: dict, keys: tuple[str, ...]) -> Any:
     return None
 
 
+def _deep_find_first(obj: Any, keys: set[str]) -> Any:
+    """Recursive search for first matching key in nested dict/list payloads."""
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if k in keys and v is not None:
+                return v
+        for v in obj.values():
+            found = _deep_find_first(v, keys)
+            if found is not None:
+                return found
+    elif isinstance(obj, list):
+        for item in obj:
+            found = _deep_find_first(item, keys)
+            if found is not None:
+                return found
+    return None
+
+
 def _extract_payment_payload(body: dict) -> dict:
     """Best-effort extraction of the payment object across Whop payload variants."""
     data = body.get("data")
@@ -122,8 +140,18 @@ def _extract_whop_member_and_plan(body: dict) -> tuple[str | None, str | None]:
         email = (_pick_first(member, ("email", "email_address")) or "").strip()
     else:
         email = None
+    if not email:
+        email = str(
+            _pick_first(obj, ("user_email", "email", "email_address"))
+            or _deep_find_first(obj, {"user_email", "email", "email_address"})
+            or ""
+        ).strip()
     plan_obj = obj.get("plan") if isinstance(obj.get("plan"), dict) else {}
-    plan_id = _pick_first(obj, ("plan_id",)) or _pick_first(plan_obj, ("id", "plan_id"))
+    plan_id = (
+        _pick_first(obj, ("plan_id",))
+        or _pick_first(plan_obj, ("id", "plan_id"))
+        or _deep_find_first(obj, {"plan_id"})
+    )
     plan_id = (plan_id or "").strip()
     app_plan = WHOP_PLAN_TO_APP.get(plan_id) if plan_id else None
     return (email or None, app_plan)
