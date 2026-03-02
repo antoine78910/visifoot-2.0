@@ -3,7 +3,7 @@
 Limites d'analyses par plan : free (1/jour, partielle), starter (1 complète/jour), pro/lifetime (illimité).
 Sans Supabase configuré, on autorise toujours (mode démo).
 """
-from datetime import date, timezone
+from datetime import date, datetime, timezone
 from app.core.config import get_settings
 from app.core.supabase_client import get_supabase, get_supabase_admin
 
@@ -82,7 +82,7 @@ def can_analyze(user_id: str) -> tuple[bool, str, bool]:
     """
     if not _use_supabase():
         return (True, "", True)
-    today = date.today(timezone.utc)
+    today = datetime.now(timezone.utc).date()
     plan, used, last = get_plan_and_usage(user_id)
     used = reset_if_new_day(used, last, today)
     limit, full_analysis = get_analysis_limit(plan)
@@ -98,14 +98,14 @@ def consume_analysis(user_id: str) -> None:
     """Incrémente analyses_used_today et met à jour last_analysis_date."""
     if not user_id or not _use_supabase():
         return
-    today = date.today(timezone.utc).isoformat()
+    today = datetime.now(timezone.utc).date()
     plan, used, last = get_plan_and_usage(user_id)
-    used = reset_if_new_day(used, last, date.today(timezone.utc))
+    used = reset_if_new_day(used, last, today)
     new_used = used + 1
 
     supabase = get_supabase_admin() or get_supabase()
     supabase.table("profiles").upsert({
         "id": user_id,
         "analyses_used_today": new_used,
-        "last_analysis_date": today,
+        "last_analysis_date": today.isoformat(),
     }, on_conflict="id").execute()

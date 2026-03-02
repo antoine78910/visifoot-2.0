@@ -133,8 +133,8 @@ def _extract_whop_payment(body: dict, fallback_visitor_id: str | None = None) ->
     }
 
 
-def _extract_whop_member_and_plan(body: dict) -> tuple[str | None, str | None]:
-    """Extract (email, app_plan) from Whop payload. app_plan in (starter, pro, lifetime)."""
+def _extract_whop_member_plan_and_membership(body: dict) -> tuple[str | None, str | None, str | None]:
+    """Extract (email, app_plan, membership_id) from Whop payload."""
     obj = _extract_payment_payload(body)
     member = _pick_first(obj, ("member", "user")) or {}
     if isinstance(member, dict):
@@ -155,11 +155,18 @@ def _extract_whop_member_and_plan(body: dict) -> tuple[str | None, str | None]:
     )
     plan_id = (plan_id or "").strip()
     app_plan = WHOP_PLAN_TO_APP.get(plan_id) if plan_id else None
-    return (email or None, app_plan)
+    membership_id = (_pick_first(obj, ("membership_id",)) or "").strip() or None
+    return (email or None, app_plan, membership_id)
 
 
-def _update_supabase_plan_for_email(email: str, plan: str) -> bool:
-    """Find user by email via Supabase auth admin and set profiles.plan. Returns True if updated."""
+def _extract_whop_member_and_plan(body: dict) -> tuple[str | None, str | None]:
+    """Backward-compat: (email, app_plan)."""
+    email, app_plan, _ = _extract_whop_member_plan_and_membership(body)
+    return (email, app_plan)
+
+
+def _update_supabase_plan_for_email(email: str, plan: str, membership_id: str | None = None) -> bool:
+    """Find user by email via Supabase auth admin and set profiles.plan (and optional whop_membership_id). Returns True if updated."""
     from app.core.config import get_settings
     settings = get_settings()
     url = (settings.supabase_url or os.getenv("NEXT_PUBLIC_SUPABASE_URL") or os.getenv("SUPABASE_URL") or "").strip()
@@ -181,10 +188,10 @@ def _update_supabase_plan_for_email(email: str, plan: str) -> bool:
         if not user_id:
             logger.info("Whop webhook: no Supabase user found for email %s", email[:8] + "...")
             return False
-        admin_client.table("profiles").upsert(
-            {"id": user_id, "plan": plan},
-            on_conflict="id",
-        ).execute()
+        row: dict = {"id": user_id, "plan": plan}
+        if membership_id:
+            row["whop_membership_id"] = membership_id
+        admin_client.table("profiles").upsert(row, on_conflict="id").execute()
         logger.info("Whop webhook: updated profiles.plan=%s for user %s", plan, user_id)
         return True
     except Exception as e:
@@ -313,10 +320,10 @@ async def whop_webhook(request: Request):
         logger.info("Whop webhook: ignored event=%s", event or "unknown")
         return {"ok": True, "ignored": True, "event": event}
 
-    # Optionally update Supabase profile (plan) so user gets access after payment
-    member_email, app_plan = _extract_whop_member_and_plan(body)
+    # Optionally update Supabase profile (plan + whop_membership_id for cancel flow)
+    member_email, app_plan, membership_id = _extract_whop_member_plan_and_membership(body)
     if member_email and app_plan:
-        _update_supabase_plan_for_email(member_email, app_plan)
+        _update_supabase_plan_for_email(member_email, app_plan, membership_id)
     else:
         logger.warning("Whop webhook: missing member_email or app_plan (email=%s, plan=%s)", bool(member_email), app_plan or "none")
 
@@ -357,10 +364,10 @@ async def whop_sync_payment(request: Request):
         raise HTTPException(status_code=404, detail="payment not found in Whop API")
     wrapped = {"event": "payment.succeeded", "data": {"object": payment_payload}}
 
-    member_email, app_plan = _extract_whop_member_and_plan(wrapped)
+    member_email, app_plan, membership_id = _extract_whop_member_plan_and_membership(wrapped)
     updated = False
     if member_email and app_plan:
-        updated = _update_supabase_plan_for_email(member_email, app_plan)
+        updated = _update_supabase_plan_for_email(member_email, app_plan, membership_id)
     else:
         logger.warning("Whop sync-payment: missing member_email or app_plan for payment_id=%s", payment_id)
 

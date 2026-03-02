@@ -3,11 +3,12 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { getUserFromStorage } from "@/lib/auth";
+import { getUserFromStorage, setUserInStorage } from "@/lib/auth";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { useGeoCurrency } from "@/hooks/useGeoCurrency";
+import { formatPrice } from "@/lib/geoCurrency";
 import { UnsubscribeOfferModal } from "@/components/UnsubscribeOfferModal";
 import { getWhopCheckoutUrl, getDatafastVisitorId } from "@/lib/whopCheckout";
-import { useGeoCurrency } from "@/hooks/useGeoCurrency";
 import { Check } from "lucide-react";
 
 function PersonIcon({ className }: { className?: string }) {
@@ -73,7 +74,7 @@ const PLAN_KEYS: Record<string, string> = {
 
 export default function AccountPage() {
   const { t } = useLanguage();
-  const { config: currencyConfig } = useGeoCurrency();
+  const { config: currencyConfig, isLoading: currencyLoading } = useGeoCurrency();
   const [user, setUser] = useState<ReturnType<typeof getUserFromStorage>>(null);
   const [unsubscribeModalOpen, setUnsubscribeModalOpen] = useState(false);
   const [subscribedSince, setSubscribedSince] = useState<string>("26 February 2026");
@@ -140,9 +141,32 @@ export default function AccountPage() {
     window.location.href = getWhopCheckoutUrl("pro", currencyConfig.currency, getDatafastVisitorId());
   };
 
-  const handleConfirmCancel = () => {
-    setUnsubscribeModalOpen(false);
-    // Here you could call an API to cancel subscription, then redirect
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
+
+  const handleConfirmCancel = async () => {
+    if (!user?.id || !API_URL || API_URL === "undefined") {
+      setUnsubscribeModalOpen(false);
+      return;
+    }
+    try {
+      const res = await fetch(`${API_URL}/me/cancel-subscription`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-User-Id": user.id },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err?.detail ?? "Could not cancel subscription. Try from your Whop account.");
+        return;
+      }
+      const u = getUserFromStorage();
+      if (u && u.id === user.id) {
+        setUserInStorage({ ...u, plan: "free" });
+        setUser({ ...u, plan: "free" });
+      }
+      setUnsubscribeModalOpen(false);
+    } catch {
+      alert("Network error. Try again or cancel from your Whop account.");
+    }
   };
 
   return (
@@ -287,7 +311,9 @@ export default function AccountPage() {
               <Check className="w-4 h-4 flex-shrink-0 text-amber-400" strokeWidth={2.5} /> {t("account.allPremiumFeatures")}
             </li>
           </ul>
-          <p className="text-xl font-bold text-amber-400 mt-4">⚡ {t("account.priceOnce")}</p>
+          <p className="text-xl font-bold text-amber-400 mt-4">
+            ⚡ {currencyLoading ? "—" : `${formatPrice(currencyConfig, currencyConfig.lifetimeAmount)}${currencyConfig.lifetimeSuffix}`}
+          </p>
           <button
             type="button"
             onClick={() => {

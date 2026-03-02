@@ -71,7 +71,7 @@ function PricingPage() {
       )}
 
       {currentPlan !== "lifetime" && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-4 mt-8 sm:mt-10 max-w-4xl mx-auto">
+        <div className={`grid gap-4 sm:gap-4 mt-8 sm:mt-10 mx-auto ${currentPlan === "starter" ? "grid-cols-1 sm:grid-cols-2 max-w-2xl" : "grid-cols-1 sm:grid-cols-3 max-w-4xl"}`}>
         {/* Starter - only when user is free */}
         {currentPlan === "free" && (
         <div className="relative rounded-2xl bg-[#14141c]/70 border border-zinc-600/50 p-5 sm:p-5 flex flex-col transition-all duration-300 backdrop-blur-sm">

@@ -2,6 +2,8 @@
 
 import { useLanguage } from "@/contexts/LanguageContext";
 
+const ACCENT = "#00ffe8";
+
 type UnsubscribeOfferModalProps = {
   open: boolean;
   onClose: () => void;
@@ -31,10 +33,13 @@ export function UnsubscribeOfferModal({
 
   if (!open) return null;
 
+  const stayOffer = t("account.stayOffer");
+  const parts = stayOffer.split("-30%");
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70" onClick={onClose} aria-hidden />
-      <div className="relative w-full max-w-md rounded-2xl bg-zinc-900 border border-zinc-700 shadow-xl p-6">
+      <div className="relative w-full max-w-md rounded-2xl bg-[#0a0a0f] border border-[#00ffe8]/30 shadow-xl shadow-[#00ffe8]/10 p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             {t("account.waitTitle")} 🎁
@@ -53,7 +58,7 @@ export function UnsubscribeOfferModal({
         </div>
 
         <div className="flex justify-center my-6">
-          <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+          <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ backgroundColor: `${ACCENT}20`, color: ACCENT }}>
             <GiftIcon className="w-8 h-8" />
           </div>
         </div>
@@ -62,14 +67,14 @@ export function UnsubscribeOfferModal({
           {t("account.specialOffer")}
         </p>
         <p className="text-center text-zinc-300 text-sm mb-6">
-          {t("account.stayOffer").split("-50%")[0]}
-          <span className="font-bold text-emerald-400">-50%</span>
-          {t("account.stayOffer").split("-50%")[1]}
+          {parts[0]}
+          <span className="font-bold" style={{ color: ACCENT }}>-30%</span>
+          {parts[1]}
         </p>
 
-        <div className="rounded-xl bg-zinc-800/80 border border-zinc-700 p-4 mb-6 flex items-center justify-between gap-3">
+        <div className="rounded-xl bg-zinc-800/50 border-2 border-dashed p-4 mb-6 flex items-center justify-between gap-3" style={{ borderColor: `${ACCENT}50` }}>
           <div>
-            <p className="font-bold text-emerald-400">{t("account.discountLabel")}</p>
+            <p className="font-bold" style={{ color: ACCENT }}>{t("account.discountLabel")}</p>
             <p className="text-sm text-zinc-400">{t("account.exclusiveOffer")}</p>
           </div>
           <span className="text-2xl">🎉</span>
@@ -78,7 +83,8 @@ export function UnsubscribeOfferModal({
         <button
           type="button"
           onClick={onEnjoyOffer}
-          className="w-full py-3.5 px-4 rounded-xl font-semibold text-white bg-emerald-500 hover:bg-emerald-600 transition flex items-center justify-center gap-2"
+          className="w-full py-3.5 px-4 rounded-xl font-semibold text-[#0d0d12] transition flex items-center justify-center gap-2 hover:shadow-[0_0_20px_4px_rgba(0,255,232,0.4)]"
+          style={{ backgroundColor: ACCENT }}
         >
           {t("account.enjoyOffer")} 🎁
         </button>
