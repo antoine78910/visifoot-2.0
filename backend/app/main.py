@@ -37,6 +37,11 @@ app.include_router(internal.router)
 app.include_router(me_router.router)
 
 
+@app.get("/")
+def root():
+    return {"ok": True}
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}

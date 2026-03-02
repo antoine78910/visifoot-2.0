@@ -76,7 +76,9 @@ export default function AccountPage() {
   const { t } = useLanguage();
   const { config: currencyConfig, isLoading: currencyLoading } = useGeoCurrency();
   const [user, setUser] = useState<ReturnType<typeof getUserFromStorage>>(null);
+  const [confirmUnsubscribeOpen, setConfirmUnsubscribeOpen] = useState(false);
   const [unsubscribeModalOpen, setUnsubscribeModalOpen] = useState(false);
+  const [cancelWhopMessageOpen, setCancelWhopMessageOpen] = useState(false);
   const [unsubscribeSuccessMessage, setUnsubscribeSuccessMessage] = useState<string | null>(null);
   const [subscribedSince, setSubscribedSince] = useState<string>("26 February 2026");
   const [editingEmail, setEditingEmail] = useState(false);
@@ -170,7 +172,7 @@ export default function AccountPage() {
       if (data?.cancelled_via_whop === true) {
         setUnsubscribeSuccessMessage(t("account.unsubscribedSuccess"));
       } else {
-        alert(t("account.planSetFreeCancelWhop"));
+        setCancelWhopMessageOpen(true);
       }
     } catch {
       alert("Network error. Try again or cancel from your Whop account.");
@@ -359,9 +361,8 @@ export default function AccountPage() {
           <button
             type="button"
             onClick={() => {
-              if (!window.confirm(t("account.unsubscribeConfirmMessage"))) return;
               setUnsubscribeSuccessMessage(null);
-              setUnsubscribeModalOpen(true);
+              setConfirmUnsubscribeOpen(true);
             }}
             className="px-4 py-2.5 rounded-xl bg-zinc-700 hover:bg-zinc-600 text-red-400 hover:text-red-300 text-sm font-medium transition"
           >
@@ -401,6 +402,54 @@ export default function AccountPage() {
           {t("account.signOut")}
         </button>
       </div>
+
+      {/* Modal: Are you sure you want to unsubscribe? (style comme offre -30%) */}
+      {confirmUnsubscribeOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70" onClick={() => setConfirmUnsubscribeOpen(false)} aria-hidden />
+          <div className="relative w-full max-w-md rounded-2xl bg-[#0a0a0f] border border-[#00ffe8]/30 shadow-xl shadow-[#00ffe8]/10 p-6">
+            <h2 className="text-xl font-bold text-white mb-2">{t("account.unsubscribeConfirmTitle")}</h2>
+            <p className="text-zinc-300 text-sm mb-6">{t("account.unsubscribeConfirmMessage")}</p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmUnsubscribeOpen(false)}
+                className="flex-1 py-2.5 px-4 rounded-xl font-semibold text-zinc-300 bg-zinc-700 hover:bg-zinc-600 transition"
+              >
+                {t("account.cancel")}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmUnsubscribeOpen(false);
+                  setUnsubscribeModalOpen(true);
+                }}
+                className="flex-1 py-2.5 px-4 rounded-xl font-semibold text-white bg-red-600 hover:bg-red-500 transition"
+              >
+                {t("account.unsubscribeConfirmYes")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Your plan is now free, cancel from Whop if still charged */}
+      {cancelWhopMessageOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70" onClick={() => setCancelWhopMessageOpen(false)} aria-hidden />
+          <div className="relative w-full max-w-md rounded-2xl bg-[#0a0a0f] border border-amber-500/30 shadow-xl p-6">
+            <h2 className="text-xl font-bold text-white mb-2">{t("account.planSetFreeTitle")}</h2>
+            <p className="text-zinc-300 text-sm mb-6">{t("account.planSetFreeCancelWhop")}</p>
+            <button
+              type="button"
+              onClick={() => setCancelWhopMessageOpen(false)}
+              className="w-full py-2.5 px-4 rounded-xl font-semibold text-[#0d0d12] bg-[#00ffe8] hover:opacity-90 transition"
+            >
+              {t("account.close")}
+            </button>
+          </div>
+        </div>
+      )}
 
       <UnsubscribeOfferModal
         open={unsubscribeModalOpen}
