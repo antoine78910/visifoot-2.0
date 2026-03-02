@@ -1,19 +1,13 @@
 # backend/app/core/config.py
+import os
 from pydantic_settings import BaseSettings
 from functools import lru_cache
-from pydantic import AliasChoices, Field
+from pydantic import model_validator
 
 
 class Settings(BaseSettings):
-    # Accept backend env names and frontend-prefixed fallbacks to avoid silent free-plan fallback.
-    supabase_url: str = Field(
-        default="",
-        validation_alias=AliasChoices("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"),
-    )
-    supabase_key: str = Field(
-        default="",
-        validation_alias=AliasChoices("SUPABASE_KEY", "SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY"),
-    )
+    supabase_url: str = ""
+    supabase_key: str = ""
     # Optionnel : clé service_role pour mettre à jour profiles.plan depuis le webhook Whop (recherche user par email)
     supabase_service_role_key: str = ""
     openai_api_key: str = ""
@@ -33,6 +27,24 @@ class Settings(BaseSettings):
     whop_webhook_secret: str = ""
     # Whop — API key (lecture paiement / resync par payment_id)
     whop_api_key: str = ""
+
+    @model_validator(mode="after")
+    def fill_supabase_from_next_public(self: "Settings") -> "Settings":
+        """Railway often has NEXT_PUBLIC_* only; ensure backend can read Supabase."""
+        url = (self.supabase_url or "").strip()
+        key = (self.supabase_key or "").strip()
+        if not url:
+            url = (os.getenv("NEXT_PUBLIC_SUPABASE_URL") or os.getenv("SUPABASE_URL") or "").strip()
+        if not key:
+            key = (
+                os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY")
+                or os.getenv("SUPABASE_ANON_KEY")
+                or os.getenv("SUPABASE_KEY")
+                or ""
+            ).strip()
+        if url != self.supabase_url or key != self.supabase_key:
+            return self.model_copy(update={"supabase_url": url, "supabase_key": key})
+        return self
 
     class Config:
         # .env.local override .env (secrets locaux sans les commiter)
