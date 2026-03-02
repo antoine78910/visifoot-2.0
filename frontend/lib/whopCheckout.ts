@@ -36,9 +36,15 @@ export function getWhopCheckoutUrl(
   datafastVisitorId?: string | null
 ): string {
   let url = CHECKOUT_URLS[currency][plan];
+  const params = new URLSearchParams();
   if (datafastVisitorId?.trim()) {
-    const sep = url.includes("?") ? "&" : "?";
-    url += `${sep}datafast_visitor_id=${encodeURIComponent(datafastVisitorId.trim())}`;
+    params.set("datafast_visitor_id", datafastVisitorId.trim());
+  }
+  // Allow customers to enter a promo/coupon at checkout (Whop may support this param)
+  params.set("allow_promotion_codes", "true");
+  const qs = params.toString();
+  if (qs) {
+    url += url.includes("?") ? `&${qs}` : `?${qs}`;
   }
   return url;
 }

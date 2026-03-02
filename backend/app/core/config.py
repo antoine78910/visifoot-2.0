@@ -6,6 +6,8 @@ from functools import lru_cache
 class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_key: str = ""
+    # Optionnel : clé service_role pour mettre à jour profiles.plan depuis le webhook Whop (recherche user par email)
+    supabase_service_role_key: str = ""
     openai_api_key: str = ""
     free_analyses_per_day: int = 1
     max_score_goals: int = 8  # grille Poisson 0..8

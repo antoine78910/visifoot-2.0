@@ -77,19 +77,19 @@ export default function PricingPage() {
           <p className="text-zinc-400 text-sm mt-1">{t("pricing.starterDesc")}</p>
           <ul className="mt-6 space-y-3 flex-1">
             <li className="flex items-start gap-2 text-sm text-zinc-300">
-              <Check className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-400" strokeWidth={2.5} />
+              <Check className="w-4 h-4 mt-0.5 flex-shrink-0 text-[#00ffe8]" strokeWidth={2.5} />
               <span>{t("pricing.starterFeature1")}</span>
             </li>
             <li className="flex items-start gap-2 text-sm text-zinc-300">
-              <Check className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-400" strokeWidth={2.5} />
+              <Check className="w-4 h-4 mt-0.5 flex-shrink-0 text-[#00ffe8]" strokeWidth={2.5} />
               <span>{t("pricing.starterFeatureReduced")}</span>
             </li>
             <li className="flex items-start gap-2 text-sm text-zinc-300">
-              <Check className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-400" strokeWidth={2.5} />
+              <Check className="w-4 h-4 mt-0.5 flex-shrink-0 text-[#00ffe8]" strokeWidth={2.5} />
               <span>{t("pricing.starterFeatureKeyStats")}</span>
             </li>
             <li className="flex items-start gap-2 text-sm text-zinc-300">
-              <Check className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-400" strokeWidth={2.5} />
+              <Check className="w-4 h-4 mt-0.5 flex-shrink-0 text-[#00ffe8]" strokeWidth={2.5} />
               <span>{t("pricing.starterFeatureExactProb")}</span>
             </li>
             <li className="flex items-start gap-2 text-sm text-zinc-300">

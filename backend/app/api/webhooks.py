@@ -11,6 +11,19 @@ logger = logging.getLogger(__name__)
 
 DATAFAST_PAYMENTS_URL = "https://datafa.st/api/v1/payments"
 
+# Whop plan IDs (from frontend CHECKOUT_URLS) → our plan name
+WHOP_PLAN_TO_APP = {
+    "plan_xncEV4h0yc3F1": "starter",
+    "plan_OPBroVFLkZFuG": "pro",
+    "plan_a9qUhL4i9mz6B": "lifetime",
+    "plan_SosIjQXUrG5Pb": "starter",
+    "plan_pVoGBCVIzFw4M": "pro",
+    "plan_m9Bcvjqy3xudw": "lifetime",
+    "plan_WmP3L9eEPlEJb": "starter",
+    "plan_ASd2bXI29nfKR": "pro",
+    "plan_FXHgaDOloK9Q1": "lifetime",
+}
+
 
 def _extract_whop_payment(body: dict) -> dict | None:
     """
@@ -65,6 +78,56 @@ def _extract_whop_payment(body: dict) -> dict | None:
     }
 
 
+def _extract_whop_member_and_plan(body: dict) -> tuple[str | None, str | None]:
+    """Extract (email, app_plan) from Whop payload. app_plan in (starter, pro, lifetime)."""
+    data = body.get("data") or body
+    obj = data.get("object") if isinstance(data, dict) else data
+    if not isinstance(obj, dict):
+        obj = body
+    member = obj.get("member") or obj.get("user") or {}
+    if isinstance(member, dict):
+        email = (member.get("email") or member.get("email_address") or "").strip()
+    else:
+        email = None
+    plan_id = obj.get("plan_id") or (obj.get("plan") or {}).get("id") if isinstance(obj.get("plan"), dict) else None
+    plan_id = (plan_id or "").strip()
+    app_plan = WHOP_PLAN_TO_APP.get(plan_id) if plan_id else None
+    return (email or None, app_plan)
+
+
+def _update_supabase_plan_for_email(email: str, plan: str) -> bool:
+    """Find user by email via Supabase auth admin and set profiles.plan. Returns True if updated."""
+    from app.core.config import get_settings
+    settings = get_settings()
+    url = (settings.supabase_url or "").strip()
+    role_key = (settings.supabase_service_role_key or "").strip()
+    if not url or not role_key:
+        return False
+    try:
+        from supabase import create_client
+        admin_client = create_client(url, role_key)
+        r = admin_client.auth.admin.list_users(page=1, per_page=1000)
+        users = getattr(r, "users", []) if not isinstance(r, list) else r
+        user_id = None
+        for u in users:
+            em = getattr(u, "email", None) or (u.get("email") if isinstance(u, dict) else None)
+            if em and str(em).lower().strip() == email.lower().strip():
+                user_id = getattr(u, "id", None) or (u.get("id") if isinstance(u, dict) else None)
+                break
+        if not user_id:
+            logger.info("Whop webhook: no Supabase user found for email %s", email[:8] + "...")
+            return False
+        admin_client.table("profiles").upsert(
+            {"id": user_id, "plan": plan},
+            on_conflict="id",
+        ).execute()
+        logger.info("Whop webhook: updated profiles.plan=%s for user %s", plan, user_id)
+        return True
+    except Exception as e:
+        logger.warning("Whop webhook: could not update Supabase plan for %s: %s", email[:8] + "...", e)
+        return False
+
+
 def _verify_whop_signature(raw_body: bytes, headers: dict, secret: str) -> bool:
     """Verify Whop webhook using Standard Webhooks (HMAC). Accepts ws_ or whsec_ prefix."""
     if not secret or not raw_body:
@@ -110,6 +173,14 @@ async def whop_webhook(request: Request):
 
     if event != "payment.succeeded":
         return {"ok": True, "ignored": True, "event": event}
+
+    # Optionally update Supabase profile (plan) so user gets access after payment
+    member_email, app_plan = _extract_whop_member_and_plan(body)
+    if member_email and app_plan:
+        _update_supabase_plan_for_email(member_email, app_plan)
+    else:
+        if not member_email:
+            logger.debug("Whop webhook: no member email in payload (keys: %s)", list(body.keys()))
 
     parsed = _extract_whop_payment(body)
     if not parsed:

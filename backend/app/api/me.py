@@ -8,7 +8,7 @@ from app.services.subscription import (
     reset_if_new_day,
     can_analyze,
 )
-from datetime import date, timezone
+from datetime import date, datetime, timezone
 
 router = APIRouter(tags=["me"])
 
@@ -21,7 +21,7 @@ def me(x_user_id: str | None = Header(None, alias="X-User-Id")):
     """
     user_id = (x_user_id or "").strip()
     plan, used, last = get_plan_and_usage(user_id)
-    today = date.today(timezone.utc)
+    today = datetime.now(timezone.utc).date()
     used = reset_if_new_day(used, last, today)
     limit, full_analysis = get_analysis_limit(plan)
     allowed, _msg, next_full = can_analyze(user_id)
