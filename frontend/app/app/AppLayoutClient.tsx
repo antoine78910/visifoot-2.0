@@ -196,7 +196,8 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
       }
     })();
     return () => ac.abort();
-  }, [user?.id]);
+    // Refetch on route change so the usage counter updates after an analysis (e.g. /matches → /analyze)
+  }, [user?.id, pathname]);
 
   const handleSignOut = async () => {
     try {

@@ -53,7 +53,18 @@ async def cancel_subscription(x_user_id: str | None = Header(None, alias="X-User
     if not admin:
         raise HTTPException(status_code=503, detail="Supabase not configured")
 
-    r = admin.table("profiles").select("whop_membership_id").eq("id", user_id).execute()
+    try:
+        r = admin.table("profiles").select("whop_membership_id").eq("id", user_id).execute()
+    except Exception as e:
+        msg = str(e).lower()
+        code = getattr(e, "code", None) or (e.args[0].get("code") if e.args and isinstance(e.args[0], dict) else None)
+        if code == "42703" or "whop_membership_id" in msg or "does not exist" in msg:
+            raise HTTPException(
+                status_code=503,
+                detail="Database migration required: run 004_profiles_whop_membership_id.sql in Supabase SQL Editor.",
+            )
+        raise
+
     if not r.data or len(r.data) == 0:
         raise HTTPException(status_code=404, detail="Profile not found")
     row = r.data[0]
