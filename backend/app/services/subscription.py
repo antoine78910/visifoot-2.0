@@ -1,6 +1,6 @@
 # backend/app/services/subscription.py
 """
-Limites d'analyses par plan : free (1/jour, partielle), starter (1 complète/jour), pro/lifetime (illimité).
+Limites d'analyses par plan : free (3/jour à 15% flouté), starter (1 complète/jour), pro/lifetime (illimité).
 Sans Supabase configuré, on autorise toujours (mode démo).
 """
 from datetime import date, datetime, timezone
@@ -65,33 +65,34 @@ def get_analysis_limit(plan: str) -> tuple[int | None, bool]:
     """
     Retourne (limite_par_jour, full_analysis).
     None = illimité. full_analysis = True si l'analyse est complète (pas de flou).
-    Free : analyses illimitées mais contenu partiel (début visible, reste flouté).
+    Free : 3 analyses/jour à 15% (contenu partiel + flou). Starter : 1 complète/jour.
     """
     if plan in (PLAN_PRO, PLAN_LIFETIME):
         return (None, True)
     if plan == PLAN_STARTER:
         return (1, True)  # 1 analyse complète par jour
-    # free : analyses illimitées, full_analysis = False (affichage partiel + flou)
-    return (None, False)
+    # free : 3 analyses par jour, full_analysis = False (affichage partiel à 15% + flou)
+    return (3, False)
 
 
-def can_analyze(user_id: str) -> tuple[bool, str, bool]:
+def can_analyze(user_id: str) -> tuple[bool, str, bool, str | None]:
     """
-    Retourne (autorisé, message_erreur, full_analysis).
-    full_analysis = True si la prochaine analyse sera complète (non floutée).
+    Retourne (autorisé, message_erreur, full_analysis, limit_reason).
+    limit_reason = "free" | "starter" quand limite atteinte (pour afficher le bon popup côté front).
     """
     if not _use_supabase():
-        return (True, "", True)
+        return (True, "", True, None)
     today = datetime.now(timezone.utc).date()
     plan, used, last = get_plan_and_usage(user_id)
     used = reset_if_new_day(used, last, today)
     limit, full_analysis = get_analysis_limit(plan)
 
     if limit is None:
-        return (True, "", full_analysis)
+        return (True, "", full_analysis, None)
     if used >= limit:
-        return (False, "Limite atteinte. Passez à un plan payant pour effectuer des analyses.", full_analysis)
-    return (True, "", full_analysis)
+        msg = "Limite atteinte. Passez à un plan payant pour effectuer des analyses."
+        return (False, msg, full_analysis, plan)
+    return (True, "", full_analysis, None)
 
 
 def consume_analysis(user_id: str) -> None:

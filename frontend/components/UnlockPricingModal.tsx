@@ -36,11 +36,25 @@ function InfinityIcon({ className }: { className?: string }) {
   );
 }
 
-export function UnlockPricingModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export type PricingModalVariant = "all" | "pro_lifetime" | "free";
+
+export function UnlockPricingModal({
+  open,
+  onClose,
+  variant = "all",
+}: {
+  open: boolean;
+  onClose: () => void;
+  /** "pro_lifetime" = only Pro + Lifetime (e.g. starter limit); "free" = 3 offers with free-limit copy; "all" = default 3 offers */
+  variant?: PricingModalVariant;
+}) {
   const { t } = useLanguage();
   const { config: currencyConfig, isLoading } = useGeoCurrency();
   const user = getUserFromStorage();
   const currentPlan = user?.plan ?? "free";
+  const onlyProLifetime = variant === "pro_lifetime";
+  const title = onlyProLifetime ? t("limitModal.starterTitle") : variant === "free" ? t("limitModal.freeTitle") : t("unlockModal2.title");
+  const subtitle = onlyProLifetime ? t("limitModal.starterSubtitle") : variant === "free" ? t("limitModal.freeSubtitle") : t("unlockModal2.subtitle");
 
   useEffect(() => {
     if (!open) return;
@@ -68,9 +82,9 @@ export function UnlockPricingModal({ open, onClose }: { open: boolean; onClose: 
         <div className="sticky top-0 z-10 flex items-start justify-between gap-4 p-6 pb-4 bg-[#101217]/95 border-b border-white/5 backdrop-blur-sm">
           <div>
             <h2 id="pricing-modal-title" className="text-xl sm:text-2xl font-bold text-white">
-              {t("unlockModal2.title")}
+              {title}
             </h2>
-            <p className="text-sm text-zinc-400 mt-1">{t("unlockModal2.subtitle")}</p>
+            <p className="text-sm text-zinc-400 mt-1">{subtitle}</p>
           </div>
           <button
             type="button"
@@ -85,8 +99,9 @@ export function UnlockPricingModal({ open, onClose }: { open: boolean; onClose: 
         </div>
 
         <div className="p-6 pt-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {/* Starter */}
+          <div className={`grid grid-cols-1 gap-4 ${onlyProLifetime ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
+            {/* Starter - hidden when onlyProLifetime */}
+            {!onlyProLifetime && (
             <div className="rounded-xl bg-[#14141c] border border-zinc-600/60 p-5 flex flex-col">
               <div className="flex items-center gap-2">
                 <span className="w-6 h-6 flex-shrink-0" style={{ color: ACCENT }}>
@@ -127,6 +142,7 @@ export function UnlockPricingModal({ open, onClose }: { open: boolean; onClose: 
                   : `${t("pricing.unlockStarter")} - ${formatPrice(currencyConfig, currencyConfig.starterAmount)}${t("pricing.perMonth")}`}
               </button>
             </div>
+            )}
 
             {/* Pro - Popular */}
             <div className="relative rounded-xl bg-[#14141c]/70 border-2 flex flex-col p-4 backdrop-blur-sm" style={{ borderColor: `${ACCENT}70` }}>

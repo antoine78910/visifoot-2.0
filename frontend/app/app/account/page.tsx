@@ -158,12 +158,16 @@ export default function AccountPage() {
         alert(err?.detail ?? "Could not cancel subscription. Try from your Whop account.");
         return;
       }
+      const data = await res.json().catch(() => ({}));
       const u = getUserFromStorage();
       if (u && u.id === user.id) {
         setUserInStorage({ ...u, plan: "free" });
         setUser({ ...u, plan: "free" });
       }
       setUnsubscribeModalOpen(false);
+      if (data?.cancelled_via_whop === false) {
+        alert(t("account.planSetFreeCancelWhop"));
+      }
     } catch {
       alert("Network error. Try again or cancel from your Whop account.");
     }

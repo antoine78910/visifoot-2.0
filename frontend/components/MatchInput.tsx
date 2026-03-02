@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { TeamAutocomplete, type TeamOption } from "./TeamAutocomplete";
+import { UnlockPricingModal, type PricingModalVariant } from "./UnlockPricingModal";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getAppHref } from "@/lib/app-url";
 import { getUserFromStorage } from "@/lib/auth";
@@ -60,6 +61,7 @@ export function MatchInput({
   const [progress, setProgress] = useState(0);
   const [progressStep, setProgressStep] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [limitModalVariant, setLimitModalVariant] = useState<PricingModalVariant | null>(null);
   const [upcoming, setUpcoming] = useState<UpcomingFixture[]>([]);
   const [loadingUpcoming, setLoadingUpcoming] = useState(false);
   const router = useRouter();
@@ -201,7 +203,13 @@ export function MatchInput({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.detail || `Error ${res.status}`);
+        const detail = typeof data?.detail === "string" ? data.detail : "";
+        if (res.status === 403 && (detail === "starter" || detail === "free")) {
+          setLimitModalVariant(detail === "starter" ? "pro_lifetime" : "free");
+          setLoading(false);
+          return;
+        }
+        throw new Error(detail || `Error ${res.status}`);
       }
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
@@ -225,6 +233,12 @@ export function MatchInput({
               } else if (event.type === "result" && event.data) {
                 data = event.data as Record<string, unknown>;
               } else if (event.type === "error") {
+                const code = (event as { code?: string }).code;
+                if (code === "starter" || code === "free") {
+                  setLimitModalVariant(code === "starter" ? "pro_lifetime" : "free");
+                  setLoading(false);
+                  return;
+                }
                 throw new Error(event.message ?? "Analysis failed.");
               }
             } catch (parseErr) {
@@ -349,6 +363,13 @@ export function MatchInput({
           <p className="text-red-400 text-sm text-center">{error}</p>
         )}
 
+        {limitModalVariant && (
+          <UnlockPricingModal
+            open={!!limitModalVariant}
+            onClose={() => setLimitModalVariant(null)}
+            variant={limitModalVariant}
+          />
+        )}
         {displayOnly ? (
           <Link
             href={`${getAppHref("/matches")}${homeTeam.trim() && awayTeam.trim() ? `?home=${encodeURIComponent(homeTeam.trim())}&away=${encodeURIComponent(awayTeam.trim())}` : ""}`}

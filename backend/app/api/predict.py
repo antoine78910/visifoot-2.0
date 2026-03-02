@@ -296,9 +296,9 @@ def predict(
     X-User-Id optionnel : si fourni, applique les limites du plan (free/starter/pro/lifetime).
     """
     user_id = (x_user_id or "").strip()
-    allowed, msg, full_analysis = can_analyze(user_id)
+    allowed, msg, full_analysis, limit_reason = can_analyze(user_id)
     if not allowed:
-        raise HTTPException(status_code=403, detail=msg)
+        raise HTTPException(status_code=403, detail=limit_reason or msg)
     data = run_predict_with_progress(payload, progress_callback=None)
     data["full_analysis"] = full_analysis
     if user_id:
@@ -317,10 +317,10 @@ def predict_stream(
     X-User-Id optionnel : applique les limites du plan et ajoute full_analysis dans data.
     """
     user_id = (x_user_id or "").strip()
-    allowed, msg, full_analysis = can_analyze(user_id)
+    allowed, msg, full_analysis, limit_reason = can_analyze(user_id)
     if not allowed:
         def error_stream():
-            yield json.dumps({"type": "error", "message": msg}, ensure_ascii=False) + "\n"
+            yield json.dumps({"type": "error", "message": msg, "code": limit_reason or "limit"}, ensure_ascii=False) + "\n"
         return StreamingResponse(error_stream(), media_type="application/x-ndjson")
 
     progress_queue: queue.Queue = queue.Queue()

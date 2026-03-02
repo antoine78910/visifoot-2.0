@@ -28,7 +28,7 @@ def me(x_user_id: str | None = Header(None, alias="X-User-Id")):
     today = datetime.now(timezone.utc).date()
     used = reset_if_new_day(used, last, today)
     limit, full_analysis = get_analysis_limit(plan)
-    allowed, _msg, next_full = can_analyze(user_id)
+    allowed, _msg, next_full, _ = can_analyze(user_id)
 
     return {
         "plan": plan,
@@ -69,37 +69,37 @@ async def cancel_subscription(x_user_id: str | None = Header(None, alias="X-User
         raise HTTPException(status_code=404, detail="Profile not found")
     row = r.data[0]
     membership_id = (row.get("whop_membership_id") or "").strip()
-    if not membership_id:
-        raise HTTPException(
-            status_code=400,
-            detail="No Whop membership linked. Cancel from your Whop account or contact support.",
-        )
 
-    settings = get_settings()
-    whop_key = (settings.whop_api_key or "").strip()
-    if not whop_key:
-        raise HTTPException(status_code=503, detail="Whop API not configured")
-
-    import httpx
-    url = f"https://api.whop.com/api/v1/memberships/{membership_id}/cancel"
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                url,
-                headers={"Authorization": f"Bearer {whop_key}"},
-                json={"cancellation_mode": "immediate"},
-                timeout=15.0,
-            )
-        if resp.status_code >= 400:
-            logger.warning("Whop cancel membership %s: %s %s", membership_id, resp.status_code, resp.text)
-            raise HTTPException(status_code=502, detail="Whop could not cancel subscription")
-    except httpx.HTTPError as e:
-        logger.exception("Whop cancel request failed: %s", e)
-        raise HTTPException(status_code=502, detail="Whop request failed")
+    cancelled_via_whop = False
+    if membership_id:
+        settings = get_settings()
+        whop_key = (settings.whop_api_key or "").strip()
+        if whop_key:
+            import httpx
+            url = f"https://api.whop.com/api/v1/memberships/{membership_id}/cancel"
+            try:
+                async with httpx.AsyncClient() as client:
+                    resp = await client.post(
+                        url,
+                        headers={"Authorization": f"Bearer {whop_key}"},
+                        json={"cancellation_mode": "immediate"},
+                        timeout=15.0,
+                    )
+                if resp.status_code < 400:
+                    cancelled_via_whop = True
+                    logger.info("Cancel subscription: user %s cancelled via Whop API", user_id)
+                else:
+                    logger.warning("Whop cancel membership %s: %s %s", membership_id, resp.status_code, resp.text)
+            except httpx.HTTPError as e:
+                logger.exception("Whop cancel request failed: %s", e)
 
     admin.table("profiles").upsert(
         {"id": user_id, "plan": "free", "whop_membership_id": None},
         on_conflict="id",
     ).execute()
-    logger.info("Cancel subscription: user %s plan set to free after Whop cancel", user_id)
-    return {"ok": True, "plan": "free"}
+    logger.info("Cancel subscription: user %s plan set to free", user_id)
+    return {
+        "ok": True,
+        "plan": "free",
+        "cancelled_via_whop": cancelled_via_whop,
+    }
