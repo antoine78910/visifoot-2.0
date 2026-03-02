@@ -27,7 +27,7 @@ function MatchesContent() {
     const uid = getUserFromStorage()?.id;
     (async () => {
       try {
-        await fetch(`${API_URL}/webhooks/whop/sync-payment`, {
+        const res = await fetch(`${API_URL}/webhooks/whop/sync-payment`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -35,18 +35,23 @@ function MatchesContent() {
             datafast_visitor_id: getDatafastVisitorId(),
           }),
         });
-
-        // Refresh local plan from /me right after sync, so UI updates without waiting.
-        if (uid) {
-          const r = await fetch(`${API_URL}/me`, {
-            headers: { "X-User-Id": uid },
-          });
-          const data = r.ok ? await r.json() : null;
-          if (data?.plan) {
-            const u = getUserFromStorage();
-            if (u && u.id === uid) {
-              setUserInStorage({ ...u, plan: data.plan as PlanId });
+        const payload = res.ok ? (await res.json()) : null;
+        const planFromSync = payload?.plan as string | undefined;
+        const validPlans: PlanId[] = ["starter", "pro", "lifetime"];
+        if (planFromSync && validPlans.includes(planFromSync as PlanId)) {
+          const u = getUserFromStorage();
+          if (u) {
+            setUserInStorage({ ...u, plan: planFromSync as PlanId });
+            // Remove payment params so reload doesn't trigger sync again
+            try {
+              const url = new URL(window.location.href);
+              ["receipt_id", "payment_id", "checkout_status", "status", "state_id"].forEach((k) => url.searchParams.delete(k));
+              window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+            } catch {
+              /* ignore */
             }
+            window.location.reload();
+            return;
           }
         }
       } catch {

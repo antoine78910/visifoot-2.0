@@ -4,6 +4,7 @@ Whop uses Standard Webhooks (webhook-id, webhook-timestamp, webhook-signature).
 """
 import json
 import logging
+import os
 from typing import Any
 from fastapi import APIRouter, Request, HTTPException
 
@@ -161,9 +162,10 @@ def _update_supabase_plan_for_email(email: str, plan: str) -> bool:
     """Find user by email via Supabase auth admin and set profiles.plan. Returns True if updated."""
     from app.core.config import get_settings
     settings = get_settings()
-    url = (settings.supabase_url or "").strip()
-    role_key = (settings.supabase_service_role_key or "").strip()
+    url = (settings.supabase_url or os.getenv("NEXT_PUBLIC_SUPABASE_URL") or os.getenv("SUPABASE_URL") or "").strip()
+    role_key = (settings.supabase_service_role_key or os.getenv("SUPABASE_SERVICE_ROLE_KEY") or "").strip()
     if not url or not role_key:
+        logger.warning("Whop webhook: missing Supabase URL or SERVICE_ROLE_KEY, cannot update plan")
         return False
     try:
         from supabase import create_client
@@ -368,4 +370,5 @@ async def whop_sync_payment(request: Request):
         forwarded = await _forward_datafast_payment(parsed, (settings.datafast_api_key or "").strip())
         if not forwarded.get("forwarded"):
             logger.info("Whop sync-payment: DataFast not forwarded reason=%s", forwarded.get("reason") or forwarded.get("datafast_status"))
-    return {"ok": True, "payment_id": payment_id, "plan_updated": updated, "datafast": forwarded}
+    # Return plan so frontend can apply it immediately without relying on /me (avoids "free" default)
+    return {"ok": True, "payment_id": payment_id, "plan_updated": updated, "plan": app_plan, "datafast": forwarded}
