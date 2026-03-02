@@ -44,11 +44,11 @@ function MedalIcon({ className }: { className?: string }) {
   );
 }
 
-export default function PricingPage() {
+function PricingPage() {
   const { t } = useLanguage();
   const { config: currencyConfig, isLoading } = useGeoCurrency();
   const user = getUserFromStorage();
-  const currentPlan = user?.plan ?? "free";
+  const currentPlan = (user && user.plan) ? user.plan : "free";
 
   return (
     <div className="w-full px-4 pt-6 pb-12 sm:px-6 sm:pt-8 sm:pb-16 max-w-4xl mx-auto">
@@ -59,7 +59,7 @@ export default function PricingPage() {
         {t("pricing.accessSubtitle")}
       </p>
 
-      {currentPlan === "lifetime" ? (
+      {currentPlan === "lifetime" && (
         <div className="mt-10 sm:mt-12 max-w-lg mx-auto text-center rounded-2xl bg-[#14141c]/70 border-2 border-amber-500/50 p-8 sm:p-10 shadow-[0_0_30px_-5px_rgba(245,158,11,0.15)]">
           <p className="text-2xl sm:text-3xl font-bold text-amber-400">
             {t("pricing.alreadyTopPlan")}
@@ -68,8 +68,10 @@ export default function PricingPage() {
             {t("pricing.alreadyTopPlanSub")}
           </p>
         </div>
-      ) : (
-      <div className={`grid gap-4 sm:gap-4 mt-8 sm:mt-10 ${currentPlan === "pro" ? "grid-cols-1 max-w-md mx-auto" : currentPlan === "starter" ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-3"}`}>
+      )}
+
+      {currentPlan !== "lifetime" && (
+        <div className={`grid gap-4 sm:gap-4 mt-8 sm:mt-10 ${currentPlan === "pro" ? "grid-cols-1 max-w-md mx-auto" : currentPlan === "starter" ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-3"}`}>
         {/* Starter - only when user is free */}
         {currentPlan === "free" && (
         <div className="relative rounded-2xl bg-[#14141c]/70 border border-zinc-600/50 p-5 sm:p-5 flex flex-col transition-all duration-300 backdrop-blur-sm">
@@ -114,13 +116,12 @@ export default function PricingPage() {
               window.location.href = getWhopCheckoutUrl("starter", currencyConfig.currency, getDatafastVisitorId());
             }}
             className="mt-6 w-full py-3 px-4 rounded-xl font-semibold text-[#00ffe8] bg-transparent border-2 border-[#00ffe8]/50 hover:border-[#00ffe8] hover:shadow-[0_0_20px_4px_rgba(0,255,232,0.45)] transition-all duration-300 disabled:opacity-50 disabled:bg-zinc-800/50 disabled:border-zinc-600 disabled:text-zinc-400 disabled:shadow-none"
-            disabled={currentPlan === "starter"}
+            disabled={false}
           >
-            {currentPlan === "starter"
-              ? t("pricing.currentPlan")
-              : `${t("pricing.unlockStarter")} - ${formatPrice(currencyConfig, currencyConfig.starterAmount)}${t("pricing.perMonth")}`}
+            {t("pricing.unlockStarter")} - {formatPrice(currencyConfig, currencyConfig.starterAmount)}{t("pricing.perMonth")}
           </button>
         </div>
+        )}
 
         {/* Pro - Popular (only when free or starter; if user is pro, only Lifetime is shown) */}
         {(currentPlan === "free" || currentPlan === "starter") && (
@@ -177,11 +178,9 @@ export default function PricingPage() {
               window.location.href = getWhopCheckoutUrl("pro", currencyConfig.currency, getDatafastVisitorId());
             }}
             className="mt-6 w-full py-3 px-4 rounded-xl font-semibold text-[#0d0d12] bg-gradient-to-r from-[#00ffe8] to-[#00ddcc] hover:from-[#00ffe8] hover:to-[#00ddcc] hover:shadow-[0_0_24px_6px_rgba(0,255,232,0.5)] transition-all duration-300 disabled:opacity-50"
-            disabled={currentPlan === "pro"}
+            disabled={false}
           >
-            {currentPlan === "pro"
-              ? t("pricing.currentPlan")
-              : `${t("pricing.unlockPro")} - ${formatPrice(currencyConfig, currencyConfig.proAmount)}${t("pricing.perMonth")}`}
+            {t("pricing.unlockPro")} - {formatPrice(currencyConfig, currencyConfig.proAmount)}{t("pricing.perMonth")}
           </button>
         </div>
         )}
@@ -241,14 +240,12 @@ export default function PricingPage() {
               window.location.href = getWhopCheckoutUrl("lifetime", currencyConfig.currency, getDatafastVisitorId());
             }}
             className="mt-6 w-full py-3 px-4 rounded-xl font-semibold text-[#0d0d12] bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 hover:shadow-[0_0_22px_6px_rgba(245,158,11,0.45)] transition-all duration-300 disabled:opacity-50 disabled:text-zinc-500 shadow-[0_0_20px_-5px_rgba(245,158,11,0.4)]"
-            disabled={currentPlan === "lifetime"}
+            disabled={false}
           >
-            {currentPlan === "lifetime"
-              ? t("pricing.currentPlan")
-              : `${t("pricing.unlockLifetime")} - ${formatPrice(currencyConfig, currencyConfig.lifetimeAmount)}`}
+            {t("pricing.unlockLifetime")} - {formatPrice(currencyConfig, currencyConfig.lifetimeAmount)}
           </button>
         </div>
-      </div>
+        </div>
       )}
 
       <p className="text-zinc-500 text-center text-sm mt-10 max-w-2xl mx-auto">
@@ -263,3 +260,5 @@ export default function PricingPage() {
     </div>
   );
 }
+
+export default PricingPage;
