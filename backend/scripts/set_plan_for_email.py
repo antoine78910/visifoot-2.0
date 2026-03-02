@@ -28,7 +28,7 @@ def main():
     if plan not in ("starter", "pro", "lifetime"):
         print("Invalid plan. Use: starter | pro | lifetime")
         sys.exit(1)
-    url = (os.getenv("SUPABASE_URL") or "").strip()
+    url = (os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL") or "").strip()
     role_key = (os.getenv("SUPABASE_SERVICE_ROLE_KEY") or "").strip()
     if not url or not role_key:
         print("Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.local")

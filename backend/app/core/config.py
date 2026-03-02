@@ -1,11 +1,19 @@
 # backend/app/core/config.py
 from pydantic_settings import BaseSettings
 from functools import lru_cache
+from pydantic import AliasChoices, Field
 
 
 class Settings(BaseSettings):
-    supabase_url: str = ""
-    supabase_key: str = ""
+    # Accept backend env names and frontend-prefixed fallbacks to avoid silent free-plan fallback.
+    supabase_url: str = Field(
+        default="",
+        validation_alias=AliasChoices("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"),
+    )
+    supabase_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("SUPABASE_KEY", "SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+    )
     # Optionnel : clé service_role pour mettre à jour profiles.plan depuis le webhook Whop (recherche user par email)
     supabase_service_role_key: str = ""
     openai_api_key: str = ""
