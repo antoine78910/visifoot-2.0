@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   setAuthCookie,
   setUserInStorage,
@@ -11,9 +12,11 @@ import {
 import { ANALYSE_HREF, getAppAuthCallbackUrl, getAppRootUrl } from "@/lib/app-url";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
-export default function SignInPage() {
+function SignInPageContent() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const searchParams = useSearchParams();
+  const next = searchParams.get("next");
 
   // If Supabase redirected here with tokens in hash (wrong Site URL in dashboard), redirect to /auth/callback on same host
   useEffect(() => {
@@ -42,14 +45,22 @@ export default function SignInPage() {
     setUserInStorage(user);
     // Always redirect to the app after sign-in (app subdomain in dev, app origin in prod)
     const isApp = typeof window !== "undefined" && window.location.hostname.startsWith("app.");
-    const target = isApp ? `${window.location.origin}/` : getAppRootUrl();
+    const safeNext = next && next.startsWith("/") ? next : null;
+    const target = safeNext
+      ? `${window.location.origin}${safeNext}`
+      : isApp
+        ? `${window.location.origin}/`
+        : getAppRootUrl();
     window.location.href = target;
   };
 
   const handleGoogle = async () => {
     try {
       const supabase = getSupabaseBrowserClient();
-      const redirectTo = getAppAuthCallbackUrl();
+      const safeNext = next && next.startsWith("/") ? next : null;
+      const redirectTo = safeNext
+        ? `${getAppAuthCallbackUrl()}?next=${encodeURIComponent(safeNext)}`
+        : getAppAuthCallbackUrl();
       await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
@@ -140,5 +151,13 @@ export default function SignInPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-app-gradient flex items-center justify-center text-zinc-400">Loading...</div>}>
+      <SignInPageContent />
+    </Suspense>
   );
 }

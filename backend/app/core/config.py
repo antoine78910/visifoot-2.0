@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     datafast_api_key: str = ""
     # Whop — secret du webhook pour vérifier la signature (ws_...)
     whop_webhook_secret: str = ""
+    # Whop — API key (lecture paiement / resync par payment_id)
+    whop_api_key: str = ""
 
     class Config:
         # .env.local override .env (secrets locaux sans les commiter)

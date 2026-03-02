@@ -11,6 +11,20 @@ function isAppSubdomain(host: string): boolean {
 
 export function middleware(request: NextRequest) {
   const host = request.headers.get("host") ?? "";
+  const hostname = host.split(":")[0].toLowerCase();
+  if (hostname === "deepfoot.xyz" || hostname === "www.deepfoot.xyz") {
+    const url = request.nextUrl.clone();
+    url.protocol = "https";
+    url.host = "deepfoot.io";
+    return NextResponse.redirect(url, 308);
+  }
+  if (hostname === "app.deepfoot.xyz") {
+    const url = request.nextUrl.clone();
+    url.protocol = "https";
+    url.host = "app.deepfoot.io";
+    return NextResponse.redirect(url, 308);
+  }
+
   if (!isAppSubdomain(host)) {
     return NextResponse.next();
   }
@@ -34,6 +48,8 @@ export function middleware(request: NextRequest) {
   if (!hasAuth) {
     const signInUrl = request.nextUrl.clone();
     signInUrl.pathname = "/sign-in";
+    const nextPath = `${request.nextUrl.pathname}${request.nextUrl.search || ""}`;
+    signInUrl.searchParams.set("next", nextPath);
     return NextResponse.redirect(signInUrl);
   }
 

@@ -4,6 +4,7 @@ Whop uses Standard Webhooks (webhook-id, webhook-timestamp, webhook-signature).
 """
 import json
 import logging
+from typing import Any
 from fastapi import APIRouter, Request, HTTPException
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
@@ -25,21 +26,56 @@ WHOP_PLAN_TO_APP = {
 }
 
 
-def _extract_whop_payment(body: dict) -> dict | None:
+def _pick_first(obj: dict, keys: tuple[str, ...]) -> Any:
+    for k in keys:
+        if k in obj and obj.get(k) is not None:
+            return obj.get(k)
+    return None
+
+
+def _extract_payment_payload(body: dict) -> dict:
+    """Best-effort extraction of the payment object across Whop payload variants."""
+    data = body.get("data")
+    if isinstance(data, dict):
+        if isinstance(data.get("object"), dict):
+            return data["object"]
+        # Some payloads are already the payment object in data
+        return data
+    return body
+
+
+def _extract_event_name(body: dict) -> str:
+    event = (body.get("event") or body.get("type") or body.get("topic") or "").strip().lower()
+    if event:
+        return event
+    # Fallback for payloads where event name is nested
+    data = body.get("data")
+    if isinstance(data, dict):
+        nested = (data.get("event") or data.get("type") or "").strip().lower()
+        if nested:
+            return nested
+    return ""
+
+
+def _is_payment_succeeded_event(event: str) -> bool:
+    if not event:
+        return False
+    # Accept Whop variants: payment.succeeded, payment_succeeded, payments.payment_succeeded, etc.
+    normalized = event.replace("-", "_").replace(".", "_")
+    return ("payment" in normalized) and ("succeeded" in normalized)
+
+
+def _extract_whop_payment(body: dict, fallback_visitor_id: str | None = None) -> dict | None:
     """
     Extract amount (float), currency (str), transaction_id (str), datafast_visitor_id (str | None)
     from Whop payment.succeeded webhook payload. Adapt keys if Whop schema differs.
     """
-    # Whop may send: { "event": "payment.succeeded", "data": { "object": { ... } } } or similar
-    data = body.get("data") or body
-    obj = data.get("object") if isinstance(data, dict) else None
-    payload = obj if isinstance(obj, dict) else data if isinstance(data, dict) else body
-
+    payload = _extract_payment_payload(body)
     if not isinstance(payload, dict):
         return None
 
     # Amount: might be in cents (integer) or units (float)
-    amount_raw = payload.get("amount") or payload.get("amount_total") or payload.get("total")
+    amount_raw = _pick_first(payload, ("amount", "amount_total", "total", "subtotal", "amount_after_fees"))
     if amount_raw is None:
         return None
     try:
@@ -50,25 +86,25 @@ def _extract_whop_payment(body: dict) -> dict | None:
         return None
 
     # Currency
-    currency = (payload.get("currency") or payload.get("currency_code") or "USD")
+    currency = (_pick_first(payload, ("currency", "currency_code")) or "USD")
     if isinstance(currency, str):
         currency = currency.upper()[:3]
     else:
         currency = "USD"
 
     # Transaction id
-    txn = payload.get("id") or payload.get("transaction_id") or payload.get("payment_id") or ""
+    txn = _pick_first(payload, ("id", "transaction_id", "payment_id", "receipt_id")) or ""
     transaction_id = str(txn) if txn else None
     if not transaction_id:
         return None
 
     # DataFast visitor ID: from metadata (if Whop echoes query params / custom metadata)
-    metadata = payload.get("metadata") or payload.get("custom_data") or {}
+    metadata = _pick_first(payload, ("metadata", "custom_data")) or {}
     if isinstance(metadata, dict):
-        visitor_id = metadata.get("datafast_visitor_id")
+        visitor_id = _pick_first(metadata, ("datafast_visitor_id", "visitor_id", "df_visitor_id"))
     else:
         visitor_id = None
-    visitor_id = visitor_id or payload.get("datafast_visitor_id")
+    visitor_id = visitor_id or _pick_first(payload, ("datafast_visitor_id", "visitor_id", "df_visitor_id")) or fallback_visitor_id
 
     return {
         "amount": round(amount, 2),
@@ -80,16 +116,14 @@ def _extract_whop_payment(body: dict) -> dict | None:
 
 def _extract_whop_member_and_plan(body: dict) -> tuple[str | None, str | None]:
     """Extract (email, app_plan) from Whop payload. app_plan in (starter, pro, lifetime)."""
-    data = body.get("data") or body
-    obj = data.get("object") if isinstance(data, dict) else data
-    if not isinstance(obj, dict):
-        obj = body
-    member = obj.get("member") or obj.get("user") or {}
+    obj = _extract_payment_payload(body)
+    member = _pick_first(obj, ("member", "user")) or {}
     if isinstance(member, dict):
-        email = (member.get("email") or member.get("email_address") or "").strip()
+        email = (_pick_first(member, ("email", "email_address")) or "").strip()
     else:
         email = None
-    plan_id = obj.get("plan_id") or (obj.get("plan") or {}).get("id") if isinstance(obj.get("plan"), dict) else None
+    plan_obj = obj.get("plan") if isinstance(obj.get("plan"), dict) else {}
+    plan_id = _pick_first(obj, ("plan_id",)) or _pick_first(plan_obj, ("id", "plan_id"))
     plan_id = (plan_id or "").strip()
     app_plan = WHOP_PLAN_TO_APP.get(plan_id) if plan_id else None
     return (email or None, app_plan)
@@ -148,6 +182,69 @@ def _verify_whop_signature(raw_body: bytes, headers: dict, secret: str) -> bool:
         return False
 
 
+async def _forward_datafast_payment(parsed: dict, api_key: str) -> dict:
+    if not api_key:
+        return {"ok": True, "forwarded": False, "reason": "no_datafast_key"}
+    if not parsed.get("datafast_visitor_id"):
+        return {"ok": True, "forwarded": False, "reason": "no_visitor_id"}
+
+    payload = {
+        "amount": parsed["amount"],
+        "currency": parsed["currency"],
+        "transaction_id": parsed["transaction_id"],
+        "datafast_visitor_id": parsed["datafast_visitor_id"],
+    }
+    import httpx
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.post(
+                DATAFAST_PAYMENTS_URL,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+                timeout=10.0,
+            )
+        if r.status_code >= 400:
+            logger.warning("DataFast Payment API error: %s %s", r.status_code, r.text)
+            return {"ok": True, "forwarded": False, "datafast_status": r.status_code}
+        vid = parsed["datafast_visitor_id"]
+        logger.info(
+            "DataFast: payment attributed amount=%s %s txn=%s visitor=%s",
+            parsed["amount"], parsed["currency"], parsed["transaction_id"], (vid[:8] + "...") if len(vid) > 8 else vid
+        )
+        return {"ok": True, "forwarded": True}
+    except Exception as e:
+        logger.exception("DataFast request failed: %s", e)
+        return {"ok": True, "forwarded": False, "error": str(e)}
+
+
+async def _fetch_whop_payment_by_id(payment_id: str, whop_api_key: str) -> dict | None:
+    if not payment_id or not whop_api_key:
+        return None
+    import httpx
+    urls = [
+        f"https://api.whop.com/api/v5/company/payments/{payment_id}",
+        f"https://api.whop.com/api/v1/payments/{payment_id}",
+    ]
+    headers = {"Authorization": f"Bearer {whop_api_key}"}
+    async with httpx.AsyncClient() as client:
+        for url in urls:
+            try:
+                r = await client.get(url, headers=headers, timeout=10.0)
+                if r.status_code >= 400:
+                    continue
+                data = r.json()
+                if isinstance(data, dict):
+                    payload = data.get("data") if isinstance(data.get("data"), dict) else data
+                    if isinstance(payload, dict):
+                        return payload
+            except Exception:
+                continue
+    return None
+
+
 @router.post("/whop")
 async def whop_webhook(request: Request):
     """
@@ -180,9 +277,10 @@ async def whop_webhook(request: Request):
                 "Whop webhook: no signature headers, accepting payload"
             )
 
-    event = (body.get("event") or body.get("type") or "").strip().lower()
+    event = _extract_event_name(body)
 
-    if event != "payment.succeeded":
+    if not _is_payment_succeeded_event(event):
+        logger.info("Whop webhook: ignored event=%s", event or "unknown")
         return {"ok": True, "ignored": True, "event": event}
 
     # Optionally update Supabase profile (plan) so user gets access after payment
@@ -190,8 +288,7 @@ async def whop_webhook(request: Request):
     if member_email and app_plan:
         _update_supabase_plan_for_email(member_email, app_plan)
     else:
-        if not member_email:
-            logger.debug("Whop webhook: no member email in payload (keys: %s)", list(body.keys()))
+        logger.warning("Whop webhook: missing member_email or app_plan (email=%s, plan=%s)", bool(member_email), app_plan or "none")
 
     parsed = _extract_whop_payment(body)
     if not parsed:
@@ -199,42 +296,48 @@ async def whop_webhook(request: Request):
         return {"ok": True, "forwarded": False, "reason": "parse_failed"}
 
     api_key = (settings.datafast_api_key or "").strip()
-    if not api_key:
-        logger.debug("DataFast API key not set, skip forwarding")
-        return {"ok": True, "forwarded": False, "reason": "no_datafast_key"}
+    result = await _forward_datafast_payment(parsed, api_key)
+    if not result.get("forwarded"):
+        logger.info("Whop webhook: DataFast not forwarded reason=%s", result.get("reason") or result.get("datafast_status"))
+    return result
 
-    if not parsed["datafast_visitor_id"]:
-        logger.info("Whop webhook: no datafast_visitor_id in payload, skip DataFast (pass it in checkout metadata or URL)")
-        return {"ok": True, "forwarded": False, "reason": "no_visitor_id"}
 
-    # POST to DataFast
-    payload = {
-        "amount": parsed["amount"],
-        "currency": parsed["currency"],
-        "transaction_id": parsed["transaction_id"],
-        "datafast_visitor_id": parsed["datafast_visitor_id"],
-    }
-    import httpx
-    try:
-        async with httpx.AsyncClient() as client:
-            r = await client.post(
-                DATAFAST_PAYMENTS_URL,
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=payload,
-                timeout=10.0,
-            )
-        if r.status_code >= 400:
-            logger.warning("DataFast Payment API error: %s %s", r.status_code, r.text)
-            return {"ok": True, "forwarded": False, "datafast_status": r.status_code}
-        vid = parsed["datafast_visitor_id"]
-        logger.info(
-            "DataFast: payment attributed amount=%s %s txn=%s visitor=%s",
-            parsed["amount"], parsed["currency"], parsed["transaction_id"], (vid[:8] + "...") if len(vid) > 8 else vid
-        )
-        return {"ok": True, "forwarded": True}
-    except Exception as e:
-        logger.exception("DataFast request failed: %s", e)
-        return {"ok": True, "forwarded": False, "error": str(e)}
+@router.post("/whop/sync-payment")
+async def whop_sync_payment(request: Request):
+    """
+    Resync endpoint for return URL flow.
+    Frontend calls this with payment_id after checkout success so we can:
+    - fetch payment from Whop API,
+    - update plan in Supabase,
+    - attribute payment to DataFast (using visitor id from frontend cookie fallback).
+    """
+    from app.core.config import get_settings
+    settings = get_settings()
+    body = await request.json()
+    payment_id = str((body or {}).get("payment_id") or "").strip()
+    fallback_visitor_id = str((body or {}).get("datafast_visitor_id") or "").strip() or None
+    if not payment_id:
+        raise HTTPException(status_code=400, detail="payment_id is required")
+    whop_api_key = (settings.whop_api_key or "").strip()
+    if not whop_api_key:
+        raise HTTPException(status_code=500, detail="WHOP_API_KEY is not configured")
+
+    payment_payload = await _fetch_whop_payment_by_id(payment_id, whop_api_key)
+    if not payment_payload:
+        raise HTTPException(status_code=404, detail="payment not found in Whop API")
+    wrapped = {"event": "payment.succeeded", "data": {"object": payment_payload}}
+
+    member_email, app_plan = _extract_whop_member_and_plan(wrapped)
+    updated = False
+    if member_email and app_plan:
+        updated = _update_supabase_plan_for_email(member_email, app_plan)
+    else:
+        logger.warning("Whop sync-payment: missing member_email or app_plan for payment_id=%s", payment_id)
+
+    parsed = _extract_whop_payment(wrapped, fallback_visitor_id=fallback_visitor_id)
+    forwarded = {"ok": True, "forwarded": False, "reason": "parse_failed"}
+    if parsed:
+        forwarded = await _forward_datafast_payment(parsed, (settings.datafast_api_key or "").strip())
+        if not forwarded.get("forwarded"):
+            logger.info("Whop sync-payment: DataFast not forwarded reason=%s", forwarded.get("reason") or forwarded.get("datafast_status"))
+    return {"ok": True, "payment_id": payment_id, "plan_updated": updated, "datafast": forwarded}

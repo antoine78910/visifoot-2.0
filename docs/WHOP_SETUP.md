@@ -17,7 +17,15 @@ Une fois enregistré, après un paiement le client sera renvoyé vers cette URL 
 
 - **URL** : `https://deepfoot-production.up.railway.app/webhooks/whop`
 - **Événement** : `payment.succeeded`
-- Variables d’environnement backend : `WHOP_WEBHOOK_SECRET`, `DATAFAST_API_KEY`.
+- Variables d’environnement backend : `WHOP_WEBHOOK_SECRET`, `WHOP_API_KEY`, `DATAFAST_API_KEY`.
+
+## Retour checkout + resync
+
+Pour gérer les cas où le webhook arrive avec retard (ou est incomplet), la page `app.deepfoot.io/matches`
+peut déclencher un resync serveur via `payment_id` :
+- endpoint backend : `POST /webhooks/whop/sync-payment`
+- source de vérité : API Whop (retrieve payment)
+- effets : mise à jour `profiles.plan` + tentative d’attribution DataFast.
 
 ## Mise à jour du plan dans l’app
 
