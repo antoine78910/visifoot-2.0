@@ -59,8 +59,19 @@ export default function PricingPage() {
         {t("pricing.accessSubtitle")}
       </p>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-4 mt-8 sm:mt-10">
-        {/* Starter */}
+      {currentPlan === "lifetime" ? (
+        <div className="mt-10 sm:mt-12 max-w-lg mx-auto text-center rounded-2xl bg-[#14141c]/70 border-2 border-amber-500/50 p-8 sm:p-10 shadow-[0_0_30px_-5px_rgba(245,158,11,0.15)]">
+          <p className="text-2xl sm:text-3xl font-bold text-amber-400">
+            {t("pricing.alreadyTopPlan")}
+          </p>
+          <p className="text-zinc-400 mt-3 text-sm sm:text-base">
+            {t("pricing.alreadyTopPlanSub")}
+          </p>
+        </div>
+      ) : (
+      <div className={`grid gap-4 sm:gap-4 mt-8 sm:mt-10 ${currentPlan === "pro" ? "grid-cols-1 max-w-md mx-auto" : currentPlan === "starter" ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-3"}`}>
+        {/* Starter - only when user is free */}
+        {currentPlan === "free" && (
         <div className="relative rounded-2xl bg-[#14141c]/70 border border-zinc-600/50 p-5 sm:p-5 flex flex-col transition-all duration-300 backdrop-blur-sm">
           <div className="flex items-center gap-2 mt-1">
             <span className="w-6 h-6 flex-shrink-0" style={{ color: ACCENT }}>
@@ -111,7 +122,8 @@ export default function PricingPage() {
           </button>
         </div>
 
-        {/* Pro - Popular */}
+        {/* Pro - Popular (only when free or starter; if user is pro, only Lifetime is shown) */}
+        {(currentPlan === "free" || currentPlan === "starter") && (
         <div className="relative rounded-2xl bg-[#14141c]/70 border-2 border-[#00ffe8]/60 p-5 sm:p-5 flex flex-col transition-all duration-300 backdrop-blur-sm shadow-[0_0_30px_-5px_rgba(0,255,232,0.25)] hover:shadow-[0_0_40px_-5px_rgba(0,255,232,0.35)]">
           <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#00ffe8]/20 border border-[#00ffe8]/50 text-[#00ffe8] text-xs font-medium">
             <Medal className="w-3.5 h-3.5 flex-shrink-0" stroke="currentColor" />
@@ -172,6 +184,7 @@ export default function PricingPage() {
               : `${t("pricing.unlockPro")} - ${formatPrice(currencyConfig, currencyConfig.proAmount)}${t("pricing.perMonth")}`}
           </button>
         </div>
+        )}
 
         {/* Lifetime - For life */}
         <div className="relative rounded-2xl bg-[#14141c]/70 border-2 border-amber-500/60 p-5 sm:p-5 flex flex-col transition-all duration-300 backdrop-blur-sm shadow-[0_0_30px_-5px_rgba(245,158,11,0.2)] hover:shadow-[0_0_45px_-5px_rgba(245,158,11,0.35)]">
@@ -236,6 +249,7 @@ export default function PricingPage() {
           </button>
         </div>
       </div>
+      )}
 
       <p className="text-zinc-500 text-center text-sm mt-10 max-w-2xl mx-auto">
         {t("pricing.footerDisclaimer")}

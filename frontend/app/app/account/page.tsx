@@ -228,8 +228,36 @@ export default function AccountPage() {
         </h2>
         <div className="mb-4">
           <p className="text-sm text-zinc-500">{t("account.currentPlan")}</p>
-          <p className="text-lg font-bold text-white mt-0.5">
-            {user?.plan ? t(PLAN_KEYS[user.plan] ?? "nav.starter") : t("nav.starter")}
+          <p className="text-lg font-bold text-white mt-0.5 flex items-center gap-2">
+            {user?.plan && user.plan !== "free" ? (
+              <>
+                {user.plan === "starter" && (
+                  <span className="w-5 h-5 flex-shrink-0" style={{ color: "#00ffe8" }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-full h-full">
+                      <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z" />
+                    </svg>
+                  </span>
+                )}
+                {user.plan === "pro" && (
+                  <span className="w-5 h-5 flex-shrink-0" style={{ color: "#00ffe8" }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-full h-full">
+                      <circle cx="12" cy="12" r="10" /><path d="M8 3v3M16 3v3" /><path d="M12 7v7M11 14h2" />
+                    </svg>
+                  </span>
+                )}
+                {user.plan === "lifetime" && (
+                  <span className="w-5 h-5 flex-shrink-0 text-amber-400">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-full h-full">
+                      <path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z" />
+                      <path d="M5 21h14" />
+                    </svg>
+                  </span>
+                )}
+                {t(PLAN_KEYS[user.plan])}
+              </>
+            ) : (
+              t("nav.free")
+            )}
           </p>
         </div>
         <div className="mb-6">

@@ -61,6 +61,21 @@ body {
   }
 }
 
+/* Language dropdown: slide down + fade in */
+@keyframes lang-dropdown-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-lang-dropdown {
+  animation: lang-dropdown-in 0.2s ease-out forwards;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

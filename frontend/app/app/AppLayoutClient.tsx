@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { BGPattern } from "@/components/BGPattern";
-import { getUserFromStorage, clearAuthCookie, clearUserFromStorage, type UserInfo, type PlanId } from "@/lib/auth";
+import { getUserFromStorage, setUserInStorage, clearAuthCookie, clearUserFromStorage, type UserInfo, type PlanId } from "@/lib/auth";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { Lang } from "@/lib/translations";
 
@@ -109,6 +109,35 @@ const PLAN_KEYS: Record<PlanId, string> = {
   lifetime: "nav.lifetime",
 };
 
+function PlanIcon({ plan, className }: { plan: PlanId; className?: string }) {
+  const c = "w-4 h-4 flex-shrink-0";
+  if (plan === "starter") {
+    return (
+      <svg className={className ?? c} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#00ffe8" }}>
+        <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z" />
+      </svg>
+    );
+  }
+  if (plan === "pro") {
+    return (
+      <svg className={className ?? c} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#00ffe8" }}>
+        <circle cx="12" cy="12" r="10" />
+        <path d="M8 3v3M16 3v3" />
+        <path d="M12 7v7M11 14h2" />
+      </svg>
+    );
+  }
+  if (plan === "lifetime") {
+    return (
+      <svg className={className ?? c} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#f59e0b" }}>
+        <path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z" />
+        <path d="M5 21h14" />
+      </svg>
+    );
+  }
+  return null;
+}
+
 function MenuIcon({ className }: { className?: string }) {
   return (
     <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -152,10 +181,18 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
         const data = r.ok ? (await r.json()) : null;
         if (data && typeof data === "object") {
           setAnalysesUsed(Number(data.analyses_used_today) || 0);
-          setAnalysesLimit(data.analyses_limit ?? 1);
+          setAnalysesLimit(data.analyses_limit !== undefined ? data.analyses_limit : null);
+          if (data.plan && uid) {
+            const u = getUserFromStorage();
+            const newPlan = data.plan as PlanId;
+            if (u && (u.plan !== newPlan || u.id !== uid)) {
+              setUserInStorage({ ...u, id: uid, plan: newPlan });
+              setUser({ ...u, id: uid, plan: newPlan });
+            }
+          }
         }
       } catch {
-        // Ignore: network error, abort, or invalid JSON (e.g. Failed to fetch when changing language / backend unreachable)
+        // Ignore: network error, abort, or invalid JSON
       }
     })();
     return () => ac.abort();
@@ -334,8 +371,15 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
                 <p className="text-sm font-medium text-white truncate">
                   {user?.displayName ?? user?.email ?? "—"}
                 </p>
-                <p className="text-xs text-zinc-500">
-                  {user?.plan ? t(PLAN_KEYS[user.plan]) : t("nav.free")}
+                <p className="text-xs text-zinc-500 flex items-center gap-1.5">
+                  {user?.plan && user.plan !== "free" ? (
+                    <>
+                      <PlanIcon plan={user.plan} />
+                      {t(PLAN_KEYS[user.plan])}
+                    </>
+                  ) : (
+                    t("nav.free")
+                  )}
                 </p>
               </div>
             </Link>
@@ -371,7 +415,10 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
             </button>
             {langOpen && (
               <>
-                <div className="absolute left-0 right-0 bottom-full z-20 mb-0.5 rounded-xl bg-[#1c1c28] border border-white/10 shadow-xl overflow-hidden">
+                <div
+                  className="absolute left-0 right-0 bottom-full z-20 mb-0.5 rounded-xl bg-[#1c1c28] border border-white/10 shadow-xl overflow-hidden animate-lang-dropdown py-1"
+                  style={{ transformOrigin: "bottom" }}
+                >
                   {LANG_OPTIONS.map((opt) => (
                     <button
                       key={opt.code}
@@ -380,8 +427,10 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
                         setLang(opt.code);
                         setLangOpen(false);
                       }}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm text-left ${
-                        opt.code === lang ? "bg-[#00ffe8]/15 text-[#00ffe8] shadow-[0_0_10px_2px_rgba(0,255,232,0.25)]" : "text-zinc-300 hover:bg-zinc-800/50"
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm text-left rounded-lg border transition-all duration-200 ${
+                        opt.code === lang
+                          ? "bg-[#00ffe8]/15 border-[#00ffe8]/70 text-[#00ffe8] shadow-[0_0_10px_2px_rgba(0,255,232,0.2)] mx-1"
+                          : "border-transparent text-zinc-300 hover:bg-zinc-800/50 hover:text-zinc-200 hover:border-zinc-600/50 mx-1"
                       }`}
                     >
                       {opt.flag} {t(opt.labelKey)}

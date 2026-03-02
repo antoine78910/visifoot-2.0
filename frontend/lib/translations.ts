@@ -146,6 +146,8 @@ export const translations: Record<Lang, Record<string, string>> = {
     "pricing.footerDisclaimer": "You can cancel your subscription at any time. All our analyses are provided for informational purposes only.",
     "pricing.footerContact": "Questions about our offers?",
     "pricing.perMonth": "/month",
+    "pricing.alreadyTopPlan": "You're already in the top 1% of football predictors.",
+    "pricing.alreadyTopPlanSub": "You have the highest plan — enjoy unlimited analyses and AI for life.",
     "nav.account": "My account",
     "account.title": "My account",
     "account.subtitle": "Manage your personal information",
@@ -341,6 +343,8 @@ export const translations: Record<Lang, Record<string, string>> = {
     "pricing.footerDisclaimer": "Vous pouvez annuler votre abonnement à tout moment. Toutes nos analyses sont fournies à titre informatif uniquement.",
     "pricing.footerContact": "Des questions sur nos offres ?",
     "pricing.perMonth": "/mois",
+    "pricing.alreadyTopPlan": "Tu fais déjà partie du top 1% des prédicteurs de foot.",
+    "pricing.alreadyTopPlanSub": "Tu as la formule maximale — analyses et IA illimitées à vie.",
     "nav.account": "Mon compte",
     "account.title": "Mon compte",
     "account.subtitle": "Gérez vos informations personnelles",
@@ -474,6 +478,8 @@ export const translations: Record<Lang, Record<string, string>> = {
     "pricing.footerDisclaimer": "Puedes cancelar tu suscripción en cualquier momento. Todos nuestros análisis son solo informativos.",
     "pricing.footerContact": "¿Preguntas sobre nuestras ofertas?",
     "pricing.perMonth": "/mes",
+    "pricing.alreadyTopPlan": "Ya estás en el top 1% de pronosticadores de fútbol.",
+    "pricing.alreadyTopPlanSub": "Tienes el plan máximo — análisis e IA ilimitados de por vida.",
   },
 };
 
