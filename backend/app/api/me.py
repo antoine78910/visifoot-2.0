@@ -59,31 +59,34 @@ async def me(x_user_id: str | None = Header(None, alias="X-User-Id")):
     whop_key = (settings.whop_api_key or "").strip()
     company_id = (settings.whop_company_id or "").strip()
 
-    # Resync plan from Whop when user is logged in and Whop is configured
+    # Resync plan from Whop: take best membership (renewing preferred, else cancelling with end date)
     if user_id and admin and whop_key and company_id:
         email = _get_user_email_from_supabase(admin, user_id)
         if email:
-            logger.info("me: syncing plan from Whop for user_id=%s email=%s***", _mask_user_id(user_id), (email or "")[:4])
-            whop_plan, membership_id, _ = await _whop_get_plan_for_email(email, whop_key, company_id)
+            logger.info("me: syncing best membership from Whop for user_id=%s email=%s***", _mask_user_id(user_id), (email or "")[:4])
+            whop_plan, membership_id, ends_at, _ = await _whop_get_best_membership_for_user(email, whop_key, company_id)
             if whop_plan and membership_id:
-                plan_from_db, _, __, ___, _ = get_plan_and_usage(user_id)
-                if whop_plan != plan_from_db:
-                    try:
-                        admin.table("profiles").upsert(
-                            {"id": user_id, "plan": whop_plan, "whop_membership_id": membership_id, "subscription_ends_at": None},
-                            on_conflict="id",
-                        ).execute()
-                        logger.info(
-                            "me: synced plan from Whop user_id=%s plan=%s (was %s)",
-                            _mask_user_id(user_id),
-                            whop_plan,
-                            plan_from_db,
-                        )
-                    except Exception as e:
-                        logger.warning("me: failed to update plan from Whop for user_id=%s: %s", _mask_user_id(user_id), e)
+                try:
+                    admin.table("profiles").upsert(
+                        {
+                            "id": user_id,
+                            "plan": whop_plan,
+                            "whop_membership_id": membership_id,
+                            "subscription_ends_at": ends_at,
+                        },
+                        on_conflict="id",
+                    ).execute()
+                    logger.info(
+                        "me: synced best membership user_id=%s plan=%s subscription_ends_at=%s",
+                        _mask_user_id(user_id),
+                        whop_plan,
+                        ends_at[:10] if ends_at else None,
+                    )
+                except Exception as e:
+                    logger.warning("me: failed to update plan from Whop for user_id=%s: %s", _mask_user_id(user_id), e)
 
     plan, used, last, subscription_ends_at, whop_membership_id = get_plan_and_usage(user_id)
-    # Si on n'a pas de date de fin en base mais qu'on a un membership Whop, vérifier chez Whop si annulé (at period end)
+    # Fallback: si on a un membership_id en base mais pas de subscription_ends_at, vérifier chez Whop (au cas où best_membership n'a pas tout renvoyé)
     if user_id and whop_key and whop_membership_id and not subscription_ends_at:
         period_end_iso, is_canceled = await _whop_get_membership_status(whop_membership_id, whop_key)
         if is_canceled and period_end_iso:
@@ -146,6 +149,40 @@ def _whop_parse_membership_status(m: dict) -> tuple[str | None, bool]:
     elif isinstance(raw, str) and raw.strip():
         period_end = raw.strip()
     return (period_end, is_canceled)
+
+
+def _whop_plan_tier(app_plan: str) -> int:
+    """Order for preferring plan: lifetime > pro > starter > free."""
+    return {"lifetime": 3, "pro": 2, "starter": 1}.get((app_plan or "").strip().lower(), 0)
+
+
+async def _whop_get_membership_details(membership_id: str, whop_key: str) -> tuple[str | None, str | None, bool]:
+    """
+    GET a membership by id. Returns (plan_id, period_end_iso, is_canceled).
+    On API error returns (None, None, False).
+    """
+    import httpx
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.get(
+                f"https://api.whop.com/api/v1/memberships/{membership_id}",
+                headers={"Authorization": f"Bearer {whop_key}"},
+                timeout=10.0,
+            )
+        if r.status_code >= 400:
+            return (None, None, False)
+        data = r.json()
+        m = data.get("data") if isinstance(data.get("data"), dict) else data
+        if not isinstance(m, dict):
+            return (None, None, False)
+        plan_id = (m.get("plan_id") or "").strip() or None
+        if not plan_id and isinstance(m.get("plan"), dict):
+            plan_id = (m.get("plan") or {}).get("id") or None
+        period_end, is_canceled = _whop_parse_membership_status(m)
+        return (plan_id, period_end, is_canceled)
+    except Exception as e:
+        logger.debug("Whop get membership details: %s", e)
+        return (None, None, False)
 
 
 async def _whop_get_membership_status(membership_id: str, whop_key: str) -> tuple[str | None, bool]:
@@ -371,6 +408,119 @@ async def _whop_get_plan_for_email(email: str, whop_key: str, company_id: str) -
     return (app_plan or "starter", membership_id, None)
 
 
+async def _whop_get_best_membership_for_user(
+    email: str, whop_key: str, company_id: str
+) -> tuple[str | None, str | None, str | None, str | None]:
+    """
+    Liste tous les memberships actifs de l'user, choisit le plus pertinent.
+    - Préfère un membership qui RENEW (pas cancel_at_period_end) = dernier plan actif.
+    - Si tous sont en "cancels in..." → on prend le plus récent et on renvoie subscription_ends_at.
+    Returns (app_plan, membership_id, subscription_ends_at, api_error).
+    """
+    result = await _whop_get_plan_for_email(email, whop_key, company_id)
+    plan_from_list, single_membership_id, api_error = result
+    if api_error:
+        return (None, None, None, api_error)
+    if not single_membership_id:
+        return (None, None, None, None)
+    # We currently get only the first membership from list. We need ALL. So we need to change
+    # _whop_get_plan_for_email to return all membership ids, or add a new internal function.
+    # Simpler: list memberships again and collect all ids, then fetch details for each.
+    import httpx
+    headers = {"Authorization": f"Bearer {whop_key}"}
+    # Get user_id_for_memberships again (we need it to list memberships)
+    email_lower = (email or "").strip().lower()
+    member_id = None
+    user_id_for_memberships = None
+    for base, path, base_params in [
+        ("https://api.whop.com/api/v1", "/members", {"company_id": company_id, "first": 100}),
+    ]:
+        try:
+            async with httpx.AsyncClient() as client:
+                r = await client.get(
+                    f"{base}{path}",
+                    params=base_params,
+                    headers=headers,
+                    timeout=15.0,
+                )
+            if r.status_code >= 400:
+                continue
+            data = r.json()
+            members = _extract_members_list(data, base)
+            for m in members:
+                if not isinstance(m, dict):
+                    continue
+                u = m.get("user") or m.get("user_id")
+                if isinstance(u, dict):
+                    em = (u.get("email") or "").strip().lower()
+                else:
+                    em = (m.get("email") or "").strip().lower()
+                if em == email_lower:
+                    member_id = m.get("id") or m.get("member_id")
+                    u_obj = m.get("user")
+                    user_id_for_memberships = (u_obj.get("id") if isinstance(u_obj, dict) else None) or m.get("user_id")
+                    break
+            if member_id:
+                break
+        except Exception as e:
+            logger.debug("Whop list members for best membership: %s", e)
+            return (None, None, None, None)
+    if not user_id_for_memberships:
+        return (None, None, None, None)
+    # List all active memberships
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.get(
+                "https://api.whop.com/api/v1/memberships",
+                params={"company_id": company_id, "user_ids": [user_id_for_memberships], "first": 50, "statuses": ["active"]},
+                headers=headers,
+                timeout=15.0,
+            )
+        if r.status_code >= 400:
+            return (plan_from_list, single_membership_id, None, None)
+        data = r.json()
+        list_ms = data.get("data") if isinstance(data.get("data"), list) else data.get("memberships") or []
+        if not isinstance(list_ms, list):
+            list_ms = []
+    except Exception as e:
+        logger.debug("Whop list memberships for best: %s", e)
+        return (plan_from_list, single_membership_id, None, None)
+    # Collect (membership_id, plan_id) from list
+    candidates: list[tuple[str, str | None]] = []
+    for ms in list_ms:
+        if not isinstance(ms, dict):
+            continue
+        mid = ms.get("id") or ms.get("membership_id")
+        pid = ms.get("plan_id") or (ms.get("plan") or {}).get("id") if isinstance(ms.get("plan"), dict) else None
+        if mid:
+            candidates.append((str(mid).strip(), pid))
+    if not candidates:
+        return (None, None, None, None)
+    # Fetch details for each to get is_canceled and period_end
+    renewing: list[tuple[str, str, int]] = []  # (membership_id, app_plan, tier)
+    cancelling: list[tuple[str, str, str | None, int]] = []  # (membership_id, app_plan, period_end, tier)
+    for mid, list_plan_id in candidates:
+        plan_id, period_end, is_canceled = await _whop_get_membership_details(mid, whop_key)
+        plan_id = plan_id or list_plan_id
+        app_plan = (WHOP_PLAN_TO_APP.get((plan_id or "").strip()) if plan_id else "starter") or "starter"
+        tier = _whop_plan_tier(app_plan)
+        if is_canceled:
+            cancelling.append((mid, app_plan, period_end, tier))
+        else:
+            renewing.append((mid, app_plan, tier))
+    # Prefer renewing (last active plan); best tier first
+    if renewing:
+        renewing.sort(key=lambda x: -x[2])
+        best_id, best_plan, _ = renewing[0]
+        return (best_plan, best_id, None, None)
+    # All cancelling: pick best tier, then latest period_end (so "last" cancelling membership)
+    if cancelling:
+        cancelling.sort(key=lambda x: (x[3], x[2] or ""), reverse=True)
+        best_id, best_plan, period_end, _ = cancelling[0]
+        return (best_plan, best_id, period_end or None, None)
+    return (None, None, None, None)
+
+
 @router.post("/me/sync-plan")
 async def sync_plan(x_user_id: str | None = Header(None, alias="X-User-Id")):
     """
@@ -391,18 +541,18 @@ async def sync_plan(x_user_id: str | None = Header(None, alias="X-User-Id")):
     email = _get_user_email_from_supabase(admin, user_id)
     if not email:
         return {"ok": False, "plan": "free", "updated": False, "reason": "no_email"}
-    app_plan, membership_id, whop_error = await _whop_get_plan_for_email(email, whop_key, company_id)
+    app_plan, membership_id, subscription_ends_at, whop_error = await _whop_get_best_membership_for_user(email, whop_key, company_id)
     if whop_error:
         return {"ok": False, "plan": "free", "updated": False, "reason": "whop_api_error"}
     if not app_plan or not membership_id:
         return {"ok": True, "plan": "free", "updated": False, "reason": "no_active_membership"}
     try:
         admin.table("profiles").upsert(
-                            {"id": user_id, "plan": app_plan, "whop_membership_id": membership_id, "subscription_ends_at": None},
-                            on_conflict="id",
-                        ).execute()
-        logger.info("Sync plan: user %s updated to %s (membership_id=%s)", user_id, app_plan, membership_id[:12] + "...")
-        return {"ok": True, "plan": app_plan, "updated": True}
+            {"id": user_id, "plan": app_plan, "whop_membership_id": membership_id, "subscription_ends_at": subscription_ends_at},
+            on_conflict="id",
+        ).execute()
+        logger.info("Sync plan: user %s updated to %s (membership_id=%s) subscription_ends_at=%s", user_id, app_plan, membership_id[:12] + "...", subscription_ends_at[:10] if subscription_ends_at else None)
+        return {"ok": True, "plan": app_plan, "updated": True, "subscription_ends_at": subscription_ends_at}
     except Exception as e:
         logger.exception("Sync plan: %s", e)
         raise HTTPException(status_code=500, detail="Failed to update profile")
