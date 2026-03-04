@@ -9,9 +9,9 @@ router = APIRouter(prefix="/teams", tags=["teams"])
 def list_teams(q: Optional[str] = None, limit: int = 80):
     """
     Liste des équipes pour autocomplete (id, name, crest).
-    Priorité: Supabase (recherche rapide avec alias) → API-Football → démo.
-    Pour une recherche instantanée, lancer une fois: python scripts/sync_teams_to_supabase.py
+    Priorité: Sportmonks (suggestion intelligente + alias) → Supabase → API-Football → démo.
     """
+    from app.services.sportmonks import _use_sportmonks, get_teams_for_autocomplete_sportmonks
     from app.services.api_football import (
         get_teams_from_supabase,
         _use_api,
@@ -21,10 +21,13 @@ def list_teams(q: Optional[str] = None, limit: int = 80):
 
     q_clean = (q or "").strip()
 
-    # 1) Supabase en premier : pas d'appel API, recherche + alias + blasons
+    # 1) Sportmonks en premier si configuré : suggestion intelligente (alias psg→Paris SG, etc.)
+    if _use_sportmonks():
+        teams_sm = get_teams_for_autocomplete_sportmonks(q=q, limit=limit)
+        return {"teams": teams_sm, "leagues": LEAGUES}
+
+    # 2) Supabase : recherche rapide avec alias + blasons
     teams_sb = get_teams_from_supabase(q=q, limit=limit)
-    # Si Supabase est configuré mais ne renvoie rien (table vide / pas encore sync),
-    # on fallback sur API-Football pour ne pas casser l'autocomplete.
     if teams_sb is not None:
         if teams_sb:
             return {"teams": teams_sb, "leagues": LEAGUES}
@@ -33,7 +36,7 @@ def list_teams(q: Optional[str] = None, limit: int = 80):
             return {"teams": teams, "leagues": LEAGUES}
         return {"teams": teams_sb, "leagues": LEAGUES}
 
-    # 2) Pas de Supabase disponible: fallback API/caches
+    # 3) Pas de Supabase : fallback API-Football
     if _use_api():
         teams = get_teams_for_autocomplete(q=q, limit=limit)
         return {"teams": teams, "leagues": LEAGUES}

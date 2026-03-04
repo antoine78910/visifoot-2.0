@@ -52,6 +52,180 @@ def teams_search(name: str, limit: int = 5) -> list[dict[str, Any]]:
     return data.get("data") or []
 
 
+# Alias pour la suggestion intelligente (même logique qu'API-Football) : aja→Auxerre, psg→Paris SG, etc.
+TEAM_SEARCH_ALIASES: dict[str, list[str]] = {
+    "psg": ["paris saint germain", "paris sg", "psg", "paris"],
+    "psj": ["paris saint germain", "paris sg", "psg", "paris"],
+    "paris sg": ["paris saint germain", "paris sg", "psg", "paris"],
+    "aja": ["auxerre"],
+    "auxerre": ["auxerre"],
+    "om": ["marseille"],
+    "ol": ["lyon"],
+    "lyon": ["lyon"],
+    "ogc": ["nice"],
+    "nice": ["nice"],
+    "rcs": ["strasbourg"],
+    "strasbourg": ["strasbourg"],
+    "scc": ["lens"],
+    "lens": ["lens"],
+    "losc": ["lille"],
+    "lille": ["lille"],
+    "asmonaco": ["monaco"],
+    "monaco": ["monaco"],
+    "stade rennais": ["rennes"],
+    "rennes": ["rennes"],
+    "reims": ["reims"],
+    "montpellier": ["montpellier"],
+    "tfc": ["toulouse"],
+    "toulouse": ["toulouse"],
+    "eh": ["havre"],
+    "havre": ["havre"],
+    "brest": ["brest"],
+    "nantes": ["nantes"],
+    "lorient": ["lorient"],
+    "clermont": ["clermont"],
+    "cf63": ["clermont"],
+    "real": ["real madrid"],
+    "barca": ["barcelona"],
+    "barcelona": ["barcelona"],
+    "bayern": ["bayern"],
+    "juve": ["juventus"],
+    "juventus": ["juventus"],
+    "inter": ["inter"],
+    "man u": ["manchester united"],
+    "man utd": ["manchester united"],
+    "united": ["manchester united"],
+    "city": ["manchester city"],
+    "liverpool": ["liverpool"],
+    "arsenal": ["arsenal"],
+    "chelsea": ["chelsea"],
+    "spurs": ["tottenham"],
+    "tottenham": ["tottenham"],
+    "france": ["france"],
+    "espagne": ["spain"],
+    "spain": ["spain"],
+    "italie": ["italy"],
+    "angleterre": ["england"],
+    "england": ["england"],
+    "allemagne": ["germany"],
+    "germany": ["germany"],
+    "bresil": ["brazil"],
+    "brazil": ["brazil"],
+    "argentine": ["argentina"],
+    "argentina": ["argentina"],
+    "portugal": ["portugal"],
+    "belgique": ["belgium"],
+    "belgium": ["belgium"],
+    "pays-bas": ["netherlands"],
+    "netherlands": ["netherlands"],
+}
+
+
+def _normalize_for_search(s: str) -> str:
+    import unicodedata
+    n = (s or "").strip().lower()
+    n = unicodedata.normalize("NFD", n)
+    return "".join(c for c in n if unicodedata.category(c) != "Mn")
+
+
+def _team_crest(team: dict) -> Optional[str]:
+    """URL du blason depuis un objet team Sportmonks (image_path)."""
+    img = team.get("image_path") or team.get("logo_path")
+    if not img:
+        return None
+    s = str(img).strip()
+    if s.startswith("http"):
+        return s
+    return f"https://cdn.sportmonks.com/images/soccer/teams/{s}" if s else None
+
+
+def _team_matches_query_sportmonks(team: dict, q_normalized: str) -> bool:
+    """True si l'équipe correspond à la requête (alias ou nom/short_code commence par)."""
+    if not q_normalized:
+        return True
+    name = (team.get("name") or "").strip()
+    short = (team.get("short_code") or "").strip()
+    n_norm = _normalize_for_search(name)
+    s_norm = _normalize_for_search(short)
+    combined = n_norm + " " + s_norm
+    if q_normalized in TEAM_SEARCH_ALIASES:
+        for part in TEAM_SEARCH_ALIASES[q_normalized]:
+            if part in combined or n_norm.startswith(part) or s_norm.startswith(part):
+                return True
+        return False
+    if n_norm.startswith(q_normalized) or s_norm.startswith(q_normalized):
+        return True
+    for word in (name + " " + short).split():
+        if _normalize_for_search(word).startswith(q_normalized):
+            return True
+    return False
+
+
+def get_teams_for_autocomplete_sportmonks(q: Optional[str] = None, limit: int = 80) -> list[dict[str, Any]]:
+    """
+    Liste d'équipes pour l'autocomplete (id, name, crest, country).
+    Suggestion intelligente : alias (psg→Paris SG, aja→Auxerre) + recherche Sportmonks.
+    """
+    if not _use_sportmonks():
+        return []
+    q_clean = (q or "").strip()
+    q_normalized = _normalize_for_search(q_clean) if q_clean else ""
+    if not q_clean or len(q_clean) < 2:
+        return []
+
+    # Alias : lancer une recherche par terme étendu pour avoir les bonnes équipes
+    search_terms: list[str] = []
+    if q_normalized in TEAM_SEARCH_ALIASES:
+        search_terms = TEAM_SEARCH_ALIASES[q_normalized][:3]  # max 3 termes pour limiter les appels
+    else:
+        search_terms = [q_clean]
+
+    seen_ids: set[int] = set()
+    result: list[dict[str, Any]] = []
+    per_search = max(limit // len(search_terms), 10)
+
+    for term in search_terms:
+        raw = teams_search(term, limit=per_search)
+        for t in raw:
+            tid = t.get("id")
+            if tid is None:
+                continue
+            try:
+                tid_int = int(tid)
+            except (ValueError, TypeError):
+                continue
+            if tid_int in seen_ids:
+                continue
+            name = (t.get("name") or "").strip()
+            if not name:
+                continue
+            if q_normalized and not _team_matches_query_sportmonks(t, q_normalized):
+                continue
+            seen_ids.add(tid_int)
+            result.append({
+                "id": tid_int,
+                "name": name,
+                "crest": _team_crest(t),
+                "country": None,  # Sportmonks team peut avoir country_id; on ne charge pas l'include ici
+            })
+            if len(result) >= limit:
+                break
+        if len(result) >= limit:
+            break
+
+    # Tri par pertinence : alias exact en premier, puis ordre alphabétique
+    def sort_key(item: dict) -> tuple[int, str]:
+        name = (item.get("name") or "").lower()
+        if q_normalized in TEAM_SEARCH_ALIASES:
+            for i, part in enumerate(TEAM_SEARCH_ALIASES[q_normalized]):
+                if part in _normalize_for_search(name):
+                    return (i, name)
+        return (len(TEAM_SEARCH_ALIASES), name)
+
+    result.sort(key=sort_key)
+    return result[:limit]
+
+
 def fixtures_search(query: str, limit: int = 10) -> list[dict[str, Any]]:
     """GET /fixtures/search/{query}. Retourne fixtures (name, starting_at, id, etc.)."""
     q = (query or "").strip()
