@@ -66,7 +66,7 @@ async def me(x_user_id: str | None = Header(None, alias="X-User-Id")):
             logger.info("me: syncing plan from Whop for user_id=%s email=%s***", _mask_user_id(user_id), (email or "")[:4])
             whop_plan, membership_id, _ = await _whop_get_plan_for_email(email, whop_key, company_id)
             if whop_plan and membership_id:
-                plan_from_db, _, __, _ = get_plan_and_usage(user_id)
+                plan_from_db, _, __, ___, _ = get_plan_and_usage(user_id)
                 if whop_plan != plan_from_db:
                     try:
                         admin.table("profiles").upsert(
@@ -82,18 +82,31 @@ async def me(x_user_id: str | None = Header(None, alias="X-User-Id")):
                     except Exception as e:
                         logger.warning("me: failed to update plan from Whop for user_id=%s: %s", _mask_user_id(user_id), e)
 
-    plan, used, last, subscription_ends_at = get_plan_and_usage(user_id)
+    plan, used, last, subscription_ends_at, whop_membership_id = get_plan_and_usage(user_id)
+    # Si on n'a pas de date de fin en base mais qu'on a un membership Whop, vérifier chez Whop si annulé (at period end)
+    if user_id and whop_key and whop_membership_id and not subscription_ends_at:
+        period_end_iso, is_canceled = await _whop_get_membership_status(whop_membership_id, whop_key)
+        if is_canceled and period_end_iso:
+            subscription_ends_at = period_end_iso
+            try:
+                admin = get_supabase_admin()
+                if admin:
+                    admin.table("profiles").update({"subscription_ends_at": period_end_iso}).eq("id", user_id).execute()
+                    logger.info("me: user_id=%s subscription_ends_at set from Whop (canceled) => %s", _mask_user_id(user_id), period_end_iso[:10])
+            except Exception as e:
+                logger.warning("me: failed to persist subscription_ends_at for user_id=%s: %s", _mask_user_id(user_id), e)
     today = datetime.now(timezone.utc).date()
     used = reset_if_new_day(used, last, today)
     limit, full_analysis = get_analysis_limit(plan)
     allowed, _msg, next_full, _ = can_analyze(user_id)
 
     logger.info(
-        "me: user_id=%s plan=%s full_analysis=%s can_analyze=%s",
+        "me: user_id=%s plan=%s full_analysis=%s can_analyze=%s subscription_ends_at=%s",
         _mask_user_id(user_id),
         plan,
         next_full,
         allowed,
+        subscription_ends_at[:10] if subscription_ends_at else None,
     )
     return {
         "plan": plan,
@@ -118,8 +131,28 @@ def _get_user_email_from_supabase(admin, user_id: str) -> str | None:
     return None
 
 
-async def _whop_get_membership_period_end(membership_id: str, whop_key: str) -> str | None:
-    """Récupère renewal_period_end d'un membership Whop (pour affichage date de fin)."""
+def _whop_parse_membership_status(m: dict) -> tuple[str | None, bool]:
+    """
+    Parse membership dict from Whop API. Returns (period_end_iso, is_canceled).
+    is_canceled = status is canceled/cancelled or cancel_at_period_end is true.
+    """
+    status = (m.get("status") or "").strip().lower()
+    cancel_at_end = bool(m.get("cancel_at_period_end"))
+    is_canceled = status in ("canceled", "cancelled") or cancel_at_end
+    raw = m.get("renewal_period_end") or m.get("renewal_period_end_at")
+    period_end: str | None = None
+    if isinstance(raw, (int, float)):
+        period_end = datetime.fromtimestamp(int(raw), tz=timezone.utc).isoformat()
+    elif isinstance(raw, str) and raw.strip():
+        period_end = raw.strip()
+    return (period_end, is_canceled)
+
+
+async def _whop_get_membership_status(membership_id: str, whop_key: str) -> tuple[str | None, bool]:
+    """
+    Récupère le statut d'un membership Whop (GET by id).
+    Retourne (period_end_iso, is_canceled). Si l'API échoue, retourne (None, False).
+    """
     import httpx
     try:
         async with httpx.AsyncClient() as client:
@@ -129,20 +162,21 @@ async def _whop_get_membership_period_end(membership_id: str, whop_key: str) -> 
                 timeout=10.0,
             )
         if r.status_code >= 400:
-            return None
+            return (None, False)
         data = r.json()
         m = data.get("data") if isinstance(data.get("data"), dict) else data
         if not isinstance(m, dict):
-            return None
-        raw = m.get("renewal_period_end") or m.get("renewal_period_end_at")
-        if isinstance(raw, (int, float)):
-            return datetime.fromtimestamp(int(raw), tz=timezone.utc).isoformat()
-        if isinstance(raw, str) and raw.strip():
-            return raw.strip()
-        return None
+            return (None, False)
+        return _whop_parse_membership_status(m)
     except Exception as e:
-        logger.debug("Whop get membership period_end: %s", e)
-        return None
+        logger.debug("Whop get membership status: %s", e)
+        return (None, False)
+
+
+async def _whop_get_membership_period_end(membership_id: str, whop_key: str) -> str | None:
+    """Récupère renewal_period_end d'un membership Whop (pour affichage date de fin)."""
+    period_end, _ = await _whop_get_membership_status(membership_id, whop_key)
+    return period_end
 
 
 async def _whop_cancel_membership(membership_id: str, whop_key: str) -> tuple[bool, str | None]:
