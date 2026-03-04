@@ -14,6 +14,7 @@ def list_teams(q: Optional[str] = None, limit: int = 80):
     from app.services.sportmonks import _use_sportmonks, get_teams_for_autocomplete_sportmonks
     from app.services.api_football import (
         get_teams_from_supabase,
+        get_teams_from_supabase_direct,
         _use_api,
         get_teams_for_autocomplete,
     )
@@ -22,15 +23,20 @@ def list_teams(q: Optional[str] = None, limit: int = 80):
     q_clean = (q or "").strip()
     print(f"[teams] GET /teams q={q_clean!r} limit={limit}")
 
-    # 1) Sportmonks configuré : d'abord Supabase (principaux clubs synced via sync_sportmonks_teams_to_supabase.py)
-    #    pour une suggestion instantanée, puis API Sportmonks si pas de résultat en base.
+    # 1) Sportmonks configuré : recherche directe Supabase (rapide) puis cache complet ou API Sportmonks
     use_sm = _use_sportmonks()
     print(f"[teams] _use_sportmonks() = {use_sm}")
     if use_sm:
-        print("[teams] Sportmonks actif -> Supabase puis API Sportmonks")
+        # Recherche directe par search_terms = une requête, pas de chargement cache complet
+        if q_clean:
+            teams_sb = get_teams_from_supabase_direct(q_clean, limit=limit)
+            if teams_sb:
+                print(f"[teams] Supabase direct -> {len(teams_sb)} teams")
+                return {"teams": teams_sb, "leagues": LEAGUES}
+        # Sinon cache complet (preload) ou API Sportmonks
         teams_sb = get_teams_from_supabase(q=q, limit=limit, allow_fetch=True)
         sb_count = len(teams_sb) if teams_sb is not None else -1
-        print(f"[teams] Supabase -> {'ok' if teams_sb else 'None/empty'} (count={sb_count})")
+        print(f"[teams] Supabase cache -> {'ok' if teams_sb else 'None/empty'} (count={sb_count})")
         if teams_sb:
             return {"teams": teams_sb, "leagues": LEAGUES}
         teams_sm = get_teams_for_autocomplete_sportmonks(q=q, limit=limit)
@@ -102,17 +108,55 @@ def _resolve_team_id_fast(team_name: str):
     return resolve_team_name_to_id(team_name)
 
 
+def _format_sportmonks_fixture_for_upcoming(f: dict) -> Optional[dict]:
+    """Convertit une fixture Sportmonks (avec participants) vers le format attendu par le front."""
+    from app.services.sportmonks import _extract_participants, _team_logo
+    from datetime import datetime
+    starting_at = f.get("starting_at") or ""
+    try:
+        dt = datetime.fromisoformat(starting_at.replace("Z", "+00:00")) if starting_at else None
+    except Exception:
+        dt = None
+    day = dt.strftime("%d/%m") if dt else ""
+    time = dt.strftime("%H:%M") if dt else ""
+    league_obj = f.get("league") or {}
+    league_name = (league_obj.get("name") or "").strip() or None if isinstance(league_obj, dict) else None
+    home_p, away_p = _extract_participants(f)
+    home_name = (home_p.get("name") or "").strip() if home_p else ""
+    away_name = (away_p.get("name") or "").strip() if away_p else ""
+    home_logo = _team_logo(home_p) if home_p else None
+    away_logo = _team_logo(away_p) if away_p else None
+    return {
+        "date": day,
+        "time": time,
+        "league": {"name": league_name},
+        "home": {"name": home_name, "logo": home_logo},
+        "away": {"name": away_name, "logo": away_logo},
+    }
+
+
 @router.get("/upcoming")
 def upcoming_fixtures(team: Optional[str] = None, team_id: Optional[int] = None, limit: int = 10):
-    """Prochains matchs de l'équipe. Donner team_id (depuis l'autocomplete) pour un chargement rapide ; sinon team (nom)."""
+    """Prochains matchs de l'équipe. team_id = Sportmonks ID (autocomplete) ou API-Football selon config."""
+    from app.services.sportmonks import _use_sportmonks, team_upcoming_fixtures
     from app.services.api_football import _use_api, get_team_upcoming_fixtures
 
-    if not _use_api():
-        return {"fixtures": []}
     tid = team_id
     if tid is None and (team or "").strip():
         tid = _resolve_team_id_fast(team.strip())
     if not tid:
+        return {"fixtures": []}
+
+    if _use_sportmonks():
+        raw = team_upcoming_fixtures(int(tid), limit=limit)
+        fixtures = []
+        for f in raw:
+            row = _format_sportmonks_fixture_for_upcoming(f)
+            if row:
+                fixtures.append(row)
+        return {"fixtures": fixtures}
+
+    if not _use_api():
         return {"fixtures": []}
     raw = get_team_upcoming_fixtures(int(tid), next_n=limit)
     fixtures = []

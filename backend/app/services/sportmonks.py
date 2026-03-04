@@ -246,6 +246,29 @@ def fixtures_search(query: str, limit: int = 10) -> list[dict[str, Any]]:
     return data.get("data") or []
 
 
+def team_upcoming_fixtures(team_id: int, limit: int = 10) -> list[dict[str, Any]]:
+    """
+    GET /fixtures/between/{start}/{end}/{team_id}. Prochains matchs de l'équipe.
+    Retourne liste de fixtures avec participants (pour noms + logos).
+    """
+    if not _use_sportmonks() or not team_id:
+        return []
+    from datetime import datetime, timezone, timedelta
+    start = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    end = (datetime.now(timezone.utc) + timedelta(days=120)).strftime("%Y-%m-%d")
+    data = _get(
+        f"/fixtures/between/{start}/{end}/{team_id}",
+        params={"per_page": limit},
+        include="participants;league",
+    )
+    raw = data.get("data")
+    if isinstance(raw, dict):
+        raw = raw.get("data") if isinstance(raw.get("data"), list) else []
+    if not isinstance(raw, list):
+        raw = []
+    return raw[:limit]
+
+
 def fixture_by_id(fixture_id: int, include: str = "participants;league;venue") -> Optional[dict[str, Any]]:
     """GET /fixtures/{id} avec participants (équipes + image_path pour blasons), league, venue."""
     data = _get(f"/fixtures/{fixture_id}", include=include)

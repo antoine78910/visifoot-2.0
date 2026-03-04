@@ -603,6 +603,49 @@ def _team_relevance_score(name: str, q_normalized: str) -> tuple[int, int, str]:
     return (4, _priority_for_name(n), n)
 
 
+def get_teams_from_supabase_direct(q: str, limit: int = 80) -> Optional[list[dict]]:
+    """
+    Recherche directe Supabase par search_terms (une requête, pas de cache complet).
+    Utilisé pour accélérer l'autocomplete quand une requête q est fournie.
+    """
+    from app.core.config import get_settings
+    s = get_settings()
+    if not (s.supabase_url and s.supabase_key) or not (q or "").strip():
+        return None
+    try:
+        from app.core.supabase_client import get_supabase
+        supabase = get_supabase()
+        q_clean = (q or "").strip()
+        q_normalized = _normalize_for_search(q_clean)
+        r = (
+            supabase.table("teams")
+            .select("slug, name, logo_url, country")
+            .ilike("search_terms", f"%{q_clean}%")
+            .limit(min(limit * 2, 200))
+            .execute()
+        )
+        rows = r.data or []
+        teams = [
+            {
+                "id": row.get("slug"),
+                "name": (row.get("name") or "").strip() or row.get("slug"),
+                "crest": row.get("logo_url"),
+                "country": _country_bilingual((row.get("country") or "").strip() or None),
+            }
+            for row in rows
+            if row.get("logo_url")
+        ]
+        teams = [
+            t for t in teams
+            if not _is_non_primary_team_name(t.get("name") or "")
+            and _team_matches_query({"name": t.get("name") or "", "shortName": ""}, q_normalized)
+        ]
+        teams.sort(key=lambda t: _team_relevance_score(t.get("name") or "", q_normalized))
+        return teams[:limit]
+    except Exception:
+        return None
+
+
 def get_teams_from_supabase(
     q: Optional[str] = None, limit: int = 80, allow_fetch: bool = False
 ) -> Optional[list[dict]]:
