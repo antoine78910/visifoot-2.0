@@ -1,5 +1,11 @@
 # backend/app/api/me.py
-"""Endpoint /me : plan, usage, limite d'analyses ; POST /me/cancel-subscription pour annuler via Whop (at_period_end)."""
+"""Endpoint /me : plan, usage, limite d'analyses ; POST /me/cancel-subscription pour annuler via Whop (at_period_end).
+
+Whop API URLs appelées (Company API Key uniquement — pas de /me ni de routes v5/v2 /company/*) :
+  - GET  https://api.whop.com/api/v1/members?company_id=...&first=100
+  - GET  https://api.whop.com/api/v1/memberships?company_id=...&statuses=active&user_ids=...&first=50
+  - POST https://api.whop.com/api/v1/memberships/{membership_id}/cancel
+"""
 import logging
 from fastapi import APIRouter, Header, HTTPException
 
@@ -134,88 +140,20 @@ async def _whop_cancel_membership(membership_id: str, whop_key: str) -> bool:
 async def _whop_find_and_cancel_by_email(email: str, whop_key: str, company_id: str) -> bool:
     """
     Trouve le membre Whop par email, puis son membership actif, et l'annule (at_period_end).
-    Suit le tuto: list members → find by email → list memberships active → cancel.
+    Utilise uniquement l'API v1 (Company API Key). Routes : GET v1/members, GET v1/memberships, POST v1/memberships/{id}/cancel.
     """
     if not email or not whop_key or not company_id:
         return False
-    import httpx
-    headers = {"Authorization": f"Bearer {whop_key}"}
-    email_lower = email.strip().lower()
-
-    # 1) List members (Whop v5 company members ou v2 members)
-    member_id = None
-    for base in ["https://api.whop.com/api/v5", "https://api.whop.com/api/v2"]:
-        try:
-            async with httpx.AsyncClient() as client:
-                r = await client.get(
-                    f"{base}/company/members",
-                    params={"company_id": company_id, "per": 100},
-                    headers=headers,
-                    timeout=15.0,
-                )
-            if r.status_code >= 400:
-                continue
-            data = r.json()
-            members = data.get("data") if isinstance(data.get("data"), list) else data.get("members") or []
-            if not isinstance(members, list):
-                members = []
-            for m in members:
-                if not isinstance(m, dict):
-                    continue
-                u = m.get("user") or m.get("user_id")
-                if isinstance(u, dict):
-                    em = (u.get("email") or "").strip().lower()
-                else:
-                    em = (m.get("email") or "").strip().lower()
-                if em == email_lower:
-                    member_id = m.get("id") or m.get("member_id")
-                    break
-            if member_id:
-                break
-        except Exception as e:
-            logger.debug("Whop list members %s: %s", base, e)
-    if not member_id:
-        logger.warning("Whop: no member found for email %s", email[:3] + "***")
+    # Réutiliser la même logique que _whop_get_plan_for_email : v1/members puis v1/memberships
+    result = await _whop_get_plan_for_email(email, whop_key, company_id)
+    plan, membership_id, api_error = result
+    if api_error or not membership_id:
         return False
-
-    # 2) List active memberships for this member
-    membership_id = None
-    for base in ["https://api.whop.com/api/v5", "https://api.whop.com/api/v2"]:
-        try:
-            async with httpx.AsyncClient() as client:
-                r = await client.get(
-                    f"{base}/company/memberships",
-                    params={"company_id": company_id, "member_id": member_id, "status": "active", "per": 10},
-                    headers=headers,
-                    timeout=15.0,
-                )
-            if r.status_code >= 400:
-                continue
-            data = r.json()
-            list_ms = data.get("data") if isinstance(data.get("data"), list) else data.get("memberships") or []
-            if not isinstance(list_ms, list):
-                list_ms = []
-            for ms in list_ms:
-                if isinstance(ms, dict) and (ms.get("status") or "").lower() == "active":
-                    membership_id = ms.get("id") or ms.get("membership_id")
-                    break
-            if not list_ms and isinstance(data.get("data"), list):
-                list_ms = data["data"]
-            if not membership_id and list_ms:
-                membership_id = list_ms[0].get("id") or list_ms[0].get("membership_id") if isinstance(list_ms[0], dict) else None
-            if membership_id:
-                break
-        except Exception as e:
-            logger.debug("Whop list memberships %s: %s", base, e)
-    if not membership_id:
-        logger.warning("Whop: no active membership for member %s", member_id)
-        return False
-
     return await _whop_cancel_membership(membership_id, whop_key)
 
 
 def _extract_members_list(data: dict, base: str) -> list:
-    """Extrait la liste des membres depuis la réponse Whop (v5 ou v2)."""
+    """Extrait la liste des membres depuis la réponse Whop (v1, v5 ou v2)."""
     raw = data.get("data") or data.get("members") or []
     if isinstance(raw, list):
         return raw
@@ -237,14 +175,27 @@ async def _whop_get_plan_for_email(email: str, whop_key: str, company_id: str) -
     headers = {"Authorization": f"Bearer {whop_key}"}
     email_lower = email.strip().lower()
     member_id = None
+    user_id_for_memberships: str | None = None  # v1 list memberships filters by user_ids
     api_error: str | None = None
-    for base in ["https://api.whop.com/api/v5", "https://api.whop.com/api/v2"]:
-        for page in range(1, 6):  # pages 1..5
+    # Company API keys must use v1 only; v5/v2 /company/* routes are for App API keys (401 otherwise)
+    # https://docs.whop.com/developer/api/getting-started
+    endpoints: list[tuple[str, str, dict]] = [
+        ("https://api.whop.com/api/v1", "/members", {"company_id": company_id, "first": 100}),
+    ]
+    for base, path, base_params in endpoints:
+        page = 1
+        after_cursor: str | None = None
+        while page <= 5:
             try:
+                params = dict(base_params)
+                if "page" in params:
+                    params["page"] = page
+                if after_cursor and "first" in params:
+                    params["after"] = after_cursor
                 async with httpx.AsyncClient() as client:
                     r = await client.get(
-                        f"{base}/company/members",
-                        params={"company_id": company_id, "per": 100, "page": page},
+                        f"{base}{path}",
+                        params=params,
                         headers=headers,
                         timeout=15.0,
                     )
@@ -252,7 +203,7 @@ async def _whop_get_plan_for_email(email: str, whop_key: str, company_id: str) -
                     try:
                         body = (r.text or "")[:500]
                         logger.warning(
-                            "Whop API: 401 Unauthorized (check WHOP_API_KEY). Response: %s",
+                            "Whop API: 401 (use Company API key with member:basic:read, member:email:read, member:phone:read). Response: %s",
                             body or "(empty)",
                         )
                     except Exception:
@@ -264,7 +215,7 @@ async def _whop_get_plan_for_email(email: str, whop_key: str, company_id: str) -
                     api_error = "whop_forbidden"
                     break
                 if r.status_code >= 400:
-                    continue
+                    break
                 data = r.json()
                 members = _extract_members_list(data, base)
                 if not members and page == 1:
@@ -279,30 +230,48 @@ async def _whop_get_plan_for_email(email: str, whop_key: str, company_id: str) -
                         em = (m.get("email") or "").strip().lower()
                     if em == email_lower:
                         member_id = m.get("id") or m.get("member_id")
+                        u_obj = m.get("user")
+                        user_id_for_memberships = (u_obj.get("id") if isinstance(u_obj, dict) else None) or m.get("user_id")
                         break
                 if member_id:
                     break
-                # Si moins de 100 résultats, pas de page suivante
+                # Cursor-based (v1): use next page cursor if present
+                if "first" in params:
+                    next_cursor = (data.get("has_next_page") and data.get("end_cursor")) or data.get("next_cursor")
+                    if next_cursor and len(members) >= 100:
+                        after_cursor = next_cursor
+                        page += 1
+                        continue
+                # Page-based: stop if less than full page
                 if len(members) < 100:
                     break
+                page += 1
             except Exception as e:
-                logger.warning("Whop list members %s page %s: %s", base, page, e)
+                logger.warning("Whop list members %s%s page %s: %s", base, path, page, e)
+                break
         if member_id or api_error:
             break
     if api_error:
         return (None, None, api_error)
     if not member_id:
-        logger.info("Whop: no member found for email %s (tried v5 and v2, paginated)", email_lower[:3] + "***")
+        logger.info("Whop: no member found for email %s (v1 members)", email_lower[:3] + "***")
         return (None, None, None)
 
     membership_id = None
     plan_id = None
-    for base in ["https://api.whop.com/api/v5", "https://api.whop.com/api/v2"]:
+    # Company API keys: v1 only; v1 list memberships uses statuses[] and user_ids[] (not member_id)
+    for base, path in [
+        ("https://api.whop.com/api/v1", "/memberships"),
+    ]:
         try:
+            params: dict = {"company_id": company_id, "first": 50}
+            if user_id_for_memberships:
+                params["user_ids"] = [user_id_for_memberships]
+            params["statuses"] = ["active"]
             async with httpx.AsyncClient() as client:
                 r = await client.get(
-                    f"{base}/company/memberships",
-                    params={"company_id": company_id, "member_id": member_id, "status": "active", "per": 10},
+                    f"{base}{path}",
+                    params=params,
                     headers=headers,
                     timeout=15.0,
                 )

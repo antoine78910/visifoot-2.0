@@ -351,9 +351,10 @@ async def _fetch_whop_payment_by_id(payment_id: str, whop_api_key: str) -> dict 
     if not payment_id or not whop_api_key:
         return None
     import httpx
+    # Company API Key: v1 only. v5/company/payments/* is for App API keys.
     urls = [
-        f"https://api.whop.com/api/v5/company/payments/{payment_id}",
         f"https://api.whop.com/api/v1/payments/{payment_id}",
+        f"https://api.whop.com/api/v5/company/payments/{payment_id}",
     ]
     headers = {"Authorization": f"Bearer {whop_api_key}"}
     async with httpx.AsyncClient() as client:
