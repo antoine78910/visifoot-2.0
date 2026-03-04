@@ -248,25 +248,40 @@ def fixtures_search(query: str, limit: int = 10) -> list[dict[str, Any]]:
 
 def team_upcoming_fixtures(team_id: int, limit: int = 10) -> list[dict[str, Any]]:
     """
-    GET /fixtures?filters=team_id:{id};starting_after:{date}&include=participants
     Prochains matchs de l'équipe (Sportmonks).
+    Utilise l'endpoint dédié: GET /fixtures/between/{start_date}/{end_date}/{team_id}
     """
     if not _use_sportmonks() or not team_id:
         return []
-    from datetime import datetime, timezone
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    filters = f"team_id:{team_id};starting_after:{today}"
-    data = _get(
-        "/fixtures",
-        params={"per_page": limit, "filters": filters},
-        include="participants;league",
-    )
+    from datetime import datetime, timezone, timedelta
+    now = datetime.now(timezone.utc)
+    start_date = now.strftime("%Y-%m-%d")
+    end_date = (now + timedelta(days=90)).strftime("%Y-%m-%d")
+    path = f"/fixtures/between/{start_date}/{end_date}/{team_id}"
+    data = _get(path, params={"per_page": min(limit, 50)}, include="participants;league")
     raw = data.get("data")
     if isinstance(raw, dict):
         raw = raw.get("data") if isinstance(raw.get("data"), list) else []
     if not isinstance(raw, list):
         raw = []
-    return raw[:limit]
+    # Garder uniquement les matchs futurs (au cas où l'API inclurait le jour même déjà joués)
+    upcoming = []
+    for f in raw:
+        sat = f.get("starting_at") or ""
+        try:
+            if sat:
+                dt_str = sat.replace("T", " ")[:19].strip()
+                fixture_dt = datetime.fromisoformat(dt_str.replace(" ", "T").replace("Z", "+00:00"))
+                if fixture_dt.tzinfo is None:
+                    fixture_dt = fixture_dt.replace(tzinfo=timezone.utc)
+                if fixture_dt >= now:
+                    upcoming.append(f)
+            else:
+                upcoming.append(f)
+        except Exception:
+            upcoming.append(f)
+    upcoming.sort(key=lambda x: (x.get("starting_at") or ""))
+    return upcoming[:limit]
 
 
 def fixture_by_id(fixture_id: int, include: str = "participants;league;venue") -> Optional[dict[str, Any]]:
