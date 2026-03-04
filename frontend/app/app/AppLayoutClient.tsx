@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { BGPattern } from "@/components/BGPattern";
 import { getUserFromStorage, setUserInStorage, clearAuthCookie, clearUserFromStorage, type UserInfo, type PlanId } from "@/lib/auth";
+import { getDatafastVisitorId } from "@/lib/whopCheckout";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { Lang } from "@/lib/translations";
 
@@ -164,9 +165,57 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
   const [analysesLimit, setAnalysesLimit] = useState<number | null>(null);
   const [langOpen, setLangOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const paymentSyncAttemptedRef = useRef(false);
 
   useEffect(() => {
     setUser(getUserFromStorage());
+  }, []);
+
+  // Global Whop payment sync: when returning from checkout, update plan immediately (no manual reload).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (paymentSyncAttemptedRef.current) return;
+    if (!API_URL || API_URL === "undefined") return;
+    const url = new URL(window.location.href);
+    const searchParams = url.searchParams;
+    const paymentId = searchParams.get("payment_id") || searchParams.get("receipt_id");
+    const checkoutStatus = (searchParams.get("checkout_status") || searchParams.get("status") || "").toLowerCase();
+    const isSuccess = checkoutStatus === "success" || checkoutStatus === "paid";
+    if (!paymentId || !isSuccess) return;
+
+    paymentSyncAttemptedRef.current = true;
+    (async () => {
+      try {
+        const res = await fetch(`${API_URL}/webhooks/whop/sync-payment`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            payment_id: paymentId,
+            datafast_visitor_id: getDatafastVisitorId(),
+          }),
+        });
+        const payload = res.ok ? await res.json().catch(() => null) : null;
+        const planFromSync = payload?.plan as string | undefined;
+        const validPlans: PlanId[] = ["starter", "pro", "lifetime"];
+        if (planFromSync && validPlans.includes(planFromSync as PlanId)) {
+          const u = getUserFromStorage();
+          if (u) {
+            const next: UserInfo = { ...u, plan: planFromSync as PlanId, subscription_ends_at: null };
+            setUserInStorage(next);
+            setUser(next);
+          }
+        }
+      } catch {
+        // ignore sync errors; user can still refresh or contact support
+      } finally {
+        try {
+          ["receipt_id", "payment_id", "checkout_status", "status", "state_id"].forEach((k) => url.searchParams.delete(k));
+          window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+        } catch {
+          // ignore URL cleanup issues
+        }
+      }
+    })();
   }, []);
 
   useEffect(() => {

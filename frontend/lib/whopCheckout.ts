@@ -33,12 +33,18 @@ export function getDatafastVisitorId(): string | null {
 export function getWhopCheckoutUrl(
   plan: WhopPlanId,
   currency: PricingCurrency,
-  datafastVisitorId?: string | null
+  datafastVisitorId?: string | null,
+  context?: string | null
 ): string {
   let url = CHECKOUT_URLS[currency][plan];
   const params = new URLSearchParams();
   if (datafastVisitorId?.trim()) {
     params.set("datafast_visitor_id", datafastVisitorId.trim());
+  }
+  // Help Datafast / internal analytics distinguish flows
+  params.set("df_plan", plan);
+  if (context?.trim()) {
+    params.set("df_source", context.trim());
   }
   // Allow customers to enter a promo/coupon at checkout (Whop may support this param)
   params.set("allow_promotion_codes", "true");

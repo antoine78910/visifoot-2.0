@@ -1,79 +1,15 @@
 "use client";
 
-import { Suspense, useEffect, useRef } from "react";
+import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { MatchInput } from "@/components/MatchInput";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { getDatafastVisitorId } from "@/lib/whopCheckout";
-import { getUserFromStorage, setUserInStorage, type PlanId } from "@/lib/auth";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 function MatchesContent() {
   const { t } = useLanguage();
   const searchParams = useSearchParams();
   const home = searchParams.get("home") ?? "";
   const away = searchParams.get("away") ?? "";
-  const syncAttemptedRef = useRef(false);
-
-  useEffect(() => {
-    if (syncAttemptedRef.current) return;
-    const paymentId = searchParams.get("payment_id") || searchParams.get("receipt_id");
-    const checkoutStatus = (searchParams.get("checkout_status") || searchParams.get("status") || "").toLowerCase();
-    const isSuccess = checkoutStatus === "success" || checkoutStatus === "paid";
-    if (!paymentId || !isSuccess || !API_URL || API_URL === "undefined") return;
-
-    syncAttemptedRef.current = true;
-    const uid = getUserFromStorage()?.id;
-    (async () => {
-      try {
-        const res = await fetch(`${API_URL}/webhooks/whop/sync-payment`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            payment_id: paymentId,
-            datafast_visitor_id: getDatafastVisitorId(),
-          }),
-        });
-        const payload = res.ok ? (await res.json()) : null;
-        const planFromSync = payload?.plan as string | undefined;
-        const validPlans: PlanId[] = ["starter", "pro", "lifetime"];
-        if (planFromSync && validPlans.includes(planFromSync as PlanId)) {
-          const u = getUserFromStorage();
-          if (u) {
-            setUserInStorage({ ...u, plan: planFromSync as PlanId });
-            // Remove payment params so reload doesn't trigger sync again
-            try {
-              const url = new URL(window.location.href);
-              ["receipt_id", "payment_id", "checkout_status", "status", "state_id"].forEach((k) => url.searchParams.delete(k));
-              window.history.replaceState({}, "", `${url.pathname}${url.search}`);
-            } catch {
-              /* ignore */
-            }
-            window.location.reload();
-            return;
-          }
-        }
-      } catch {
-        // Ignore transient network issues; webhook retry/manual sync still possible.
-      } finally {
-        // Clean payment params to avoid resync on each refresh.
-        try {
-          const url = new URL(window.location.href);
-          [
-            "receipt_id",
-            "payment_id",
-            "checkout_status",
-            "status",
-            "state_id",
-          ].forEach((k) => url.searchParams.delete(k));
-          window.history.replaceState({}, "", `${url.pathname}${url.search}`);
-        } catch {
-          // ignore URL cleanup issues
-        }
-      }
-    })();
-  }, [searchParams]);
 
   return (
     <div className="p-4 sm:p-8 w-full flex flex-col items-center">

@@ -132,7 +132,7 @@ export function UnlockPricingModal({
               <button
                 type="button"
                 onClick={() => {
-                  window.location.href = getWhopCheckoutUrl("starter", currencyConfig.currency, getDatafastVisitorId());
+                  window.location.href = getWhopCheckoutUrl("starter", currencyConfig.currency, getDatafastVisitorId(), "modal-starter");
                 }}
                 disabled={currentPlan === "starter"}
                 className="mt-4 w-full py-2.5 px-4 rounded-xl font-semibold text-sm transition-all duration-300 disabled:opacity-50 disabled:bg-zinc-800/50 disabled:border-zinc-600 disabled:text-zinc-400 disabled:shadow-none bg-transparent border-2 border-[#00ffe8]/50 hover:border-[#00ffe8] text-[#00ffe8] hover:shadow-[0_0_18px_4px_rgba(0,255,232,0.45)]"
@@ -187,7 +187,7 @@ export function UnlockPricingModal({
               <button
                 type="button"
                 onClick={() => {
-                  window.location.href = getWhopCheckoutUrl("pro", currencyConfig.currency, getDatafastVisitorId());
+                  window.location.href = getWhopCheckoutUrl("pro", currencyConfig.currency, getDatafastVisitorId(), "modal-pro");
                 }}
                 disabled={currentPlan === "pro"}
                 className="mt-4 w-full py-2.5 px-4 rounded-xl font-semibold text-[#0d0d12] text-sm transition-all duration-300 disabled:opacity-50 hover:shadow-[0_0_20px_5px_rgba(0,255,232,0.5)]"
@@ -241,7 +241,7 @@ export function UnlockPricingModal({
               <button
                 type="button"
                 onClick={() => {
-                  window.location.href = getWhopCheckoutUrl("lifetime", currencyConfig.currency, getDatafastVisitorId());
+                  window.location.href = getWhopCheckoutUrl("lifetime", currencyConfig.currency, getDatafastVisitorId(), "modal-lifetime");
                 }}
                 disabled={currentPlan === "lifetime"}
                 className="mt-4 w-full py-2.5 px-4 rounded-xl font-semibold text-[#0d0d12] text-sm bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 hover:shadow-[0_0_18px_5px_rgba(245,158,11,0.45)] transition-all duration-300 disabled:opacity-50 disabled:text-zinc-500"

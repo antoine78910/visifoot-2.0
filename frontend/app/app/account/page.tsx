@@ -174,7 +174,7 @@ export default function AccountPage() {
 
   const handleEnjoyOffer = () => {
     setUnsubscribeModalOpen(false);
-    window.location.href = getWhopCheckoutUrl("pro", currencyConfig.currency, getDatafastVisitorId());
+    window.location.href = getWhopCheckoutUrl("pro", currencyConfig.currency, getDatafastVisitorId(), "account-offer-pro");
   };
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
@@ -386,7 +386,7 @@ export default function AccountPage() {
           <button
             type="button"
             onClick={() => {
-              window.location.href = getWhopCheckoutUrl("lifetime", currencyConfig.currency, getDatafastVisitorId());
+              window.location.href = getWhopCheckoutUrl("lifetime", currencyConfig.currency, getDatafastVisitorId(), "account-lifetime");
             }}
             className="mt-4 w-full py-3 px-4 rounded-xl font-semibold text-[#0d0d12] bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 hover:shadow-[0_0_22px_6px_rgba(245,158,11,0.45)] transition-all duration-300 shadow-[0_0_20px_-5px_rgba(245,158,11,0.4)]"
           >
