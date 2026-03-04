@@ -12,6 +12,8 @@ export type UserInfo = {
   displayName: string;
   email: string;
   plan: PlanId;
+  /** ISO date when subscription ends (cancel at period end). Plan remains until this date. */
+  subscription_ends_at?: string | null;
 };
 
 export function setAuthCookie(): void {
