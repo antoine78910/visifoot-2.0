@@ -227,6 +227,34 @@ export default function AccountPage() {
     }
   };
 
+  const handleRenewPlan = async () => {
+    if (!user?.id || !API_URL || API_URL === "undefined") return;
+    setRenewLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/me/renew-subscription`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-User-Id": user.id },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err?.detail ?? "Could not renew. Try again or contact support.");
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      const u = getUserFromStorage();
+      if (u && u.id === user.id) {
+        const next = { ...u, subscription_ends_at: undefined };
+        setUserInStorage(next);
+        setUser(next);
+      }
+      setRenewSuccessOpen(true);
+    } catch {
+      alert("Network error. Try again later.");
+    } finally {
+      setRenewLoading(false);
+    }
+  };
+
   return (
     <div className="p-4 sm:p-8 max-w-3xl mx-auto">
       <h1 className="text-2xl font-bold text-white">{t("account.title")}</h1>
