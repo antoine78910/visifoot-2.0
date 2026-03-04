@@ -25,8 +25,26 @@ export function useGeoCurrency(): {
 
     (async () => {
       try {
-        const res = await fetch(GEO_API);
-        const data = await res.json();
+        let res: Response | null = null;
+        try {
+          res = await fetch(GEO_API);
+        } catch {
+          res = null;
+        }
+        if (cancelled) return;
+        if (!res?.ok) {
+          setError(true);
+          setConfig(getCurrencyConfig("EUR"));
+          return;
+        }
+        let data: { country_code?: string } | null = null;
+        try {
+          data = await res.json();
+        } catch {
+          setError(true);
+          setConfig(getCurrencyConfig("EUR"));
+          return;
+        }
         if (cancelled) return;
         const country = data?.country_code ?? null;
         const currency = getCurrencyFromCountry(country) as PricingCurrency;

@@ -139,6 +139,7 @@ def _build_response(
         "away_team": ctx["away_team"],
         "league": ctx.get("league"),
         "match_date": ctx.get("match_date"),
+        "match_date_iso": ctx.get("match_date_iso"),
         "venue": ctx.get("venue"),
         "home_team_logo": ctx.get("home_team_logo"),
         "away_team_logo": ctx.get("away_team_logo"),

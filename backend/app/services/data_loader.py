@@ -130,6 +130,7 @@ def _load_match_context_api_football(
     report("Fetching team info…", 15)
     league: Any = None
     match_date: Any = None
+    match_date_iso: Any = None
     venue: Any = None
     fixture_id: Any = None
     home_team_logo: Any = None
@@ -161,9 +162,11 @@ def _load_match_context_api_football(
                 date_val = fix.get("date") or ""
                 if date_val:
                     from datetime import datetime
+                    match_date_iso = date_val
                     try:
                         dt = datetime.fromisoformat(date_val.replace("Z", "+00:00"))
                         match_date = f"{dt.day} {dt.strftime('%B %Y')} at {dt.strftime('%H:%M')}"
+                        match_date_iso = dt.strftime("%Y-%m-%dT%H:%M:%S") + "Z"
                     except Exception:
                         match_date = date_val[:16] if len(date_val) >= 16 else date_val
                 league = (f.get("league") or {}).get("name")
@@ -219,11 +222,15 @@ def _load_match_context_api_football(
         date_val = fix_last.get("date") or ""
         if match_date is None and date_val:
             from datetime import datetime
+            match_date_iso = date_val
             try:
                 dt = datetime.fromisoformat(date_val.replace("Z", "+00:00"))
                 match_date = f"{dt.day} {dt.strftime('%B %Y')} at {dt.strftime('%H:%M')}"
+                match_date_iso = dt.strftime("%Y-%m-%dT%H:%M:%S") + "Z"
             except Exception:
                 match_date = date_val[:16] if len(date_val) >= 16 else date_val
+        elif match_date_iso is None and date_val:
+            match_date_iso = date_val
         if venue is None:
             fix_venue = fix_last.get("venue") if isinstance(fix_last.get("venue"), dict) else {}
             if fix_venue:
@@ -314,6 +321,7 @@ def _load_match_context_api_football(
         "comparison_pcts": pcts,
         "league": league,
         "match_date": match_date,
+        "match_date_iso": match_date_iso,
         "venue": venue,
         "fixture_id": fixture_id,
         "home_team_logo": home_team_logo,

@@ -14,6 +14,8 @@ type Result = {
   away_team?: string;
   league?: string | null;
   match_date?: string | null;
+  /** ISO UTC (ex. 2025-03-15T20:00:00+00:00) pour le countdown "starts in" */
+  match_date_iso?: string | null;
   venue?: string | null;
   home_team_logo?: string | null;
   away_team_logo?: string | null;
@@ -269,10 +271,10 @@ export function AnalysisResult({ result }: { result: Result }) {
     );
   };
 
-  /** Overlay 15% + CTA (comme la ref: après le titre Exact probabilities) */
+  /** Overlay 15% + CTA — z-10 pour être au-dessus du flou, zone cliquable entière */
   const exactProbabilitiesOverlay = () => (
-    <div className="absolute inset-0 flex items-center justify-center p-4 min-h-[200px] pt-20">
-      <div className="rounded-2xl bg-[#14141c]/95 border-2 border-[#00ffe8]/30 p-5 sm:p-6 max-w-md w-full shadow-xl text-center">
+    <div className="absolute inset-0 z-10 flex items-center justify-center p-4 pt-20">
+      <div className="rounded-2xl bg-[#14141c]/95 border-2 border-[#00ffe8]/30 p-5 sm:p-6 max-w-md w-full shadow-xl text-center relative z-10">
         <h3 className="text-lg sm:text-xl font-bold text-white">
           {t("analysis.limitedAccessTitle")}
         </h3>
@@ -286,7 +288,7 @@ export function AnalysisResult({ result }: { result: Result }) {
         <button
           type="button"
           onClick={openUnlockStep1}
-          className="mt-6 w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-semibold text-[#0d0d12] bg-[#00ffe8] hover:bg-[#00ffe8]/90 transition"
+          className="mt-6 w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-semibold text-[#0d0d12] bg-[#00ffe8] hover:bg-[#00ffe8]/90 transition relative z-20"
         >
           <span className="text-lg" aria-hidden>🏆</span>
           {t("analysis.unlockFullAnalysis")}
@@ -623,8 +625,8 @@ export function AnalysisResult({ result }: { result: Result }) {
             )}
           </>
         ) : (
-          <div className="relative min-h-[220px]">
-            <div className="select-none pointer-events-none blur-md opacity-90" aria-hidden>
+          <div className="relative min-h-[320px]">
+            <div className="select-none pointer-events-none blur-md opacity-90 absolute inset-0" aria-hidden>
               <div className="space-y-4 mb-4">
                 <div className="flex items-center gap-4">
                   <span className="text-zinc-300 text-sm w-28 flex-shrink-0">{home} win</span>
@@ -661,7 +663,7 @@ export function AnalysisResult({ result }: { result: Result }) {
         onClose={closeUnlockStep1}
         onUnlockClick={openUnlockStep2}
         matchLabel={home && away ? `${home} vs ${away}` : undefined}
-        matchDate={result.match_date ?? undefined}
+        matchDate={(result.match_date_iso ?? result.match_date) ?? undefined}
       />
       <UnlockPricingModal open={showUnlockModal2} onClose={closeUnlockStep2} />
 
