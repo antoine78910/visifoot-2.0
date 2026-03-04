@@ -711,7 +711,7 @@ export function AnalysisResult({ result }: { result: Result }) {
             <div className="mb-4">
               <p className="text-zinc-400 text-sm mb-1">{t("betting.mostLikelyScore")}</p>
               <p className="text-xl font-bold text-white">{result.most_likely_score.home}-{result.most_likely_score.away} <span className="text-[#00ffe8]">({result.most_likely_score.probability}%)</span></p>
-              <p className="text-zinc-500 text-xs mt-1">Expected: {result.xg_home ?? 0} – {result.xg_away ?? 0} (xG)</p>
+              <p className="text-zinc-500 text-xs mt-1">{t("analysis.expectedGoals")} (xG): {result.xg_home ?? 0} – {result.xg_away ?? 0}</p>
             </div>
           )}
           {result.total_goals_distribution && (
@@ -834,7 +834,7 @@ export function AnalysisResult({ result }: { result: Result }) {
         <div className="space-y-4 mb-6">
           {typeof result.xg_home === "number" && typeof result.xg_away === "number" && (result.xg_home + result.xg_away > 0) && (
             <StatBar
-              label="xG share"
+              label={`xG share (${t("analysis.expectedGoals")})`}
               homePct={(result.xg_home / (result.xg_home + result.xg_away)) * 100}
               homeColor={HOME_COLOR}
               awayColor={AWAY_COLOR}
@@ -858,7 +858,7 @@ export function AnalysisResult({ result }: { result: Result }) {
           )}
         </div>
         <p className="text-xs text-zinc-500">
-          Home xG {typeof result.xg_home === "number" ? result.xg_home.toFixed(2) : "0"} – Away xG{" "}
+          {t("analysis.expectedGoals")} (xG): Home {typeof result.xg_home === "number" ? result.xg_home.toFixed(2) : "0"} – Away{" "}
           {typeof result.xg_away === "number" ? result.xg_away.toFixed(2) : "0"} (total{" "}
           {typeof result.xg_total === "number" ? result.xg_total.toFixed(2) : "0"} goals). BTTS Yes{" "}
           {typeof result.btts_yes_pct === "number" ? result.btts_yes_pct.toFixed(1) : "0"}%.

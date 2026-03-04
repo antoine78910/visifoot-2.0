@@ -118,10 +118,37 @@ def _get_user_email_from_supabase(admin, user_id: str) -> str | None:
     return None
 
 
+async def _whop_get_membership_period_end(membership_id: str, whop_key: str) -> str | None:
+    """Récupère renewal_period_end d'un membership Whop (pour affichage date de fin)."""
+    import httpx
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.get(
+                f"https://api.whop.com/api/v1/memberships/{membership_id}",
+                headers={"Authorization": f"Bearer {whop_key}"},
+                timeout=10.0,
+            )
+        if r.status_code >= 400:
+            return None
+        data = r.json()
+        m = data.get("data") if isinstance(data.get("data"), dict) else data
+        if not isinstance(m, dict):
+            return None
+        raw = m.get("renewal_period_end") or m.get("renewal_period_end_at")
+        if isinstance(raw, (int, float)):
+            return datetime.fromtimestamp(int(raw), tz=timezone.utc).isoformat()
+        if isinstance(raw, str) and raw.strip():
+            return raw.strip()
+        return None
+    except Exception as e:
+        logger.debug("Whop get membership period_end: %s", e)
+        return None
+
+
 async def _whop_cancel_membership(membership_id: str, whop_key: str) -> tuple[bool, str | None]:
     """
     Annule un membership Whop (at_period_end). Retourne (succès, period_end_iso ou None).
-    Après annulation, récupère renewal_period_end via GET membership pour l'afficher à l'utilisateur.
+    Si Whop répond 400 "already canceled", on considère succès et on récupère la date de fin via GET.
     """
     import httpx
     url = f"https://api.whop.com/api/v1/memberships/{membership_id}/cancel"
@@ -134,28 +161,14 @@ async def _whop_cancel_membership(membership_id: str, whop_key: str) -> tuple[bo
                 timeout=15.0,
             )
         if resp.status_code >= 400:
+            body = (resp.text or "").lower()
+            if resp.status_code == 400 and "already canceled" in body:
+                logger.info("Whop cancel membership %s: already canceled, fetching period end", membership_id)
+                period_end = await _whop_get_membership_period_end(membership_id, whop_key)
+                return (True, period_end)
             logger.warning("Whop cancel membership %s: %s %s", membership_id, resp.status_code, resp.text)
             return (False, None)
-        # Récupérer la date de fin de période (renewal_period_end) pour l'affichage
-        period_end: str | None = None
-        try:
-            async with httpx.AsyncClient() as get_client:
-                get_resp = await get_client.get(
-                    f"https://api.whop.com/api/v1/memberships/{membership_id}",
-                    headers={"Authorization": f"Bearer {whop_key}"},
-                    timeout=10.0,
-                )
-            if get_resp.status_code < 400:
-                data = get_resp.json()
-                m = data.get("data") if isinstance(data.get("data"), dict) else data
-                if isinstance(m, dict):
-                    raw = m.get("renewal_period_end") or m.get("renewal_period_end_at")
-                    if isinstance(raw, (int, float)):
-                        period_end = datetime.fromtimestamp(int(raw), tz=timezone.utc).isoformat()
-                    elif isinstance(raw, str) and raw.strip():
-                        period_end = raw.strip()
-        except Exception as e:
-            logger.debug("Whop get membership for period_end: %s", e)
+        period_end = await _whop_get_membership_period_end(membership_id, whop_key)
         return (True, period_end)
     except httpx.HTTPError as e:
         logger.exception("Whop cancel request failed: %s", e)

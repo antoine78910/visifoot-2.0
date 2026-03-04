@@ -81,7 +81,7 @@ function MatchesContent() {
         <h1 className="text-2xl font-bold text-white text-center">{t("matches.title")}</h1>
         <p className="text-zinc-500 mt-1 text-center">{t("matches.subtitle")}</p>
         <p className="text-[#00ffe8] text-xs sm:text-sm mt-1 max-w-2xl mx-auto text-center whitespace-nowrap overflow-hidden text-ellipsis">
-          Our AI is connected to football news and crosses millions of data points for each prediction.
+          {t("matches.aiSubtitle")}
         </p>
         <div className="mt-8">
           <MatchInput
@@ -97,7 +97,7 @@ function MatchesContent() {
 
 export default function MatchesPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-zinc-400 text-center">Loading...</div>}>
+    <Suspense fallback={<div className="p-8 text-zinc-400 text-center">{/* localized loading text */}{useLanguage().t("matchInput.loading")}</div>}>
       <MatchesContent />
     </Suspense>
   );

@@ -89,6 +89,7 @@ export default function AccountPage() {
   const [confirmUnsubscribeOpen, setConfirmUnsubscribeOpen] = useState(false);
   const [unsubscribeModalOpen, setUnsubscribeModalOpen] = useState(false);
   const [cancelWhopMessageOpen, setCancelWhopMessageOpen] = useState(false);
+  const [cancelWhopEndDate, setCancelWhopEndDate] = useState<string | null>(null);
   const [unsubscribeSuccessMessage, setUnsubscribeSuccessMessage] = useState<string | null>(null);
   const [subscribedSince, setSubscribedSince] = useState<string>("26 February 2026");
   const [editingEmail, setEditingEmail] = useState(false);
@@ -206,14 +207,15 @@ export default function AccountPage() {
       if (data?.cancelled_via_whop === true) {
         const endDate = endsAt ? formatSubscriptionEndDate(endsAt) : null;
         const msg = endDate
-          ? t("account.unsubscribedSuccessWithDate").replace("{date}", endDate)
+          ? t("account.subscriptionEndsOnFromWhop").replace("{date}", endDate)
           : t("account.unsubscribedSuccess");
         setUnsubscribeSuccessMessage(msg);
       } else {
+        setCancelWhopEndDate(endsAt ?? null);
         setCancelWhopMessageOpen(true);
       }
     } catch {
-      alert("Network error. Try again or cancel from your Whop account.");
+      alert("Network error. Try again later.");
     }
   };
 
@@ -483,16 +485,20 @@ export default function AccountPage() {
         </div>
       )}
 
-      {/* Modal: Your plan is now free, cancel from Whop if still charged */}
+      {/* Modal: subscription ends on [date] from Whop or cancelled */}
       {cancelWhopMessageOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/70" onClick={() => setCancelWhopMessageOpen(false)} aria-hidden />
+          <div className="absolute inset-0 bg-black/70" onClick={() => { setCancelWhopMessageOpen(false); setCancelWhopEndDate(null); }} aria-hidden />
           <div className="relative w-full max-w-md rounded-2xl bg-[#0a0a0f] border border-amber-500/30 shadow-xl p-6">
             <h2 className="text-xl font-bold text-white mb-2">{t("account.planSetFreeTitle")}</h2>
-            <p className="text-zinc-300 text-sm mb-6">{t("account.planSetFreeCancelWhop")}</p>
+            <p className="text-zinc-300 text-sm mb-6">
+              {cancelWhopEndDate
+                ? t("account.subscriptionEndsOnFromWhop").replace("{date}", formatSubscriptionEndDate(cancelWhopEndDate))
+                : t("account.subscriptionCancelled")}
+            </p>
             <button
               type="button"
-              onClick={() => setCancelWhopMessageOpen(false)}
+              onClick={() => { setCancelWhopMessageOpen(false); setCancelWhopEndDate(null); }}
               className="w-full py-2.5 px-4 rounded-xl font-semibold text-[#0d0d12] bg-[#00ffe8] hover:opacity-90 transition"
             >
               {t("account.close")}
