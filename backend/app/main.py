@@ -1,5 +1,10 @@
 # backend/app/main.py
 import logging
+
+# Logs autocomplete /teams (suggestion intelligente)
+for _name in ("app.api.teams", "app.services.sportmonks", "app.services.api_football"):
+    logging.getLogger(_name).setLevel(logging.INFO)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import predict, teams, competitions, leagues, webhooks, internal, me as me_router

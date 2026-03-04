@@ -34,9 +34,13 @@ def _get(path: str, params: Optional[dict[str, Any]] = None, include: Optional[s
     try:
         with httpx.Client(timeout=15.0) as client:
             r = client.get(url, params=p)
+            data = r.json() if r.content else {}
+            n = len(data.get("data") or []) if isinstance(data.get("data"), list) else ("obj" if data.get("data") else 0)
+            print(f"[sportmonks] GET {path[:50]}... -> {r.status_code} data_len={n}")
             r.raise_for_status()
-            return r.json() or {}
-    except Exception:
+            return data or {}
+    except Exception as e:
+        print(f"[sportmonks] GET {path[:50]}... ERREUR: {e}")
         return {}
 
 
@@ -167,16 +171,19 @@ def get_teams_for_autocomplete_sportmonks(q: Optional[str] = None, limit: int = 
     Suggestion intelligente : alias (psg→Paris SG, aja→Auxerre) + recherche Sportmonks.
     """
     if not _use_sportmonks():
+        print("[sportmonks] token non configuré -> []")
         return []
     q_clean = (q or "").strip()
     q_normalized = _normalize_for_search(q_clean) if q_clean else ""
     if not q_clean or len(q_clean) < 2:
+        print(f"[sportmonks] q trop court: {q_clean!r} -> []")
         return []
 
     # Alias : lancer une recherche par terme étendu pour avoir les bonnes équipes
     search_terms: list[str] = []
     if q_normalized in TEAM_SEARCH_ALIASES:
         search_terms = TEAM_SEARCH_ALIASES[q_normalized][:3]  # max 3 termes pour limiter les appels
+        print(f"[sportmonks] alias {q_normalized!r} -> search_terms {search_terms}")
     else:
         search_terms = [q_clean]
 
@@ -186,6 +193,7 @@ def get_teams_for_autocomplete_sportmonks(q: Optional[str] = None, limit: int = 
 
     for term in search_terms:
         raw = teams_search(term, limit=per_search)
+        print(f"[sportmonks] teams_search({term!r}, {per_search}) -> {len(raw or [])} résultats")
         for t in raw:
             tid = t.get("id")
             if tid is None:
@@ -223,6 +231,7 @@ def get_teams_for_autocomplete_sportmonks(q: Optional[str] = None, limit: int = 
         return (len(TEAM_SEARCH_ALIASES), name)
 
     result.sort(key=sort_key)
+    print(f"[sportmonks] total -> {len(result)} teams")
     return result[:limit]
 
 

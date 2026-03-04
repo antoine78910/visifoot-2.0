@@ -33,23 +33,25 @@ class Settings(BaseSettings):
     # Whop — Company ID (biz_xxx) pour annulation par email si pas de membership_id; env: WHOP_COMPANY_ID
     whop_company_id: str = Field(default="", validation_alias="WHOP_COMPANY_ID")
 
-    @model_validator(mode="after")
-    def fill_sportmonks_from_football_key(self: "Settings") -> "Settings":
-        """Si Sportmonks non configuré, utiliser FOOTBALL_API_KEY (user peut avoir renommé la clé)."""
-        token = (self.sportmonks_api_token or "").strip()
+    @model_validator(mode="before")
+    @classmethod
+    def inject_env_fallbacks(cls, data: dict) -> dict:
+        """Injecte les fallbacks env avant construction pour éviter model_copy (warning Pydantic)."""
+        if not isinstance(data, dict):
+            return data
+        # Sportmonks : depuis .env.local (api_football_key) ou SPORTMONKS_API_TOKEN / API_FOOTBALL_KEY
+        token = (data.get("sportmonks_api_token") or data.get("api_football_key") or "").strip()
         if not token:
             token = (os.getenv("API_FOOTBALL_KEY") or os.getenv("SPORTMONKS_API_TOKEN") or "").strip()
-        if token != self.sportmonks_api_token:
-            return self.model_copy(update={"sportmonks_api_token": token})
-        return self
-
-    @model_validator(mode="after")
-    def fill_supabase_from_next_public(self: "Settings") -> "Settings":
-        """Railway often has NEXT_PUBLIC_* only; ensure backend can read Supabase."""
-        url = (self.supabase_url or "").strip()
-        key = (self.supabase_key or "").strip()
+        if token:
+            data["sportmonks_api_token"] = token
+        # Supabase : NEXT_PUBLIC_* / SUPABASE_* si url/key vides
+        url = (data.get("supabase_url") or "").strip()
         if not url:
             url = (os.getenv("NEXT_PUBLIC_SUPABASE_URL") or os.getenv("SUPABASE_URL") or "").strip()
+        if url:
+            data["supabase_url"] = url
+        key = (data.get("supabase_key") or "").strip()
         if not key:
             key = (
                 os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY")
@@ -57,9 +59,9 @@ class Settings(BaseSettings):
                 or os.getenv("SUPABASE_KEY")
                 or ""
             ).strip()
-        if url != self.supabase_url or key != self.supabase_key:
-            return self.model_copy(update={"supabase_url": url, "supabase_key": key})
-        return self
+        if key:
+            data["supabase_key"] = key
+        return data
 
     class Config:
         # .env.local override .env (secrets locaux sans les commiter)

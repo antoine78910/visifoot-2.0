@@ -20,12 +20,24 @@ def list_teams(q: Optional[str] = None, limit: int = 80):
     from app.core.leagues import LEAGUES
 
     q_clean = (q or "").strip()
+    print(f"[teams] GET /teams q={q_clean!r} limit={limit}")
 
-    # 1) Sportmonks en premier si configuré : suggestion intelligente (alias psg→Paris SG, etc.)
-    if _use_sportmonks():
+    # 1) Sportmonks configuré : d'abord Supabase (principaux clubs synced via sync_sportmonks_teams_to_supabase.py)
+    #    pour une suggestion instantanée, puis API Sportmonks si pas de résultat en base.
+    use_sm = _use_sportmonks()
+    print(f"[teams] _use_sportmonks() = {use_sm}")
+    if use_sm:
+        print("[teams] Sportmonks actif -> Supabase puis API Sportmonks")
+        teams_sb = get_teams_from_supabase(q=q, limit=limit, allow_fetch=True)
+        sb_count = len(teams_sb) if teams_sb is not None else -1
+        print(f"[teams] Supabase -> {'ok' if teams_sb else 'None/empty'} (count={sb_count})")
+        if teams_sb:
+            return {"teams": teams_sb, "leagues": LEAGUES}
         teams_sm = get_teams_for_autocomplete_sportmonks(q=q, limit=limit)
+        print(f"[teams] Sportmonks API -> {len(teams_sm)} teams")
         return {"teams": teams_sm, "leagues": LEAGUES}
 
+    print("[teams] Sportmonks inactif -> Supabase / API-Football")
     # 2) Supabase : recherche rapide avec alias + blasons
     teams_sb = get_teams_from_supabase(q=q, limit=limit)
     if teams_sb is not None:

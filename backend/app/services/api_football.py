@@ -534,6 +534,7 @@ def _refresh_supabase_teams_cache_if_needed(allow_fetch: bool = True) -> Optiona
     if _supabase_teams_cache and (now - _supabase_teams_cache_ts) < _SUPABASE_AUTOCOMPLETE_TTL_SECONDS:
         return _supabase_teams_cache
     if not allow_fetch:
+        print("[teams/supabase] cache froid, allow_fetch=False -> None (refresh en arrière-plan)")
         with _supabase_cache_lock:
             if not _supabase_cache_refreshing:
                 _supabase_cache_refreshing = True
@@ -572,8 +573,10 @@ def _refresh_supabase_teams_cache_if_needed(allow_fetch: bool = True) -> Optiona
             start += page_size
         _supabase_teams_cache = all_rows
         _supabase_teams_cache_ts = now
+        print(f"[teams/supabase] cache chargé: {len(all_rows)} équipes")
         return _supabase_teams_cache
-    except Exception:
+    except Exception as e:
+        print(f"[teams/supabase] erreur chargement cache: {e}")
         # Keep previous cache if available; otherwise fallback to caller behavior.
         return _supabase_teams_cache or None
 
@@ -600,23 +603,27 @@ def _team_relevance_score(name: str, q_normalized: str) -> tuple[int, int, str]:
     return (4, _priority_for_name(n), n)
 
 
-def get_teams_from_supabase(q: Optional[str] = None, limit: int = 80) -> Optional[list[dict]]:
+def get_teams_from_supabase(
+    q: Optional[str] = None, limit: int = 80, allow_fetch: bool = False
+) -> Optional[list[dict]]:
     """
     Liste d'équipes depuis Supabase. Suggestion intelligente :
     - Alias (aja, psg, om...) : on cherche l'équipe dont le nom correspond à l'alias (ex. aja → Auxerre).
     - Sinon : uniquement les équipes dont le nom (ou un mot du nom) COMMENCE par les lettres tapées.
+    - allow_fetch=True : attendre le chargement Supabase si cache froid (pour mode Sportmonks).
     """
     from app.core.config import get_settings
     s = get_settings()
     if not (s.supabase_url and s.supabase_key):
+        print("[teams/supabase] pas de config Supabase -> None")
         return None
     try:
-        # Ne jamais bloquer l'autocomplete sur Supabase : si le cache n'est pas chaud,
-        # on laisse le routeur fallback sur API-Football.
-        data = _refresh_supabase_teams_cache_if_needed(allow_fetch=False)
+        data = _refresh_supabase_teams_cache_if_needed(allow_fetch=allow_fetch)
         if data is None:
+            print("[teams/supabase] cache None (froid) -> None")
             return None
         q_clean = (q or "").strip()
+        q_normalized = _normalize_for_search(q_clean) if q_clean else ""
         teams = [
             {
                 "id": row.get("slug"),
@@ -628,6 +635,7 @@ def get_teams_from_supabase(q: Optional[str] = None, limit: int = 80) -> Optiona
             if row.get("logo_url")
         ]
         if q_clean:
+            before = len(teams)
             teams = [
                 t
                 for t in teams
@@ -635,6 +643,7 @@ def get_teams_from_supabase(q: Optional[str] = None, limit: int = 80) -> Optiona
                 and _team_matches_query({"name": t.get("name") or "", "shortName": ""}, q_normalized)
             ]
             teams.sort(key=lambda t: _team_relevance_score(t.get("name") or "", q_normalized))
+            print(f"[teams/supabase] après filtre q={q_clean!r}: {before} -> {len(teams)} équipes")
         else:
             teams.sort(key=lambda t: ((t.get("name") or "").lower()))
         # Enrich country from API cache when Supabase country is missing.
