@@ -352,10 +352,10 @@ export default function AccountPage() {
         </div>
         <div className="mb-6">
           <p className="text-sm text-zinc-500">{t("account.status")}</p>
-          <p className="flex items-center gap-2 mt-0.5 text-emerald-400">
-            <Check className="w-4 h-4 flex-shrink-0" strokeWidth={2.5} />
+          <p className={`flex items-center gap-2 mt-0.5 ${user?.subscription_ends_at ? "text-white" : "text-emerald-400"}`}>
+            {!user?.subscription_ends_at && <Check className="w-4 h-4 flex-shrink-0" strokeWidth={2.5} />}
             {user?.subscription_ends_at
-              ? t("account.endsOn").replace("{date}", formatSubscriptionEndDate(user.subscription_ends_at))
+              ? t("account.planCancelledEndsOn").replace("{date}", formatSubscriptionEndDate(user.subscription_ends_at))
               : t("account.active")}
           </p>
         </div>
@@ -402,12 +402,12 @@ export default function AccountPage() {
             {t("account.seeAllPlans")}
           </Link>
           {user?.subscription_ends_at ? (
-            <span
-              className="px-4 py-2.5 rounded-xl bg-zinc-800/80 text-zinc-400 text-sm font-medium cursor-default"
-              title={t("account.planCancelledEndsOn").replace("{date}", formatSubscriptionEndDate(user.subscription_ends_at))}
+            <Link
+              href="/pricing"
+              className="px-4 py-2.5 rounded-xl bg-[#00ffe8]/15 border border-[#00ffe8]/50 text-[#00ffe8] hover:bg-[#00ffe8]/25 hover:border-[#00ffe8] text-sm font-medium transition"
             >
-              {t("account.planCancelledEndsOn").replace("{date}", formatSubscriptionEndDate(user.subscription_ends_at))}
-            </span>
+              {t("account.renewPlan")}
+            </Link>
           ) : (
             <button
               type="button"
