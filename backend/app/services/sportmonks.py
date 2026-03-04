@@ -248,17 +248,17 @@ def fixtures_search(query: str, limit: int = 10) -> list[dict[str, Any]]:
 
 def team_upcoming_fixtures(team_id: int, limit: int = 10) -> list[dict[str, Any]]:
     """
-    GET /fixtures/between/{start}/{end}/{team_id}. Prochains matchs de l'équipe.
-    Retourne liste de fixtures avec participants (pour noms + logos).
+    GET /fixtures?filters=team_id:{id};starting_after:{date}&include=participants
+    Prochains matchs de l'équipe (Sportmonks).
     """
     if not _use_sportmonks() or not team_id:
         return []
-    from datetime import datetime, timezone, timedelta
-    start = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    end = (datetime.now(timezone.utc) + timedelta(days=120)).strftime("%Y-%m-%d")
+    from datetime import datetime, timezone
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    filters = f"team_id:{team_id};starting_after:{today}"
     data = _get(
-        f"/fixtures/between/{start}/{end}/{team_id}",
-        params={"per_page": limit},
+        "/fixtures",
+        params={"per_page": limit, "filters": filters},
         include="participants;league",
     )
     raw = data.get("data")
