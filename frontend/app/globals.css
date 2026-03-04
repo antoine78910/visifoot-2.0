@@ -61,6 +61,16 @@ body {
   }
 }
 
+/* Logo cloud / infinite slider (same motion, used by LogoCloud) */
+@keyframes infinite-slider-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
 /* Language dropdown: slide down + fade in */
 @keyframes lang-dropdown-in {
   from {

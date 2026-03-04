@@ -198,12 +198,13 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
               // ignore sync-plan errors
             }
           }
-          if (planToSet && uid) {
+          if (uid) {
             const u = getUserFromStorage();
-            const newPlan = planToSet;
-            if (u && (u.plan !== newPlan || u.id !== uid)) {
-              setUserInStorage({ ...u, id: uid, plan: newPlan });
-              setUser({ ...u, id: uid, plan: newPlan });
+            const newPlan = (planToSet ?? u?.plan ?? "free") as PlanId;
+            const endsAt = (data as { subscription_ends_at?: string | null }).subscription_ends_at ?? u?.subscription_ends_at;
+            if (u && (u.plan !== newPlan || u.id !== uid || (u.subscription_ends_at ?? null) !== (endsAt ?? null))) {
+              setUserInStorage({ ...u, id: uid, plan: newPlan, subscription_ends_at: endsAt ?? undefined });
+              setUser({ ...u, id: uid, plan: newPlan, subscription_ends_at: endsAt ?? undefined });
             }
           }
         }

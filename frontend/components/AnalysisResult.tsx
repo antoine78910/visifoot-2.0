@@ -69,24 +69,26 @@ type Result = {
 };
 
 /** Grand indicateur de forme (Great = flamme orange, Poor = graph violet/rose, Average = barres) */
-function FormLabelBlock({ label }: { label: string }) {
+function FormLabelBlock({ label, compact }: { label: string; compact?: boolean }) {
   const l = (label || "").toLowerCase();
   const isGreat = l.includes("great") || l.includes("bonne") || l.includes("excellent");
   const isPoor = l.includes("poor") || l.includes("faible") || l.includes("difficile");
   const isAverage = l.includes("average") || l.includes("moyenne") || l.includes("moyen");
+  const emojiClass = compact ? "text-base" : "text-2xl";
+  const labelClass = compact ? "text-xs font-medium text-zinc-300" : "font-semibold text-white";
   return (
-    <div className="flex items-center gap-3">
+    <div className={`flex items-center gap-2 ${compact ? "gap-1.5" : "gap-3"}`}>
       {isGreat && (
-        <span className="text-3xl" title="Great form">🔥</span>
+        <span className={compact ? "text-base" : "text-3xl"} title="Great form">🔥</span>
       )}
       {isPoor && (
-        <span className="text-2xl" title="Poor form">📉</span>
+        <span className={emojiClass} title="Poor form">📉</span>
       )}
       {isAverage && !isGreat && !isPoor && (
-        <span className="text-2xl" title="Average form">📊</span>
+        <span className={emojiClass} title="Average form">📊</span>
       )}
-      {!isGreat && !isPoor && !isAverage && <span className="text-2xl">📊</span>}
-      <span className="font-semibold text-white">{label || "—"}</span>
+      {!isGreat && !isPoor && !isAverage && <span className={emojiClass}>📊</span>}
+      <span className={labelClass}>{label || "—"}</span>
     </div>
   );
 }
@@ -439,54 +441,50 @@ export function AnalysisResult({ result }: { result: Result }) {
         </>
       )}
 
-      {/* Recent form */}
+      {/* Recent form — compact single block */}
       <section className="pt-6 border-t border-white/5">
-        <div className="flex flex-wrap justify-between items-center mb-5">
-          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-            <span className="text-zinc-400">📊</span> {t("analysis.recentForm")}
-          </h2>
-          <span className="text-zinc-500 text-sm">{t("analysis.globalForm")}</span>
-        </div>
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div className="rounded-xl bg-[#1c1c28] border border-white/5 p-5 flex items-center gap-4">
-            {result.home_team_logo ? (
-              <img src={result.home_team_logo} alt="" className="w-12 h-12 object-contain flex-shrink-0" />
-            ) : (
-              <div className="w-12 h-12 rounded-lg bg-dark-input flex-shrink-0 flex items-center justify-center text-white font-bold text-sm">{home.slice(0, 2)}</div>
-            )}
-            <div className="min-w-0">
-              <p className="font-semibold text-white">{home}</p>
-              <div className="mt-2">
-                <FormLabelBlock label={result.home_form_label ?? ""} />
+        <div className="rounded-xl bg-[#1c1c28] border border-white/5 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <h2 className="text-base font-semibold text-white flex items-center gap-2">
+              <span className="text-zinc-400">📊</span> {t("analysis.recentForm")}
+            </h2>
+            <span className="text-zinc-500 text-xs">{t("analysis.globalForm")}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              {result.home_team_logo ? (
+                <img src={result.home_team_logo} alt="" className="w-9 h-9 object-contain flex-shrink-0" />
+              ) : (
+                <div className="w-9 h-9 rounded-lg bg-dark-input flex-shrink-0 flex items-center justify-center text-white font-bold text-xs">{home.slice(0, 2)}</div>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="font-semibold text-white text-sm truncate">{home}</p>
+                  <FormLabelBlock label={result.home_form_label ?? ""} compact />
+                </div>
+                <p className="text-xs text-zinc-400 mt-1 flex items-center gap-1.5">
+                  {result.home_form?.map((r, i) => <FormIcon key={i} result={r} />) ?? "—"}
+                  <span className="text-zinc-500">W-D-L: {result.home_wdl ?? "—"}</span>
+                </p>
               </div>
             </div>
-          </div>
-          <div className="rounded-xl bg-[#1c1c28] border border-white/5 p-5 flex items-center gap-4">
-            {result.away_team_logo ? (
-              <img src={result.away_team_logo} alt="" className="w-12 h-12 object-contain flex-shrink-0" />
-            ) : (
-              <div className="w-12 h-12 rounded-lg bg-dark-input flex-shrink-0 flex items-center justify-center text-white font-bold text-sm">{away.slice(0, 2)}</div>
-            )}
-            <div className="min-w-0">
-              <p className="font-semibold text-white">{away}</p>
-              <div className="mt-2">
-                <FormLabelBlock label={result.away_form_label ?? ""} />
+            <div className="flex items-center gap-3 min-w-0">
+              {result.away_team_logo ? (
+                <img src={result.away_team_logo} alt="" className="w-9 h-9 object-contain flex-shrink-0" />
+              ) : (
+                <div className="w-9 h-9 rounded-lg bg-dark-input flex-shrink-0 flex items-center justify-center text-white font-bold text-xs">{away.slice(0, 2)}</div>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="font-semibold text-white text-sm truncate">{away}</p>
+                  <FormLabelBlock label={result.away_form_label ?? ""} compact />
+                </div>
+                <p className="text-xs text-zinc-400 mt-1 flex items-center gap-1.5">
+                  {result.away_form?.map((r, i) => <FormIcon key={i} result={r} />) ?? "—"}
+                  <span className="text-zinc-500">W-D-L: {result.away_wdl ?? "—"}</span>
+                </p>
               </div>
             </div>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="rounded-xl bg-[#1c1c28] border border-white/5 p-4">
-            <p className="text-sm text-zinc-300 flex items-center gap-1 flex-wrap">
-              {result.home_form?.map((r, i) => <FormIcon key={i} result={r} />) ?? "—"}
-            </p>
-            <p className="text-sm text-zinc-400 mt-1">V-N-D : {result.home_wdl ?? "—"}</p>
-          </div>
-          <div className="rounded-xl bg-[#1c1c28] border border-white/5 p-4">
-            <p className="text-sm text-zinc-300 flex items-center gap-1 flex-wrap">
-              {result.away_form?.map((r, i) => <FormIcon key={i} result={r} />) ?? "—"}
-            </p>
-            <p className="text-sm text-zinc-400 mt-1">V-N-D : {result.away_wdl ?? "—"}</p>
           </div>
         </div>
       </section>
@@ -670,6 +668,41 @@ export function AnalysisResult({ result }: { result: Result }) {
       {/* Reste de l'analyse (flouté pour free) */}
       {blurWrap(
         <>
+      {/* Scenarios #2 to #4 — after Exact statistics */}
+      {(result.scenario_2?.title || result.scenario_3?.title || result.scenario_4?.title) && (
+        <section className="pt-6 border-t border-white/5">
+          <h2 className="text-lg font-semibold text-white mb-4">💡 Scenarios #2 to #4</h2>
+          <div className="space-y-4">
+            {[result.scenario_2, result.scenario_3, result.scenario_4].map((s, i) => {
+              if (!s?.title && !s?.body) return null;
+              return (
+                <div key={i} className="rounded-xl bg-dark-input/60 border border-dark-border p-4">
+                  <p className="font-semibold text-[#00ffe8] mb-1">{s.title}</p>
+                  <p className="text-zinc-300 text-sm leading-relaxed">{s.body}</p>
+                  {s.probability_pct != null && (
+                    <p className="text-zinc-500 text-xs mt-2">AI analysis gives {s.probability_pct}% probability.</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Score exact (top 5) — before Most likely score */}
+      {result.exact_scores && result.exact_scores.length > 0 && (
+        <section className="pt-6 border-t border-white/5">
+          <h2 className="text-lg font-semibold text-white mb-4">Score exact (top 5)</h2>
+          <div className="flex flex-wrap gap-3">
+            {result.exact_scores.map((s, i) => (
+              <span key={i} className="rounded-lg bg-dark-input px-3 py-2 text-sm">
+                {s.home}-{s.away} <span className="text-[#00ffe8]">{s.probability}%</span>
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Score le plus probable + distribution buts + écart */}
       {(result.most_likely_score || result.total_goals_distribution || result.goal_difference_dist) && (
         <section className="pt-6 border-t border-white/5">
@@ -743,6 +776,41 @@ export function AnalysisResult({ result }: { result: Result }) {
         </section>
       )}
 
+      {/* Key forces identified by AI — before Statistical comparison */}
+      {((result.key_forces_home && result.key_forces_home.length > 0) || (result.key_forces_away && result.key_forces_away.length > 0)) && (
+        <section className="pt-6 border-t border-white/5">
+          <h2 className="text-lg font-semibold text-white mb-4">📰 Key forces identified by AI</h2>
+          <div className="grid gap-6 sm:grid-cols-2">
+            {result.key_forces_home && result.key_forces_home.length > 0 && (
+              <div>
+                <p className="font-semibold mb-2 text-white">{home}</p>
+                <ul className="space-y-1.5 text-sm text-zinc-300">
+                  {result.key_forces_home.map((item, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <span className="text-[#00ffe8] mt-0.5">•</span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {result.key_forces_away && result.key_forces_away.length > 0 && (
+              <div>
+                <p className="font-semibold mb-2 text-white">{away}</p>
+                <ul className="space-y-1.5 text-sm text-zinc-300">
+                  {result.key_forces_away.map((item, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <span className="text-[#ef4444] mt-0.5">•</span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
       {/* Statistical comparison - bleu = domicile, rouge = extérieur */}
       <section className="pt-6 border-t border-white/5">
         <h2 className="text-lg font-semibold text-white mb-2">📊 {t("analysis.statisticalComparison")}</h2>
@@ -796,76 +864,6 @@ export function AnalysisResult({ result }: { result: Result }) {
           {typeof result.btts_yes_pct === "number" ? result.btts_yes_pct.toFixed(1) : "0"}%.
         </p>
       </section>
-
-      {/* Exact scores */}
-      {result.exact_scores && result.exact_scores.length > 0 && (
-        <section className="pt-6 border-t border-white/5">
-          <h2 className="text-lg font-semibold text-white mb-4">Score exact (top 5)</h2>
-          <div className="flex flex-wrap gap-3">
-            {result.exact_scores.map((s, i) => (
-              <span key={i} className="rounded-lg bg-dark-input px-3 py-2 text-sm">
-                {s.home}-{s.away} <span className="text-[#00ffe8]">{s.probability}%</span>
-              </span>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Scenarios #2 to #4 */}
-      {(result.scenario_2?.title || result.scenario_3?.title || result.scenario_4?.title) && (
-        <section className="pt-6 border-t border-white/5">
-          <h2 className="text-lg font-semibold text-white mb-4">💡 Scenarios #2 to #4</h2>
-          <div className="space-y-4">
-            {[result.scenario_2, result.scenario_3, result.scenario_4].map((s, i) => {
-              if (!s?.title && !s?.body) return null;
-              return (
-                <div key={i} className="rounded-xl bg-dark-input/60 border border-dark-border p-4">
-                  <p className="font-semibold text-[#00ffe8] mb-1">{s.title}</p>
-                  <p className="text-zinc-300 text-sm leading-relaxed">{s.body}</p>
-                  {s.probability_pct != null && (
-                    <p className="text-zinc-500 text-xs mt-2">AI analysis gives {s.probability_pct}% probability.</p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      {/* Key forces identified by AI */}
-      {((result.key_forces_home && result.key_forces_home.length > 0) || (result.key_forces_away && result.key_forces_away.length > 0)) && (
-        <section className="pt-6 border-t border-white/5">
-          <h2 className="text-lg font-semibold text-white mb-4">📰 Key forces identified by AI</h2>
-          <div className="grid gap-6 sm:grid-cols-2">
-            {result.key_forces_home && result.key_forces_home.length > 0 && (
-              <div>
-                <p className="font-semibold mb-2 text-white">{home}</p>
-                <ul className="space-y-1.5 text-sm text-zinc-300">
-                  {result.key_forces_home.map((item, i) => (
-                    <li key={i} className="flex items-start gap-2">
-                      <span className="text-[#00ffe8] mt-0.5">•</span>
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {result.key_forces_away && result.key_forces_away.length > 0 && (
-              <div>
-                <p className="font-semibold mb-2 text-white">{away}</p>
-                <ul className="space-y-1.5 text-sm text-zinc-300">
-                  {result.key_forces_away.map((item, i) => (
-                    <li key={i} className="flex items-start gap-2">
-                      <span className="text-[#ef4444] mt-0.5">•</span>
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
         </>
       )}
 

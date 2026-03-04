@@ -112,7 +112,9 @@ export default function AccountPage() {
           if (u && u.id === uid) {
             const plan = (data.plan as PlanId) ?? u.plan;
             const endsAt = data.subscription_ends_at ?? u.subscription_ends_at;
-            setUser((prev) => (prev?.id === uid ? { ...prev, plan, subscription_ends_at: endsAt } : prev));
+            const next = { ...u, plan, subscription_ends_at: endsAt ?? undefined };
+            setUserInStorage(next);
+            setUser(next);
           }
         }
       })

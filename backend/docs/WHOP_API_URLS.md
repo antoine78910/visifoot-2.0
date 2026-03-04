@@ -2,6 +2,14 @@
 
 Toutes ces routes sont **compatibles Company API Key** (pas de route `/me` ni de routes user-scoped OAuth).
 
+## Pourquoi on avait "does not have permission to access this route"
+
+- **Company API keys** ne doivent appeler que l’API **v1** : `https://api.whop.com/api/v1/...`
+- Les routes **v5** et **v2** sous `/company/*` (ex. `/api/v5/company/members`, `/api/v2/company/memberships`) sont prévues pour les **App API keys** (apps installées sur plusieurs companies). Avec une Company API key, Whop renvoie **401 "The API Key supplied does not have permission to access this route"**.
+- Les routes **/me** de Whop (ex. `/api/v2/me/memberships`) nécessitent un **token OAuth utilisateur**, pas une Company API key.
+
+**Règle à ne pas changer :** avec une Company API key, n’appeler que des endpoints **v1** documentés pour Company (members, memberships, payments, cancel). Ne pas réintroduire d’appels à v5/v2 `/company/*` ni à `/me`.
+
 ## me.py (plan, sync, annulation)
 
 | Méthode | URL exacte |

@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { BGPattern } from "@/components/BGPattern";
 import { LandingMatchSearch } from "@/components/LandingMatchSearch";
-import { LeagueLogosScroller } from "@/components/LeagueLogosScroller";
+import { LogoCloud } from "@/components/ui/logo-cloud";
 import { APP_HREF, SIGN_IN_HREF, ANALYSE_HREF, getAppAuthCallbackUrl } from "@/lib/app-url";
 
 export default function LandingPage() {
@@ -60,7 +60,16 @@ export default function LandingPage() {
           <LandingMatchSearch analyseHref={ANALYSE_HREF} />
         </section>
 
-        <LeagueLogosScroller />
+        <section className="relative mx-auto mt-12 sm:mt-16 max-w-3xl w-full px-4">
+          <h2 className="mb-5 text-center font-medium text-xl tracking-tight md:text-3xl">
+            <span className="text-zinc-500">Trusted by experts.</span>
+            <br />
+            <span className="font-semibold text-white">Used by the leaders.</span>
+          </h2>
+          <div className="mx-auto my-5 h-px max-w-sm bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+          <LogoCloud />
+          <div className="mt-5 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+        </section>
 
         {/* Banner: Based on millions of data points */}
         <section className="w-full max-w-4xl mx-auto mt-16 sm:mt-20 px-4">

@@ -30,18 +30,17 @@ def _normalize_plan(plan: str) -> str:
     return PLAN_FREE
 
 
-def get_plan_and_usage(user_id: str) -> tuple[str, int, date | None]:
+def get_plan_and_usage(user_id: str) -> tuple[str, int, date | None, str | None]:
     """
-    Récupère plan normalisé (free|starter|pro|lifetime), analyses_used_today, last_analysis_date.
+    Récupère plan normalisé, analyses_used_today, last_analysis_date, subscription_ends_at (ISO string si annulé at_period_end).
     Si pas de ligne profile ou user_id vide, considère free avec 0 usage.
-    Utilise le client service_role si dispo (RLS bloque la clé anon sans JWT).
     """
     if not user_id or not _use_supabase():
-        return (PLAN_FREE, 0, None)
+        return (PLAN_FREE, 0, None, None)
     supabase = get_supabase_admin() or get_supabase()
-    r = supabase.table("profiles").select("plan, analyses_used_today, last_analysis_date").eq("id", user_id).execute()
+    r = supabase.table("profiles").select("plan, analyses_used_today, last_analysis_date, subscription_ends_at").eq("id", user_id).execute()
     if not r.data or len(r.data) == 0:
-        return (PLAN_FREE, 0, None)
+        return (PLAN_FREE, 0, None, None)
     row = r.data[0]
     plan = _normalize_plan(str(row.get("plan") or "free"))
     used = int(row.get("analyses_used_today") or 0)
@@ -51,7 +50,12 @@ def get_plan_and_usage(user_id: str) -> tuple[str, int, date | None]:
             last = date.fromisoformat(str(last)[:10])
         except Exception:
             last = None
-    return (plan, used, last)
+    ends_at = row.get("subscription_ends_at")
+    if ends_at is not None and ends_at != "":
+        ends_at = str(ends_at).strip()
+    else:
+        ends_at = None
+    return (plan, used, last, ends_at)
 
 
 def reset_if_new_day(used: int, last: date | None, today: date) -> int:
@@ -83,7 +87,7 @@ def can_analyze(user_id: str) -> tuple[bool, str, bool, str | None]:
     if not _use_supabase():
         return (True, "", True, None)
     today = datetime.now(timezone.utc).date()
-    plan, used, last = get_plan_and_usage(user_id)
+    plan, used, last, _ = get_plan_and_usage(user_id)
     used = reset_if_new_day(used, last, today)
     limit, full_analysis = get_analysis_limit(plan)
 
@@ -100,7 +104,7 @@ def consume_analysis(user_id: str) -> None:
     if not user_id or not _use_supabase():
         return
     today = datetime.now(timezone.utc).date()
-    plan, used, last = get_plan_and_usage(user_id)
+    plan, used, last, _ = get_plan_and_usage(user_id)
     used = reset_if_new_day(used, last, today)
     new_used = used + 1
 
