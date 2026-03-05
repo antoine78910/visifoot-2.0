@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     # Lit SPORTMONKS_API_TOKEN ou, à défaut, API_FOOTBALL_KEY (même clé possible côté user)
     sportmonks_api_token: str = ""
     admin_api_key: str = ""  # Si défini, requiert X-Admin-Key pour /admin/*
+    admin_dashboard_token: str = "Zjhfc82005??"  # Token simple pour /internal/admin/* (dashboard interne)
     # Polling matchs terminés (FT) : intervalle en secondes (10 = test, 3600 = 1h)
     polling_interval_seconds: int = 10
     # NewsAPI.org (optionnel) — actualités pour le quick summary style Visifoot

@@ -100,8 +100,8 @@ def can_analyze(user_id: str) -> tuple[bool, str, bool, str | None]:
     return (True, "", full_analysis, None)
 
 
-def consume_analysis(user_id: str) -> None:
-    """Incrémente analyses_used_today et met à jour last_analysis_date."""
+def consume_analysis(user_id: str, home_team: str | None = None, away_team: str | None = None) -> None:
+    """Incrémente analyses_used_today/analyses_total, met à jour last_analysis_date, et journalise l'évènement d'analyse."""
     if not user_id or not _use_supabase():
         return
     today = datetime.now(timezone.utc).date()
@@ -110,8 +110,31 @@ def consume_analysis(user_id: str) -> None:
     new_used = used + 1
 
     supabase = get_supabase_admin() or get_supabase()
-    supabase.table("profiles").upsert({
-        "id": user_id,
-        "analyses_used_today": new_used,
-        "last_analysis_date": today.isoformat(),
-    }, on_conflict="id").execute()
+    analyses_total = 0
+    try:
+        r = supabase.table("profiles").select("analyses_total").eq("id", user_id).execute()
+        if r.data and len(r.data) > 0:
+            analyses_total = int((r.data[0] or {}).get("analyses_total") or 0)
+    except Exception:
+        analyses_total = 0
+    supabase.table("profiles").upsert(
+        {
+            "id": user_id,
+            "analyses_used_today": new_used,
+            "last_analysis_date": today.isoformat(),
+            "analyses_total": analyses_total + 1,
+        },
+        on_conflict="id",
+    ).execute()
+    try:
+        supabase.table("analysis_events").insert(
+            {
+                "user_id": user_id,
+                "home_team": (home_team or "").strip() or None,
+                "away_team": (away_team or "").strip() or None,
+                "source": "predict",
+            }
+        ).execute()
+    except Exception:
+        # table absente / RLS / autre : on ne bloque pas l'analyse
+        pass

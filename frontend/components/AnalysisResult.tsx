@@ -302,6 +302,7 @@ const AWAY_COLOR = "text-[#ef4444]";
 const FLASHY_GOLD = "text-[#eab308]";
 const FLASHY_RED = "text-[#ef4444]";
 const FLASHY_BLUE = "text-[#00ffe8]";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 const STAT_TYPE_TO_KEY: Record<string, string> = {
   "Ball Possession": "matchOver.stat.possession",
@@ -347,6 +348,9 @@ export function AnalysisResult({ result }: { result: Result }) {
   const comparisonSourceLabel = "Custom";
   const [showUnlockModal1, setShowUnlockModal1] = useState(false);
   const [showUnlockModal2, setShowUnlockModal2] = useState(false);
+  const [feedback, setFeedback] = useState("");
+  const [feedbackEmail, setFeedbackEmail] = useState("");
+  const [feedbackStatus, setFeedbackStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
 
   const openUnlockStep1 = () => setShowUnlockModal1(true);
   const closeUnlockStep1 = () => setShowUnlockModal1(false);
@@ -355,6 +359,36 @@ export function AnalysisResult({ result }: { result: Result }) {
     setShowUnlockModal2(true);
   };
   const closeUnlockStep2 = () => setShowUnlockModal2(false);
+
+  const sendFeedback = async () => {
+    const msg = feedback.trim();
+    if (msg.length < 4 || feedbackStatus === "sending") return;
+    setFeedbackStatus("sending");
+    try {
+      let uid = "";
+      if (typeof window !== "undefined") {
+        uid = localStorage.getItem("visifoot_uid") || "";
+      }
+      const res = await fetch(`${API_URL}/internal/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: msg,
+          email: feedbackEmail.trim() || null,
+          user_id: uid || null,
+          home_team: result.home_team ?? null,
+          away_team: result.away_team ?? null,
+          page: "analysis",
+        }),
+      });
+      if (!res.ok) throw new Error("feedback_failed");
+      setFeedback("");
+      setFeedbackStatus("sent");
+      setTimeout(() => setFeedbackStatus("idle"), 3000);
+    } catch {
+      setFeedbackStatus("error");
+    }
+  };
 
   const summaryText = (() => {
     const raw = String(result.quick_summary ?? "").trim();
@@ -1248,6 +1282,41 @@ export function AnalysisResult({ result }: { result: Result }) {
           </div>
         </section>
       )}
+
+      <section className="pt-6 mt-6 border-t border-white/5">
+        <h3 className="text-sm font-semibold text-white mb-2">Help us improve the product</h3>
+        <p className="text-zinc-400 text-xs mb-3">
+          Want more data or have any feedback on the product? Let us know.
+        </p>
+        <div className="space-y-2">
+          <input
+            type="email"
+            value={feedbackEmail}
+            onChange={(e) => setFeedbackEmail(e.target.value)}
+            placeholder="Your email (optional)"
+            className="w-full rounded-lg bg-dark-input border border-dark-border px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#00ffe8]/40"
+          />
+          <input
+            type="text"
+            value={feedback}
+            onChange={(e) => setFeedback(e.target.value)}
+            placeholder="Your feedback..."
+            className="w-full rounded-lg bg-dark-input border border-dark-border px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#00ffe8]/40"
+          />
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={sendFeedback}
+              disabled={feedbackStatus === "sending" || feedback.trim().length < 4}
+              className="px-4 py-2 rounded-lg bg-[#00ffe8] text-[#0d0d12] text-sm font-semibold disabled:opacity-50"
+            >
+              {feedbackStatus === "sending" ? "Sending..." : "Send feedback"}
+            </button>
+            {feedbackStatus === "sent" && <span className="text-xs text-emerald-400">Thanks for your feedback.</span>}
+            {feedbackStatus === "error" && <span className="text-xs text-rose-400">Could not send feedback.</span>}
+          </div>
+        </div>
+      </section>
 
       <p className="text-center text-zinc-500 text-xs pt-6 border-t border-white/5">This analysis is provided for informational purposes only.</p>
       </div>

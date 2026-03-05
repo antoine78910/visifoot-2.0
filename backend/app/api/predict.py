@@ -686,7 +686,7 @@ def predict(
     data = run_predict_with_progress(payload, progress_callback=None)
     data["full_analysis"] = full_analysis
     if user_id:
-        consume_analysis(user_id)
+        consume_analysis(user_id, home_team=payload.home_team, away_team=payload.away_team)
     return PredictResponse(**data)
 
 
@@ -717,7 +717,7 @@ def predict_stream(
             result = run_predict_with_progress(payload, progress_callback=on_progress)
             result["full_analysis"] = full_analysis
             if user_id:
-                consume_analysis(user_id)
+                consume_analysis(user_id, home_team=payload.home_team, away_team=payload.away_team)
             progress_queue.put({"type": "result", "data": result})
         except HTTPException as e:
             detail = e.detail if isinstance(e.detail, str) else (str(e.detail) if e.detail else str(e))
