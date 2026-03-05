@@ -275,10 +275,14 @@ function PredictionMarketBar({
   leftPct,
   leftLabel,
   rightLabel,
+  leftColor = "#22c5ba",
+  rightColor = "#f97373",
 }: {
   leftPct: number;
   leftLabel: string;
   rightLabel: string;
+  leftColor?: string;
+  rightColor?: string;
 }) {
   const pct = Math.min(100, Math.max(0, leftPct));
   const rightPct = Math.max(0, 100 - pct);
@@ -290,14 +294,14 @@ function PredictionMarketBar({
       </div>
       <div className="h-7 rounded-full overflow-hidden bg-[#1c1c28] flex border border-white/10">
         <div
-          className="h-full bg-[#6bc9bb] text-white text-sm font-semibold flex items-center justify-end pr-2"
-          style={{ width: `${pct}%` }}
+          className="h-full text-white text-sm font-semibold flex items-center justify-end pr-2"
+          style={{ width: `${pct}%`, backgroundColor: leftColor }}
         >
           {pct >= 12 ? `${pct.toFixed(1)}%` : ""}
         </div>
         <div
-          className="h-full bg-[#d33d53] text-white text-sm font-semibold flex items-center justify-start pl-2"
-          style={{ width: `${rightPct}%` }}
+          className="h-full text-white text-sm font-semibold flex items-center justify-start pl-2"
+          style={{ width: `${rightPct}%`, backgroundColor: rightColor }}
         >
           {rightPct >= 12 ? `${rightPct.toFixed(1)}%` : ""}
         </div>
@@ -384,7 +388,6 @@ export function AnalysisResult({ result }: { result: Result }) {
   const [showUnlockModal1, setShowUnlockModal1] = useState(false);
   const [showUnlockModal2, setShowUnlockModal2] = useState(false);
   const [feedback, setFeedback] = useState("");
-  const [feedbackEmail, setFeedbackEmail] = useState("");
   const [feedbackStatus, setFeedbackStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
 
   const openUnlockStep1 = () => setShowUnlockModal1(true);
@@ -409,7 +412,6 @@ export function AnalysisResult({ result }: { result: Result }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: msg,
-          email: feedbackEmail.trim() || null,
           user_id: uid || null,
           home_team: result.home_team ?? null,
           away_team: result.away_team ?? null,
@@ -922,29 +924,26 @@ export function AnalysisResult({ result }: { result: Result }) {
         </section>
       )}
 
-      {/* Score exact (top 5) — before Most likely score */}
-      {result.exact_scores && result.exact_scores.length > 0 && (
-        <section className="pt-6 border-t border-white/5">
-          <h2 className="text-lg font-semibold text-white mb-4">Score exact (top 5)</h2>
-          <div className="flex flex-wrap gap-3">
-            {result.exact_scores.map((s, i) => (
-              <span key={i} className="rounded-lg bg-dark-input px-3 py-2 text-sm">
-                {s.home}-{s.away} <span className="text-[#00ffe8]">{s.probability}%</span>
-              </span>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Score le plus probable + distribution buts + écart */}
+      {/* Score le plus probable + 2e à 5e en petit + distribution buts + écart */}
       {(result.most_likely_score || result.total_goals_distribution || result.goal_difference_dist) && (
         <section className="pt-6 border-t border-white/5">
           <h2 className="text-lg font-semibold text-white mb-4">🎯 {t("betting.mostLikelyScore")} & distributions</h2>
           {result.most_likely_score && (
-            <div className="mb-4">
-              <p className="text-zinc-400 text-sm mb-1">{t("betting.mostLikelyScore")}</p>
-              <p className="text-xl font-bold text-white">{result.most_likely_score.home}-{result.most_likely_score.away} <span className="text-[#00ffe8]">({result.most_likely_score.probability}%)</span></p>
-              <p className="text-zinc-500 text-xs mt-1">{t("analysis.expectedGoals")} (xG): {result.xg_home ?? 0} – {result.xg_away ?? 0}</p>
+            <div className="mb-4 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+              <div>
+                <p className="text-zinc-400 text-sm mb-1">{t("betting.mostLikelyScore")}</p>
+                <p className="text-xl font-bold text-white">{result.most_likely_score.home}-{result.most_likely_score.away} <span className="text-[#00ffe8]">({result.most_likely_score.probability}%)</span></p>
+                <p className="text-zinc-500 text-xs mt-1">{t("analysis.expectedGoals")} (xG): {result.xg_home ?? 0} – {result.xg_away ?? 0}</p>
+              </div>
+              {result.exact_scores && result.exact_scores.length > 1 && (
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-zinc-400">
+                  {result.exact_scores.slice(1, 5).map((s, i) => (
+                    <span key={i} className="text-xs">
+                      {i + 2}e: <span className="text-white">{s.home}-{s.away}</span> <span className="text-[#00ffe8]">{s.probability}%</span>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {result.total_goals_distribution && (
@@ -1089,29 +1088,38 @@ export function AnalysisResult({ result }: { result: Result }) {
                 <PredictionMarketBar
                   leftPct={result.btts_yes_pct}
                   leftLabel="Yes"
+                  leftColor={HOME_HEX}
+                  rightColor={AWAY_HEX}
                   rightLabel="No"
                 />
               </div>
             )}
           </div>
 
-          {result.over_under && result.over_under.length > 0 && (
-            <div className="rounded-2xl bg-white/5 border border-white/10 p-4 sm:p-5">
-              <h3 className="text-base font-semibold text-white mb-3">Goal count probabilities</h3>
-              <div className="space-y-4">
-                {[...result.over_under]
-                  .sort((a, b) => Number(a.line) - Number(b.line))
-                  .map((ou) => (
+          {result.over_under != null && (() => {
+            const GOAL_LINES = ["0.5", "1.5", "2.5", "3.5"];
+            const overUnderDisplay = GOAL_LINES.map((line) => {
+              const ou = result.over_under?.find((o) => o.line === line);
+              return ou ?? { line, over_pct: 50, under_pct: 50 };
+            });
+            return (
+              <div className="rounded-2xl bg-white/5 border border-white/10 p-4 sm:p-5">
+                <h3 className="text-base font-semibold text-white mb-3">Goal count probabilities</h3>
+                <div className="space-y-4">
+                  {overUnderDisplay.map((ou) => (
                     <PredictionMarketBar
                       key={ou.line}
                       leftPct={ou.over_pct}
                       leftLabel={`Over ${ou.line} goals`}
                       rightLabel={`Under ${ou.line} goals`}
+                      leftColor={HOME_HEX}
+                      rightColor={AWAY_HEX}
                     />
                   ))}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       </section>
         </>
@@ -1330,13 +1338,6 @@ export function AnalysisResult({ result }: { result: Result }) {
           Want more data or have any feedback on the product? Let us know.
         </p>
         <div className="space-y-2">
-          <input
-            type="email"
-            value={feedbackEmail}
-            onChange={(e) => setFeedbackEmail(e.target.value)}
-            placeholder="Your email (optional)"
-            className="w-full rounded-lg bg-dark-input border border-dark-border px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#00ffe8]/40"
-          />
           <input
             type="text"
             value={feedback}

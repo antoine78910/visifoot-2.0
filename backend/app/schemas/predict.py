@@ -10,6 +10,8 @@ class PredictRequest(BaseModel):
     away_team_id: Optional[int] = Field(None, description="ID API équipe extérieur (prioritaire si fourni)")
     use_api_predictions: bool = Field(False, description="Si True et fixture trouvée: 1X2 depuis API-Football Predictions au lieu du modèle Poisson")
     language: Optional[str] = Field(None, description="Langue de l'analyse (fr, en). Si absent, déduit des noms d'équipes.")
+    first_leg_home_goals: Optional[int] = Field(None, description="Score domicile aller (LDC, Europa, etc.). Si égal à first_leg_away_goals, proba nul = 0%.")
+    first_leg_away_goals: Optional[int] = Field(None, description="Score extérieur aller. Avec first_leg_home_goals = nul aller → départage obligatoire.")
 
 
 class ExactScoreItem(BaseModel):

@@ -221,14 +221,39 @@ def _resolve_team_id_sportmonks(team_name: str):
         return None
 
 
+def _format_api_football_fixture_for_upcoming(f: dict) -> dict:
+    """Format one API-Football fixture for the upcoming list (same shape as Sportmonks format)."""
+    fix = f.get("fixture") or {}
+    league = f.get("league") or {}
+    teams = f.get("teams") or {}
+    home = teams.get("home") or {}
+    away = teams.get("away") or {}
+    date_str = (fix.get("date") or "")[:19]
+    from datetime import datetime
+    try:
+        dt = datetime.fromisoformat(date_str.replace("Z", "+00:00")) if date_str else None
+    except Exception:
+        dt = None
+    day = dt.strftime("%d/%m") if dt else ""
+    time = dt.strftime("%H:%M") if dt else ""
+    return {
+        "date": day,
+        "time": time,
+        "league": {"name": (league.get("name") or "").strip() or None},
+        "home": {"name": home.get("name") or "", "logo": home.get("logo") or None},
+        "away": {"name": away.get("name") or "", "logo": away.get("logo") or None},
+    }
+
+
 @router.get("/upcoming")
 def upcoming_fixtures(team: Optional[str] = None, team_id: Optional[int] = None, limit: int = 10):
-    """Prochains matchs de l'équipe. Avec Sportmonks on résout toujours par nom (API) pour éviter ids API-Football."""
+    """Prochains matchs de l'équipe. Sportmonks d'abord, puis fallback API-Football si vide (ex. PSG, ligue suisse)."""
     from app.services.sportmonks import _use_sportmonks, team_upcoming_fixtures
-    from app.services.api_football import _use_api, get_team_upcoming_fixtures
+    from app.services.api_football import _use_api, get_team_upcoming_fixtures, resolve_team_name_to_id
 
     tid = None
     team_name_clean = (team or "").strip()
+
     if _use_sportmonks():
         if team_name_clean:
             tid = _resolve_team_id_sportmonks(team_name_clean)
@@ -238,13 +263,16 @@ def upcoming_fixtures(team: Optional[str] = None, team_id: Optional[int] = None,
         tid = team_id
         if tid is None and team_name_clean:
             tid = _resolve_team_id_fast(team_name_clean)
+        if tid is None and team_name_clean:
+            tid = resolve_team_name_to_id(team_name_clean) if _use_api() else None
+
     if not tid:
         return {"fixtures": []}
 
+    fixtures: list = []
+
     if _use_sportmonks():
         raw = team_upcoming_fixtures(int(tid), limit=limit * 2)
-        fixtures = []
-        team_name_clean = (team or "").strip()
         team_norm = team_name_clean.lower() if team_name_clean else ""
         team_words = [w for w in team_norm.replace("é", "e").replace("è", "e").split() if len(w) > 2]
         for f in raw:
@@ -258,31 +286,25 @@ def upcoming_fixtures(team: Optional[str] = None, team_id: Optional[int] = None,
                     if not team_words or not any(w in home_n or w in away_n for w in team_words):
                         continue
             fixtures.append(row)
-        return {"fixtures": fixtures[:limit]}
+        fixtures = fixtures[:limit]
 
-    if not _use_api():
-        return {"fixtures": []}
-    raw = get_team_upcoming_fixtures(int(tid), next_n=limit)
-    fixtures = []
-    for f in raw:
-        fix = f.get("fixture") or {}
-        league = f.get("league") or {}
-        teams = f.get("teams") or {}
-        home = teams.get("home") or {}
-        away = teams.get("away") or {}
-        date_str = (fix.get("date") or "")[:19]
-        from datetime import datetime
-        try:
-            dt = datetime.fromisoformat(date_str.replace("Z", "+00:00")) if date_str else None
-        except Exception:
-            dt = None
-        day = dt.strftime("%d/%m") if dt else ""
-        time = dt.strftime("%H:%M") if dt else ""
-        fixtures.append({
-            "date": day,
-            "time": time,
-            "league": {"name": (league.get("name") or "").strip() or None},
-            "home": {"name": home.get("name") or "", "logo": home.get("logo") or None},
-            "away": {"name": away.get("name") or "", "logo": away.get("logo") or None},
-        })
-    return {"fixtures": fixtures}
+    # Fallback API-Football si Sportmonks ne renvoie rien (ex. PSG, clubs ligue suisse)
+    if not fixtures and _use_api():
+        api_tid = None
+        if team_name_clean:
+            api_tid = resolve_team_name_to_id(team_name_clean)
+        if api_tid is None and team_id is not None:
+            api_tid = int(team_id)
+        if api_tid is not None:
+            raw = get_team_upcoming_fixtures(int(api_tid), next_n=limit)
+            for f in raw:
+                fixtures.append(_format_api_football_fixture_for_upcoming(f))
+    elif not fixtures and _use_api() and not _use_sportmonks() and tid:
+        raw = get_team_upcoming_fixtures(int(tid), next_n=limit)
+        for f in raw:
+            fixtures.append(_format_api_football_fixture_for_upcoming(f))
+
+    if fixtures:
+        return {"fixtures": fixtures}
+
+    return {"fixtures": []}

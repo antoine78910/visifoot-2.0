@@ -79,6 +79,94 @@ def _implied_odds(p: float) -> float:
     return round(100 / max(p, 0.5), 2) if p else 0.0
 
 
+def _is_two_legged_league(league: Optional[str]) -> bool:
+    """True if competition uses two-legged ties (LDC, Europa, Conference League)."""
+    if not league or not isinstance(league, str):
+        return False
+    name = league.strip().lower()
+    return (
+        "champions league" in name
+        or "europa league" in name
+        or "europa conference" in name
+        or "conference league" in name
+    )
+
+
+def _apply_two_legged_draw_zero(
+    out: dict,
+    league: Optional[str],
+    first_leg_home_goals: Optional[int],
+    first_leg_away_goals: Optional[int],
+) -> None:
+    """
+    If league is two-legged and first leg was a draw, set prob_draw to 0 and
+    renormalize prob_home / prob_away (départage obligatoire en match retour).
+    """
+    if not _is_two_legged_league(league):
+        return
+    if first_leg_home_goals is None or first_leg_away_goals is None:
+        return
+    if first_leg_home_goals != first_leg_away_goals:
+        return
+    p1 = float(out.get("prob_home") or 0)
+    p2 = float(out.get("prob_away") or 0)
+    px = float(out.get("prob_draw") or 0)
+    if px <= 0:
+        return
+    total_win = p1 + p2
+    if total_win <= 0:
+        return
+    out["prob_home"] = round(100 * p1 / total_win, 1)
+    out["prob_draw"] = 0.0
+    out["prob_away"] = round(100 * p2 / total_win, 1)
+    out["implied_odds_home"] = _implied_odds(out["prob_home"])
+    out["implied_odds_draw"] = None
+    out["implied_odds_away"] = _implied_odds(out["prob_away"])
+    out["double_chance_1x"] = round(out["prob_home"], 1)
+    out["double_chance_x2"] = round(out["prob_away"], 1)
+    out["double_chance_12"] = round(out["prob_home"] + out["prob_away"], 1)
+    out["upset_probability"] = round(min(out["prob_home"], out["prob_away"]), 1)
+
+
+def _apply_motivation_to_1x2(out: dict, ctx: dict) -> None:
+    """
+    Ajuste prob_home / prob_draw / prob_away selon la motivation des équipes
+    (home_motivation_score, away_motivation_score dans ctx). Renormalise à 100%.
+    """
+    home_score = ctx.get("home_motivation_score")
+    away_score = ctx.get("away_motivation_score")
+    if home_score is None and away_score is None:
+        return
+    try:
+        h = float(home_score) if home_score is not None else 0.0
+        a = float(away_score) if away_score is not None else 0.0
+    except (TypeError, ValueError):
+        return
+    diff = h - a
+    if diff == 0:
+        return
+    # Shift at most 6% toward the more motivated team (2% per point of difference, cap 3 points)
+    shift = max(-6.0, min(6.0, diff * 2.0))
+    p1 = float(out.get("prob_home") or 0)
+    px = float(out.get("prob_draw") or 0)
+    p2 = float(out.get("prob_away") or 0)
+    p1 += shift
+    p2 -= shift
+    total = p1 + px + p2
+    if total <= 0:
+        return
+    out["prob_home"] = round(100 * p1 / total, 1)
+    out["prob_draw"] = round(100 * px / total, 1)
+    out["prob_away"] = round(100 * p2 / total, 1)
+    out["implied_odds_home"] = _implied_odds(out["prob_home"])
+    out["implied_odds_draw"] = _implied_odds(out["prob_draw"])
+    out["implied_odds_away"] = _implied_odds(out["prob_away"])
+    out["double_chance_1x"] = round(out["prob_home"] + out["prob_draw"], 1)
+    out["double_chance_x2"] = round(out["prob_draw"] + out["prob_away"], 1)
+    out["double_chance_12"] = round(out["prob_home"] + out["prob_away"], 1)
+    out["upset_probability"] = round(min(out["prob_home"], out["prob_away"]), 1)
+
+
 def _out_from_sportmonks(ctx: dict) -> dict:
     """
     Construit l'objet `out` à partir du contexte Sportmonks (data_recap.sportmonks_predictions).
@@ -540,6 +628,16 @@ def run_predict_with_progress(
     out["internal_prob_home"] = round(float(internal_out.get("prob_home") or 0), 1)
     out["internal_prob_draw"] = round(float(internal_out.get("prob_draw") or 0), 1)
     out["internal_prob_away"] = round(float(internal_out.get("prob_away") or 0), 1)
+
+    # LDC / Europa / Conference : si match aller nul → proba nul = 0 % (départage obligatoire).
+    _apply_two_legged_draw_zero(
+        out,
+        ctx.get("league"),
+        payload.first_leg_home_goals,
+        payload.first_leg_away_goals,
+    )
+    # Ajuster 1X2 selon la motivation des équipes.
+    _apply_motivation_to_1x2(out, ctx)
 
     ai: dict = {}
     news_included = False

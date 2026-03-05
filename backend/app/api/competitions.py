@@ -30,13 +30,18 @@ def league_fixtures(
     status: str = "FT",
     limit: int = 20,
 ):
-    """Matchs d'une ligue (FT = terminés). Récent en premier."""
+    """
+    Matchs d'une ligue.
+    status=FT (défaut) = terminés, triés du plus récent au plus ancien.
+    status=NS = à venir (prochains matchs), triés du plus proche au plus lointain (ex. ligue suisse).
+    """
     from app.services.api_football import _use_api, get_fixtures_by_league
     if not _use_api():
         return {"fixtures": []}
     s = _season_year(season)
     raw = get_fixtures_by_league(league_id, season=s, status=status)
-    raw.sort(key=lambda x: (x.get("fixture") or {}).get("date") or "", reverse=True)
+    is_upcoming = (status or "").strip().upper() in ("NS", "NSH", "TBD", "PST")
+    raw.sort(key=lambda x: (x.get("fixture") or {}).get("date") or "", reverse=not is_upcoming)
     fixtures = []
     for f in raw[:limit]:
         fix = f.get("fixture") or {}

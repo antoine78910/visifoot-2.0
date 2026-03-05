@@ -3,7 +3,20 @@
 import { useEffect, useMemo, useState } from "react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const TOKEN_STORAGE_KEY = "deepfoot_admin_token";
+const ADMIN_TOKEN_COOKIE = "deepfoot_admin_token";
+const COOKIE_MAX_AGE_DAYS = 30;
+
+function getAdminTokenCookie(): string {
+  if (typeof document === "undefined") return "";
+  const match = document.cookie.match(new RegExp("(?:^|;\\s*)" + encodeURIComponent(ADMIN_TOKEN_COOKIE) + "=([^;]*)"));
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
+function setAdminTokenCookie(value: string) {
+  if (typeof document === "undefined") return;
+  const maxAge = COOKIE_MAX_AGE_DAYS * 24 * 60 * 60;
+  document.cookie = `${encodeURIComponent(ADMIN_TOKEN_COOKIE)}=${encodeURIComponent(value)}; path=/; max-age=${maxAge}; SameSite=Strict`;
+}
 
 type AdminSummary = {
   window_days: number;
@@ -39,8 +52,7 @@ export default function AdminPage() {
   const [data, setData] = useState<AdminSummary | null>(null);
 
   useEffect(() => {
-    const t = localStorage.getItem(TOKEN_STORAGE_KEY) || "";
-    if (t) setToken(t);
+    setToken(getAdminTokenCookie());
   }, []);
 
   const load = async () => {
@@ -56,7 +68,7 @@ export default function AdminPage() {
       }
       const json = (await res.json()) as AdminSummary;
       setData(json);
-      localStorage.setItem(TOKEN_STORAGE_KEY, token.trim());
+      setAdminTokenCookie(token.trim());
       setStatus("idle");
     } catch (e) {
       setStatus("error");
