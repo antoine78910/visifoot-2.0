@@ -6,7 +6,7 @@ import { SignupModal } from "@/components/SignupModal";
 import { MatchInput } from "@/components/MatchInput";
 import Link from "next/link";
 import { AUTH_STORAGE_KEY } from "@/lib/auth";
-import { getAppHref } from "@/lib/app-url";
+import { getAppHref, SIGN_UP_HREF } from "@/lib/app-url";
 
 function AnalyseContent() {
   const [showSignupModal, setShowSignupModal] = useState(false);
@@ -74,13 +74,12 @@ function AnalyseContent() {
         />
       </div>
       <p className="text-center mt-6">
-        <button
-          type="button"
-          onClick={() => handleRequireAuth()}
+        <Link
+          href={`${SIGN_UP_HREF}?next=/analyse`}
           className="text-teal-400 hover:text-teal-300 text-sm underline"
         >
           Don&apos;t have an account? Sign up
-        </button>
+        </Link>
       </p>
       <SignupModal open={showSignupModal} onClose={handleCloseModal} onSignIn={handleSignIn} pendingMatch={pendingMatch} />
     </main>

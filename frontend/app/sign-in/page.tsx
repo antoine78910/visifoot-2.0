@@ -9,7 +9,7 @@ import {
   displayNameFromEmail,
   type UserInfo,
 } from "@/lib/auth";
-import { ANALYSE_HREF, getAppAuthCallbackUrl, getAppRootUrl } from "@/lib/app-url";
+import { SIGN_UP_HREF, getAppAuthCallbackUrl, getAppRootUrl } from "@/lib/app-url";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 function SignInPageContent() {
@@ -136,9 +136,9 @@ function SignInPageContent() {
         </form>
 
         <p className="text-center mt-4">
-          <a href={ANALYSE_HREF} className="text-teal-400 hover:text-teal-300 text-sm underline">
+          <Link href={SIGN_UP_HREF} className="text-teal-400 hover:text-teal-300 text-sm underline">
             Don&apos;t have an account? Sign up
-          </a>
+          </Link>
         </p>
 
         <Link

@@ -75,7 +75,8 @@ export function getAppAuthCallbackUrl(): string {
   }
   return "/app/auth/callback";
 }
-// Sign-in is a public (non /app) route on the same origin.
+// Sign-in / sign-up are public routes on the same origin.
 export const SIGN_IN_HREF = "/sign-in";
+export const SIGN_UP_HREF = "/sign-up";
 export const ANALYSE_HREF = getAnalyseHref();
 export const MATCHES_HREF = getAppHref("/matches");

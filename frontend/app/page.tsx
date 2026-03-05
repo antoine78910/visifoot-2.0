@@ -5,7 +5,7 @@ import Link from "next/link";
 import { BGPattern } from "@/components/BGPattern";
 import { LandingMatchSearch } from "@/components/LandingMatchSearch";
 import { LogoCloud } from "@/components/ui/logo-cloud";
-import { APP_HREF, SIGN_IN_HREF, ANALYSE_HREF, getAppAuthCallbackUrl } from "@/lib/app-url";
+import { APP_HREF, SIGN_IN_HREF, SIGN_UP_HREF, ANALYSE_HREF, getAppAuthCallbackUrl } from "@/lib/app-url";
 
 export default function LandingPage() {
   // If Supabase redirected here with tokens in hash (e.g. Site URL = localhost), send user to app callback
@@ -41,7 +41,7 @@ export default function LandingPage() {
             Log in
           </Link>
           <Link
-            href={ANALYSE_HREF}
+            href={SIGN_UP_HREF}
             className="text-sm font-semibold px-4 py-2 rounded-lg bg-[#00ffe8] text-black hover:opacity-90 transition"
           >
             Sign up

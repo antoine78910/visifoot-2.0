@@ -31,10 +31,12 @@ export function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
-  // Public routes on app subdomain: sign-in, analyse (signup funnel), auth callback
+  // Public routes on app subdomain: sign-in, sign-up, analyse (signup funnel), auth callback
   if (
     pathname === "/sign-in" ||
     pathname.startsWith("/sign-in/") ||
+    pathname === "/sign-up" ||
+    pathname.startsWith("/sign-up/") ||
     pathname === "/analyse" ||
     pathname.startsWith("/analyse/") ||
     pathname === "/auth/callback" ||
