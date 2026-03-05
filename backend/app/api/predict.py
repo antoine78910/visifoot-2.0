@@ -507,11 +507,18 @@ def run_predict_with_progress(
     try:
         if ctx.get("_sportmonks_use_predictions"):
             ai = generate_ai_analysis_sportmonks(ctx, out, language=payload.language)
-            # Put news-style match context at the top of quick_summary when available
-            if ctx.get("match_context_summary") and ai.get("quick_summary"):
-                ai["quick_summary"] = (ctx["match_context_summary"].strip() + "\n\n" + ai["quick_summary"].strip()).strip()
-            elif ctx.get("match_context_summary"):
-                ai["quick_summary"] = ctx["match_context_summary"].strip()
+            # Put news-style match context + Match Importance at the top of quick_summary when available
+            top_parts = []
+            if ctx.get("match_context_summary"):
+                top_parts.append(ctx["match_context_summary"].strip())
+            if ctx.get("home_motivation_label") or ctx.get("away_motivation_label"):
+                top_parts.append(
+                    f"Match Importance: {ctx.get('home_team', 'Home')} motivation {ctx.get('home_motivation_label') or 'medium'}, "
+                    f"{ctx.get('away_team', 'Away')} motivation {ctx.get('away_motivation_label') or 'medium'}."
+                )
+            if top_parts:
+                block = "\n\n".join(top_parts)
+                ai["quick_summary"] = (block + "\n\n" + (ai.get("quick_summary") or "").strip()).strip()
         else:
             prompt_ctx = build_prompt_context(
                 ctx["home_team"],

@@ -44,6 +44,30 @@ def _get(path: str, params: Optional[dict[str, Any]] = None, include: Optional[s
         return {}
 
 
+def _get_allow_404(path: str, params: Optional[dict[str, Any]] = None, include: Optional[str] = None) -> dict[str, Any]:
+    """Comme _get mais retourne {} sur 404 (aucune fixture dans la période)."""
+    if not _use_sportmonks():
+        return {}
+    url = f"{BASE_URL.rstrip('/')}{path}" if path.startswith("/") else f"{BASE_URL}/{path}"
+    p = dict(params or {})
+    p["api_token"] = _token()
+    if include:
+        p["include"] = include
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            r = client.get(url, params=p)
+            data = r.json() if r.content else {}
+            n = len(data.get("data") or []) if isinstance(data.get("data"), list) else ("obj" if data.get("data") else 0)
+            print(f"[sportmonks] GET {path[:50]}... -> {r.status_code} data_len={n}")
+            if r.status_code == 404:
+                return {}
+            r.raise_for_status()
+            return data or {}
+    except Exception as e:
+        print(f"[sportmonks] GET {path[:50]}... ERREUR: {e}")
+        return {}
+
+
 def teams_search(
     name: str, limit: int = 5, include: Optional[str] = None
 ) -> list[dict[str, Any]] | dict[str, Any]:
@@ -282,6 +306,96 @@ def fixtures_search(query: str, limit: int = 10) -> list[dict[str, Any]]:
     return data.get("data") or []
 
 
+# Coefficients H2H par saison (saison la plus récente = 1.0, puis 0.8, 0.6, 0.4, 0.2)
+H2H_SEASON_WEIGHTS = (1.0, 0.8, 0.6, 0.4, 0.2)
+
+
+def get_h2h_last_5_seasons(
+    home_team_id: int,
+    away_team_id: int,
+) -> tuple[float, float, float]:
+    """
+    Récupère les confrontations directes sur les 5 dernières saisons via /fixtures/between (par saison).
+    Retourne (h2h_home_wins_weighted, h2h_draws_weighted, h2h_away_wins_weighted).
+    Coefficients: 1.0, 0.8, 0.6, 0.4, 0.2 (saison la plus récente à la plus ancienne).
+    """
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    hw, hd, ha = 0.0, 0.0, 0.0
+    for i in range(min(5, len(H2H_SEASON_WEIGHTS))):
+        weight = H2H_SEASON_WEIGHTS[i]
+        season_end_year = now.year - i  # 2026, 2025, 2024, ...
+        start_date = f"{season_end_year - 1}-08-01"
+        end_date = f"{season_end_year}-05-31"
+        path = f"/fixtures/between/{start_date}/{end_date}/{home_team_id}"
+        data = _get_allow_404(path, params={"per_page": 50}, include="participants;scores")
+        raw = data.get("data")
+        if isinstance(raw, dict):
+            raw = raw.get("data") if isinstance(raw.get("data"), list) else []
+        if not isinstance(raw, list):
+            raw = []
+        participants_by_fid: dict[int, list] = {}
+        for p in (data.get("participants") or []):
+            if isinstance(p, dict) and p.get("fixture_id") is not None:
+                participants_by_fid.setdefault(int(p["fixture_id"]), []).append(p)
+        scores_by_fid: dict[int, list] = {}
+        for s in (data.get("scores") or []):
+            if isinstance(s, dict) and s.get("fixture_id") is not None:
+                scores_by_fid.setdefault(int(s["fixture_id"]), []).append(s)
+        for f in raw:
+            fid = f.get("id")
+            if fid is None:
+                continue
+            participants = f.get("participants") or participants_by_fid.get(int(fid), [])
+            if not participants or len(participants) < 2:
+                continue
+            pids = [int(p.get("id") or p.get("team_id") or 0) for p in participants if isinstance(p, dict)]
+            if away_team_id not in pids:
+                continue
+            scores = f.get("scores") or scores_by_fid.get(int(fid), [])
+            home_goals = 0
+            away_goals = 0
+            for s in (scores if isinstance(scores, list) else []):
+                if not isinstance(s, dict):
+                    continue
+                score_obj = s.get("score") or s
+                part = score_obj.get("participant") or s.get("participant")
+                g = int(score_obj.get("goals", 0) or s.get("goals", 0) or 0)
+                if part == "home":
+                    home_goals += g
+                elif part == "away":
+                    away_goals += g
+            home_p, away_p = None, None
+            for p in participants:
+                if not isinstance(p, dict):
+                    continue
+                meta = p.get("meta") or {}
+                loc = (meta.get("location") or "").lower()
+                tid = int(p.get("id") or p.get("team_id") or 0)
+                if loc == "home":
+                    home_p = tid
+                elif loc == "away":
+                    away_p = tid
+            if not home_p and len(participants) >= 2:
+                home_p = int(participants[0].get("id") or participants[0].get("team_id") or 0)
+                away_p = int(participants[1].get("id") or participants[1].get("team_id") or 0)
+            if home_team_id == home_p and away_team_id == away_p:
+                pass  # home_team était à domicile
+            elif home_team_id == away_p and away_team_id == home_p:
+                home_goals, away_goals = away_goals, home_goals  # home_team était à l'extérieur
+            else:
+                continue
+            if home_goals > away_goals:
+                hw += weight
+            elif home_goals < away_goals:
+                ha += weight
+            else:
+                hd += weight
+    if hw or hd or ha:
+        print(f"[sportmonks] H2H last 5 seasons (weighted): home_wins={hw:.1f}, draws={hd:.1f}, away_wins={ha:.1f}")
+    return (hw, hd, ha)
+
+
 def team_past_fixtures(
     team_id: int,
     last_n: int = 5,
@@ -298,10 +412,7 @@ def team_past_fixtures(
     start_date = (now - timedelta(days=120)).strftime("%Y-%m-%d")
     path = f"/fixtures/between/{start_date}/{end_date}/{team_id}"
     params: dict[str, Any] = {"per_page": 30}
-    try:
-        data = _get(path, params=params, include="participants;scores")
-    except Exception:
-        return ([], [], [])
+    data = _get_allow_404(path, params=params, include="participants;scores")
     raw = data.get("data")
     if isinstance(raw, dict):
         raw = raw.get("data") if isinstance(raw.get("data"), list) else []
@@ -408,9 +519,9 @@ def team_upcoming_fixtures(team_id: int, limit: int = 10) -> list[dict[str, Any]
     from datetime import datetime, timezone, timedelta
     now = datetime.now(timezone.utc)
     start_date = now.strftime("%Y-%m-%d")
-    end_date_future = (now + timedelta(days=90)).strftime("%Y-%m-%d")
+    end_date_future = (now + timedelta(days=60)).strftime("%Y-%m-%d")  # 60 j max pour éviter 404
     path_between = f"/fixtures/between/{start_date}/{end_date_future}/{team_id}"
-    data = _get(path_between, params={"per_page": min(limit * 2, 50)}, include="participants;league")
+    data = _get_allow_404(path_between, params={"per_page": min(limit * 2, 50)}, include="participants;league")
     raw = data.get("data")
     if isinstance(raw, dict):
         raw = raw.get("data") if isinstance(raw.get("data"), list) else []
@@ -747,7 +858,7 @@ def resolve_fixture_and_teams(home_team: str, away_team: str) -> Optional[dict[s
     from datetime import datetime, timezone, timedelta
     now = datetime.now(timezone.utc)
     start_date = now.strftime("%Y-%m-%d")
-    end_date = (now + timedelta(days=120)).strftime("%Y-%m-%d")
+    end_date = (now + timedelta(days=60)).strftime("%Y-%m-%d")  # 60 j max pour éviter 404 (aucun match au-delà)
 
     # Résoudre les IDs équipe par nom
     home_candidates = teams_search((home_team or "").strip(), limit=5)
@@ -964,6 +1075,19 @@ def load_match_context_sportmonks(
     away_logo = _team_logo(away_participant)
     home_team_id = (home_participant.get("id") or home_participant.get("team_id")) if home_participant else None
     away_team_id = (away_participant.get("id") or away_participant.get("team_id")) if away_participant else None
+    # Fallback blasons si between ne renvoie pas image_path
+    if not home_logo and home_name:
+        candidates = teams_search(home_name, limit=1)
+        if candidates and isinstance(candidates, list) and candidates[0].get("image_path"):
+            home_logo = (candidates[0].get("image_path") or "").strip()
+            if home_logo and not home_logo.startswith("http"):
+                home_logo = f"https://cdn.sportmonks.com/images/soccer/teams/{home_logo}"
+    if not away_logo and away_name:
+        candidates = teams_search(away_name, limit=1)
+        if candidates and isinstance(candidates, list) and candidates[0].get("image_path"):
+            away_logo = (candidates[0].get("image_path") or "").strip()
+            if away_logo and not away_logo.startswith("http"):
+                away_logo = f"https://cdn.sportmonks.com/images/soccer/teams/{away_logo}"
 
     league_obj = fixture_data.get("league") or {}
     league_name = league_obj.get("name") if isinstance(league_obj, dict) else None
@@ -1058,21 +1182,32 @@ def load_match_context_sportmonks(
     away_form: list[str] = []
     hw, hd, hl = 0, 0, 0
     aw, ad, al = 0, 0, 0
-    h2h_hw, h2h_hd, h2h_ha = 0, 0, 0
-    h2h_list = fixture_data.get("h2h")
-    if isinstance(h2h_list, list):
-        for m in h2h_list:
-            if not isinstance(m, dict):
-                continue
-            res = (m.get("result") or "").strip().lower()
-            if res == "home":
-                h2h_hw += 1
-            elif res == "draw":
-                h2h_hd += 1
-            elif res == "away":
-                h2h_ha += 1
-        if h2h_hw or h2h_hd or h2h_ha:
-            print(f"[sportmonks] H2H from fixture include: home_wins={h2h_hw}, draws={h2h_hd}, away_wins={h2h_ha}")
+    h2h_hw, h2h_hd, h2h_ha = 0.0, 0.0, 0.0
+    h2h_home_pct_override: Optional[float] = None
+    if home_team_id and away_team_id:
+        report("Loading H2H (last 5 seasons)…", 22)
+        try:
+            h2h_hw, h2h_hd, h2h_ha = get_h2h_last_5_seasons(int(home_team_id), int(away_team_id))
+            total_h2h = h2h_hw + h2h_hd + h2h_ha
+            if total_h2h > 0:
+                h2h_home_pct_override = 100.0 * (h2h_hw + 0.5 * h2h_hd) / total_h2h
+        except Exception as e:
+            print(f"[sportmonks] H2H last 5 seasons: {e}")
+    if not (h2h_hw or h2h_hd or h2h_ha):
+        h2h_list = fixture_data.get("h2h")
+        if isinstance(h2h_list, list):
+            for m in h2h_list:
+                if not isinstance(m, dict):
+                    continue
+                res = (m.get("result") or "").strip().lower()
+                if res == "home":
+                    h2h_hw += 1
+                elif res == "draw":
+                    h2h_hd += 1
+                elif res == "away":
+                    h2h_ha += 1
+            if h2h_hw or h2h_hd or h2h_ha:
+                print(f"[sportmonks] H2H from fixture include: home_wins={h2h_hw}, draws={h2h_hd}, away_wins={h2h_ha}")
     lambda_home_calc = xg_home
     lambda_away_calc = xg_away
     comparison_pcts: Optional[dict[str, float]] = None
@@ -1113,7 +1248,8 @@ def load_match_context_sportmonks(
             comparison_pcts = build_comparison_pcts(
                 hw, hd, hl, aw, ad, al,
                 h_for_avg, a_for_avg, h_against_avg, a_against_avg,
-                h2h_hw, h2h_hd, h2h_ha,
+                int(round(h2h_hw)), int(round(h2h_hd)), int(round(h2h_ha)),
+                h2h_home_pct_override=h2h_home_pct_override,
             )
             pipeline_steps = [
                 {"order": 1, "title_key": "recap.step.data_source_sportmonks", "detail": "Data source: Sportmonks (fixture + predictions + team past fixtures for form)."},
@@ -1124,7 +1260,7 @@ def load_match_context_sportmonks(
                 pipeline_steps.append({
                     "order": 4,
                     "title_key": "recap.step.h2h",
-                    "detail": f"H2H from fixture include: home_wins={h2h_hw}, draws={h2h_hd}, away_wins={h2h_ha}.",
+                    "detail": f"H2H last 5 seasons (weighted 1.0, 0.8, 0.6, 0.4, 0.2): home_wins={h2h_hw:.1f}, draws={h2h_hd:.1f}, away_wins={h2h_ha:.1f}.",
                 })
         except Exception:
             pass
@@ -1204,10 +1340,11 @@ def load_match_context_sportmonks(
         "home_goals_against_avg": round(sum(home_goals_against) / len(home_goals_against), 2) if home_goals_against else None,
         "away_goals_for_avg": round(sum(away_goals_for) / len(away_goals_for), 2) if away_goals_for else None,
         "away_goals_against_avg": round(sum(away_goals_against) / len(away_goals_against), 2) if away_goals_against else None,
-        "h2h_matches_count": h2h_hw + h2h_hd + h2h_ha,
-        "h2h_home_wins": h2h_hw,
-        "h2h_draws": h2h_hd,
-        "h2h_away_wins": h2h_ha,
+        "h2h_matches_count": round(h2h_hw + h2h_hd + h2h_ha, 1),
+        "h2h_home_wins": round(h2h_hw, 1),
+        "h2h_draws": round(h2h_hd, 1),
+        "h2h_away_wins": round(h2h_ha, 1),
+        "h2h_seasons_used": 5 if (h2h_hw or h2h_hd or h2h_ha) else None,
         "match_context_summary": motivation_ctx.get("match_context_summary"),
         "home_motivation_score": motivation_ctx.get("home_motivation_score"),
         "away_motivation_score": motivation_ctx.get("away_motivation_score"),
