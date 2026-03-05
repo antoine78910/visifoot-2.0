@@ -271,6 +271,41 @@ function SplitBar({
   );
 }
 
+function PredictionMarketBar({
+  leftPct,
+  leftLabel,
+  rightLabel,
+}: {
+  leftPct: number;
+  leftLabel: string;
+  rightLabel: string;
+}) {
+  const pct = Math.min(100, Math.max(0, leftPct));
+  const rightPct = Math.max(0, 100 - pct);
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between text-sm text-zinc-300">
+        <span>{leftLabel}</span>
+        <span>{rightLabel}</span>
+      </div>
+      <div className="h-7 rounded-full overflow-hidden bg-[#1c1c28] flex border border-white/10">
+        <div
+          className="h-full bg-[#6bc9bb] text-white text-sm font-semibold flex items-center justify-end pr-2"
+          style={{ width: `${pct}%` }}
+        >
+          {pct >= 12 ? `${pct.toFixed(1)}%` : ""}
+        </div>
+        <div
+          className="h-full bg-[#d33d53] text-white text-sm font-semibold flex items-center justify-start pl-2"
+          style={{ width: `${rightPct}%` }}
+        >
+          {rightPct >= 12 ? `${rightPct.toFixed(1)}%` : ""}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TrophyIcon() {
   return (
     <svg className="w-4 h-4 text-zinc-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1030,48 +1065,54 @@ export function AnalysisResult({ result }: { result: Result }) {
       {/* Our predictions */}
       <section className="pt-6 border-t border-white/5">
         <h2 className="text-lg font-semibold text-white mb-4">🎯 Our predictions</h2>
-        <div className="space-y-4 mb-6">
-          {typeof result.xg_home === "number" && typeof result.xg_away === "number" && (result.xg_home + result.xg_away > 0) && (
-            <SplitBar
-              leftPct={(result.xg_home / (result.xg_home + result.xg_away)) * 100}
-              leftLabel={`${home} xG`}
-              rightLabel={`${away} xG`}
-              leftColor="bg-[#00ffe8]"
-              rightColor="bg-[#ef4444]/60"
-            />
-          )}
-          {typeof result.btts_yes_pct === "number" && (
-            <SplitBar
-              leftPct={result.btts_yes_pct}
-              leftLabel="BTTS Yes"
-              rightLabel="BTTS No"
-              leftColor="bg-[#00ffe8]"
-              rightColor="bg-[#ef4444]/60"
-            />
-          )}
+        <div className="space-y-4">
+          <div className="rounded-2xl bg-white/5 border border-white/10 p-4 sm:p-5">
+            <h3 className="text-base font-semibold text-white mb-3">Expected goals</h3>
+            <div className="space-y-1 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-300">{home}</span>
+                <span className="text-white font-semibold">{typeof result.xg_home === "number" ? result.xg_home.toFixed(2) : "0.00"} goals</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-300">{away}</span>
+                <span className="text-white font-semibold">{typeof result.xg_away === "number" ? result.xg_away.toFixed(2) : "0.00"} goals</span>
+              </div>
+              <div className="h-px bg-white/10 my-2" />
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-400">Total</span>
+                <span className="text-white font-semibold">{typeof result.xg_total === "number" ? result.xg_total.toFixed(2) : "0.00"} goals</span>
+              </div>
+            </div>
+            {typeof result.btts_yes_pct === "number" && (
+              <div className="mt-5">
+                <h4 className="text-base font-semibold text-white mb-2">Both teams to score</h4>
+                <PredictionMarketBar
+                  leftPct={result.btts_yes_pct}
+                  leftLabel="Yes"
+                  rightLabel="No"
+                />
+              </div>
+            )}
+          </div>
+
           {result.over_under && result.over_under.length > 0 && (
-            <>
-              {[...result.over_under]
-                .sort((a, b) => Number(a.line) - Number(b.line))
-                .map((ou) => (
-                  <SplitBar
-                    key={ou.line}
-                    leftPct={ou.over_pct}
-                    leftLabel={`Over ${ou.line}`}
-                    rightLabel={`Under ${ou.line}`}
-                    leftColor="bg-[#00ffe8]"
-                    rightColor="bg-[#ef4444]/60"
-                  />
-                ))}
-            </>
+            <div className="rounded-2xl bg-white/5 border border-white/10 p-4 sm:p-5">
+              <h3 className="text-base font-semibold text-white mb-3">Goal count probabilities</h3>
+              <div className="space-y-4">
+                {[...result.over_under]
+                  .sort((a, b) => Number(a.line) - Number(b.line))
+                  .map((ou) => (
+                    <PredictionMarketBar
+                      key={ou.line}
+                      leftPct={ou.over_pct}
+                      leftLabel={`Over ${ou.line} goals`}
+                      rightLabel={`Under ${ou.line} goals`}
+                    />
+                  ))}
+              </div>
+            </div>
           )}
         </div>
-        <p className="text-xs text-zinc-500">
-          {t("analysis.expectedGoals")} (xG): Home {typeof result.xg_home === "number" ? result.xg_home.toFixed(2) : "0"} – Away{" "}
-          {typeof result.xg_away === "number" ? result.xg_away.toFixed(2) : "0"} (total{" "}
-          {typeof result.xg_total === "number" ? result.xg_total.toFixed(2) : "0"} goals). {t("analysis.bttsYesShort")}{" "}
-          {typeof result.btts_yes_pct === "number" ? result.btts_yes_pct.toFixed(1) : "0"}%.
-        </p>
       </section>
         </>
       )}
