@@ -287,24 +287,24 @@ function PredictionMarketBar({
   const pct = Math.min(100, Math.max(0, leftPct));
   const rightPct = Math.max(0, 100 - pct);
   return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between text-sm text-zinc-300">
-        <span>{leftLabel}</span>
-        <span>{rightLabel}</span>
+    <div className="flex flex-col gap-1">
+      <div className="flex justify-between text-sm">
+        <span className="text-zinc-300">{leftLabel}</span>
+        <span className="text-zinc-300">{rightLabel}</span>
       </div>
-      <div className="h-7 rounded-full overflow-hidden bg-[#1c1c28] flex border border-white/10">
+      <div className="h-3 bg-[#1c1c28] rounded-full overflow-hidden flex">
         <div
-          className="h-full text-white text-sm font-semibold flex items-center justify-end pr-2"
+          className="h-full rounded-l-full transition-all"
           style={{ width: `${pct}%`, backgroundColor: leftColor }}
-        >
-          {pct >= 12 ? `${pct.toFixed(1)}%` : ""}
-        </div>
+        />
         <div
-          className="h-full text-white text-sm font-semibold flex items-center justify-start pl-2"
-          style={{ width: `${rightPct}%`, backgroundColor: rightColor }}
-        >
-          {rightPct >= 12 ? `${rightPct.toFixed(1)}%` : ""}
-        </div>
+          className="h-full flex-1 rounded-r-full"
+          style={{ backgroundColor: rightColor + "99" }}
+        />
+      </div>
+      <div className="flex justify-between text-xs text-zinc-500">
+        <span>{pct.toFixed(1)}%</span>
+        <span>{rightPct.toFixed(1)}%</span>
       </div>
     </div>
   );

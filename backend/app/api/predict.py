@@ -628,6 +628,8 @@ def run_predict_with_progress(
     out["internal_prob_home"] = round(float(internal_out.get("prob_home") or 0), 1)
     out["internal_prob_draw"] = round(float(internal_out.get("prob_draw") or 0), 1)
     out["internal_prob_away"] = round(float(internal_out.get("prob_away") or 0), 1)
+    # Toujours utiliser le modèle Poisson interne pour over/under (plus fiable que les prédictions Sportmonks qui renvoient 50/50).
+    out["over_under"] = internal_out["over_under"]
 
     # LDC / Europa / Conference : si match aller nul → proba nul = 0 % (départage obligatoire).
     _apply_two_legged_draw_zero(
