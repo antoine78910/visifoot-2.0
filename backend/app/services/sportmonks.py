@@ -1412,6 +1412,73 @@ def get_match_news_and_comments(
                     "keywords_found": ["lineup", "team news", "pre-match"],
                 })
 
+    def _parse_recent_result_for_team(fixture_obj: dict[str, Any], team_id_int: int) -> tuple[Optional[str], Optional[str]]:
+        """
+        Retourne (result_sentence, outcome_word) du point de vue de team_id_int.
+        Exemples:
+        - "Lens beat Reims 2-1"
+        - "Lens drew 1-1 with Reims"
+        - "Lens lost 0-2 to Reims"
+        """
+        participants = fixture_obj.get("participants") if isinstance(fixture_obj.get("participants"), list) else []
+        scores = fixture_obj.get("scores") if isinstance(fixture_obj.get("scores"), list) else []
+        if len(participants) < 2 or not scores:
+            return (None, None)
+
+        home_p, away_p = None, None
+        for p in participants:
+            if not isinstance(p, dict):
+                continue
+            meta = p.get("meta") or {}
+            loc = str(meta.get("location") or "").lower()
+            if loc == "home":
+                home_p = p
+            elif loc == "away":
+                away_p = p
+        if not home_p and len(participants) >= 2:
+            home_p = participants[0]
+            away_p = participants[1]
+        if not home_p or not away_p:
+            return (None, None)
+
+        def _pid(p: dict) -> Optional[int]:
+            v = p.get("team_id") or p.get("id")
+            return int(v) if v is not None else None
+
+        home_id = _pid(home_p)
+        away_id = _pid(away_p)
+        if home_id is None or away_id is None:
+            return (None, None)
+        if team_id_int not in {home_id, away_id}:
+            return (None, None)
+
+        home_goals = 0
+        away_goals = 0
+        for s in scores:
+            if not isinstance(s, dict):
+                continue
+            score_obj = s.get("score") or s
+            part = score_obj.get("participant") or s.get("participant")
+            g = int(score_obj.get("goals", 0) or s.get("goals", 0) or 0)
+            if part == "home":
+                home_goals += g
+            elif part == "away":
+                away_goals += g
+
+        home_name = (home_p.get("name") or "Home").strip()
+        away_name = (away_p.get("name") or "Away").strip()
+        is_home_team = team_id_int == home_id
+        team_name = home_name if is_home_team else away_name
+        opp_name = away_name if is_home_team else home_name
+        gf = home_goals if is_home_team else away_goals
+        ga = away_goals if is_home_team else home_goals
+
+        if gf > ga:
+            return (f"{team_name} beat {opp_name} {gf}-{ga}", "won")
+        if gf < ga:
+            return (f"{team_name} lost {gf}-{ga} to {opp_name}", "lost")
+        return (f"{team_name} drew {gf}-{ga} with {opp_name}", "drew")
+
     # Récupérer commentaires des derniers matchs des deux équipes
     for team_id in [home_team_id, away_team_id]:
         if not team_id:
@@ -1421,7 +1488,7 @@ def get_match_news_and_comments(
         end_date = now.strftime("%Y-%m-%d")
         start_date = (now - timedelta(days=30)).strftime("%Y-%m-%d")
         path = f"/fixtures/between/{start_date}/{end_date}/{team_id}"
-        data = _get_allow_404(path, params={"per_page": 5})
+        data = _get_allow_404(path, params={"per_page": 5}, include="participants;scores")
         raw = data.get("data")
         if isinstance(raw, dict):
             raw = raw.get("data") if isinstance(raw.get("data"), list) else []
@@ -1446,19 +1513,37 @@ def get_match_news_and_comments(
             if not fid:
                 continue
 
+            result_sentence, outcome_word = _parse_recent_result_for_team(f, int(team_id))
+
             # Récupérer les commentaires de ce match
             comm_data = _get_allow_404(f"/commentaries/fixtures/{fid}", params={"per_page": 10})
             comms = comm_data.get("data") if isinstance(comm_data.get("data"), list) else []
-            for c in comms[:3]:  # Max 3 commentaires par match
+            # Prioriser les commentaires "importants" et/ou liés à un but.
+            def _is_high_signal(c: dict[str, Any]) -> bool:
+                return bool(
+                    c.get("is_important")
+                    or c.get("important")
+                    or c.get("is_goal")
+                    or c.get("goal")
+                    or str(c.get("type") or "").lower() in {"goal", "redcard", "penalty"}
+                )
+
+            sorted_comms = sorted(
+                [c for c in comms if isinstance(c, dict)],
+                key=lambda c: (0 if _is_high_signal(c) else 1),
+            )
+            for c in sorted_comms[:3]:  # Max 3 commentaires par match
                 if not isinstance(c, dict):
                     continue
                 text = (c.get("comment") or "").strip()
                 if text and len(text) > 20:
+                    prefix = f"Recent result: {result_sentence}. " if result_sentence else ""
+                    momentum_kw = [outcome_word] if outcome_word else []
                     news_items.append({
                         "source": "sportmonks_past_match",
-                        "title": f"Recent match commentary: {text[:80]}",
-                        "snippet": text,
-                        "keywords_found": ["past match", "commentary"],
+                        "title": f"{result_sentence or 'Recent match'} — key moment",
+                        "snippet": f"{prefix}{text}",
+                        "keywords_found": ["past match", "commentary", *momentum_kw],
                     })
 
         if len(news_items) >= 15:  # Limiter à 15 items au total

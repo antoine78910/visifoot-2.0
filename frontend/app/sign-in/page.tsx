@@ -74,7 +74,7 @@ function SignInPageContent() {
 
   return (
     <div className="min-h-screen bg-app-gradient flex flex-col items-center px-4 pt-24 pb-12 relative overflow-hidden">
-      <header className="fixed top-0 left-0 right-0 z-20 w-full flex items-center px-5 sm:px-8 py-3 sm:py-4 border-b border-white/10 bg-[#0a0a0e]/60 backdrop-blur-md">
+      <header className="fixed top-0 left-0 right-0 z-20 w-full flex items-center px-5 sm:px-8 py-3 sm:py-4 bg-transparent">
         <Link href="/" className="flex items-center gap-2">
           <img src="/logo.png" alt="DEEPFOOT" className="h-10 sm:h-12 w-auto object-contain" />
         </Link>

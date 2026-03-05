@@ -136,3 +136,9 @@ class PredictResponse(BaseModel):
 class TranslateRequest(BaseModel):
     analysis: dict[str, Any] = Field(..., description="Full analysis/result object to translate")
     target_lang: str = Field("en", description="Target language: en, fr, or es")
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(..., description="User question about the match analysis")
+    analysis_context: Optional[dict[str, Any]] = Field(default_factory=dict, description="Current match analysis object (summary, scenarios, etc.)")
+    language: Optional[str] = Field("en", description="Response language: en, fr, or es")

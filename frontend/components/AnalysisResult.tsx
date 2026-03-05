@@ -462,9 +462,9 @@ export function AnalysisResult({ result }: { result: Result }) {
     );
   };
 
-  /** Overlay 15% + CTA — z-10 pour être au-dessus du flou, zone cliquable entière */
+  /** Overlay 15% + CTA — positionné plus bas pour laisser entrevoir les 3 bandes (probabilités) dans le flou au-dessus */
   const exactProbabilitiesOverlay = () => (
-    <div className="absolute inset-0 z-10 flex items-center justify-center p-4 pt-20">
+    <div className="absolute inset-0 z-10 flex flex-col justify-end items-center p-4 pb-14 pt-8">
       <div className="rounded-2xl bg-[#14141c]/95 border-2 border-[#00ffe8]/30 p-5 sm:p-6 max-w-md w-full shadow-xl text-center relative z-10">
         <h3 className="text-lg sm:text-xl font-bold text-white">
           {t("analysis.limitedAccessTitle")}
@@ -853,7 +853,7 @@ export function AnalysisResult({ result }: { result: Result }) {
           </>
         ) : (
           <div className="relative min-h-[320px]">
-            <div className="select-none pointer-events-none blur-md opacity-90 absolute inset-0" aria-hidden>
+            <div className="select-none pointer-events-none blur-sm opacity-85 absolute inset-0" aria-hidden>
               <div className="space-y-4 mb-4">
                 <div className="flex items-center gap-4">
                   <span className="text-zinc-300 text-sm w-28 flex-shrink-0">{home} win</span>

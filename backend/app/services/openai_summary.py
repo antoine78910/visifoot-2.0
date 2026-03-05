@@ -4,6 +4,7 @@ Génération du résumé rapide, scénarios et key forces via OpenAI (un seul ap
 + Analyse professionnelle Sportmonks (8 sections) quand les données viennent de Sportmonks.
 """
 import json
+import re
 from typing import Any, Optional
 
 from openai import OpenAI
@@ -48,13 +49,14 @@ ANALYSIS REQUIREMENTS:
    Describe what will happen on the pitch in an alternative scenario: tempo, tactical pattern, how the game might unfold. Narrative, not a list of data.
 
 8. FINAL MATCH INSIGHT
-   Summarize: which team has the edge, likely score range, level of match balance.
+   Summarize: which team has the edge and level of match balance. Do NOT include score ranges or specific score predictions (e.g. no "1-0 or 2-1", "likely score range").
 
-STYLE: Professional sports analysis. Clear and concise. Do not invent information. Use probabilities to support conclusions. Avoid overly long explanations.
+STYLE: Professional sports analysis. Clear and concise. Do not invent information. Use probabilities to support conclusions. Avoid overly long explanations. Do not include score ranges or specific score predictions (e.g. no "1-0 or 2-1", "likely score range") in match_overview or final_match_insight.
 
 If the input includes "match_context_summary" and "motivation" (home_motivation_label, away_motivation_label), you MUST use them:
 - The quick_summary (and match_overview) must be a credible news-style summary: mention league position, points gap, matches remaining, and stakes (title race, relegation battle, european qualification). Example: "Team A sit 2nd but cannot catch the leader with 2 games left. Team B are 1 point above the relegation zone, making this crucial for survival."
 - Reflect Match Importance: home motivation (e.g. medium/high/very high), away motivation.
+If the input includes recent commentaries/news from past matches, include at least one concrete form fact in the summary (team + opponent + result), e.g. "Lens arrive with confidence after beating Reims 2-1."
 
 OUTPUT: Return a JSON object with exactly these keys (each a string, 1-3 short paragraphs):
 - match_overview
@@ -75,6 +77,61 @@ def _client() -> OpenAI | None:
     if not key:
         return None
     return OpenAI(api_key=key)
+
+
+def _shorten_to_sentences(text: str, max_sentences: int = 3, max_chars: int = 360) -> str:
+    s = (text or "").strip()
+    if not s:
+        return ""
+    parts = re.split(r"(?<=[.!?])\s+", s)
+    clipped = " ".join([p.strip() for p in parts if p.strip()][:max_sentences]).strip()
+    if len(clipped) > max_chars:
+        clipped = clipped[: max_chars - 1].rstrip() + "…"
+    return clipped
+
+
+def _is_generic_scenario_title(title: str) -> bool:
+    t = (title or "").strip().lower()
+    if not t:
+        return True
+    generic_tokens = {
+        "win probability",
+        "goals & btts",
+        "match dynamics",
+        "btts and goals",
+        "scenario",
+    }
+    return t in generic_tokens or t.startswith("scenario ")
+
+
+def _descriptive_title_from_body(body: str, fallback: str = "Likely Match Pattern") -> str:
+    b = _shorten_to_sentences(body, max_sentences=1, max_chars=90)
+    if not b:
+        return fallback
+    first = re.split(r"[,:;.!?]", b)[0].strip()
+    words = [w for w in first.split() if w]
+    if not words:
+        return fallback
+    title = " ".join(words[:7]).strip()
+    return title[:70] if title else fallback
+
+
+def _normalize_scenarios_payload(data: dict, default: dict) -> dict:
+    for key in ("scenario_2", "scenario_3", "scenario_4"):
+        if key in data and not isinstance(data[key], dict):
+            data[key] = {"title": str(data[key])[:80], "body": "", "probability_pct": None}
+        data.setdefault(key, default[key])
+        if isinstance(data.get(key), dict):
+            body = _shorten_to_sentences(str(data[key].get("body") or ""), max_sentences=3, max_chars=360)
+            title = str(data[key].get("title") or "").strip()
+            if _is_generic_scenario_title(title):
+                title = _descriptive_title_from_body(body, fallback="Likely Match Pattern")
+            data[key] = {
+                **data[key],
+                "title": title[:70],
+                "body": body,
+            }
+    return data
 
 
 def build_prompt_context(
@@ -123,7 +180,7 @@ def generate_quick_summary(context: str) -> str:
         r = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "You are a football analysis assistant. Write a short, neutral summary (2-3 sentences) for a match prediction. Mention teams, form, and main takeaway. Write in the same language as the user's team names (e.g. French if teams are French)."},
+                {"role": "system", "content": "You are a football analysis assistant. Write a short, neutral summary (2-3 sentences) for a match prediction. Mention teams, form, and main takeaway. Do NOT include score ranges or specific score predictions (e.g. no '1-0 or 2-1', 'likely score range'). Write in the same language as the user's team names (e.g. French if teams are French)."},
                 {"role": "user", "content": context},
             ],
             max_tokens=200,
@@ -231,16 +288,18 @@ def generate_ai_analysis_sportmonks(
         professional_analysis = "\n\n".join(
             f"{title}\n{text}" for title, text in sections if text
         )
-        return {
+        result = {
             "quick_summary": data.get("final_match_insight") or data.get("match_overview") or default["quick_summary"],
             "scenario_1": data.get("match_overview") or "",
-            "scenario_2": {"title": "Win probability", "body": data.get("win_probability_analysis") or "", "probability_pct": out.get("prob_home")},
-            "scenario_3": {"title": "Goals & BTTS", "body": (data.get("goal_expectation_analysis") or "") + " " + (data.get("btts_analysis") or ""), "probability_pct": out.get("btts_yes_pct")},
-            "scenario_4": {"title": "Match dynamics", "body": data.get("key_match_dynamics") or "", "probability_pct": None},
+            "scenario_2": {"title": "", "body": data.get("win_probability_analysis") or "", "probability_pct": out.get("prob_home")},
+            "scenario_3": {"title": "", "body": (data.get("goal_expectation_analysis") or "") + " " + (data.get("btts_analysis") or ""), "probability_pct": out.get("btts_yes_pct")},
+            "scenario_4": {"title": "", "body": data.get("key_match_dynamics") or "", "probability_pct": None},
             "key_forces_home": data.get("key_forces_home") or [],
             "key_forces_away": data.get("key_forces_away") or [],
             "professional_analysis": professional_analysis,
         }
+        result = _normalize_scenarios_payload(result, default)
+        return result
     except Exception:
         return default
 
@@ -281,11 +340,11 @@ def generate_ai_analysis(
     system = """You are a football analysis assistant. Based on the match context, return a JSON object with exactly these keys."""
     system += lang_instruction
     system += """
-- quick_summary: 2-3 sentences. Always use the REAL team names, league name, and venue from the context (e.g. "Monaco hosts Angers in a Ligue 1 match at Stade Louis II") — never output placeholder text like [Home], [Away], [League] or [Venue]. If "MOTIVATION AND CONTEXT ANALYSIS" or "SCRAPED NEWS" is provided in the context, you MUST use it: mention motivation factors, injuries/rotation, stakes (relegation, derby, must-win), and key news that could impact the match. E.g. "Our AI has analyzed news and context: [team] is in a relegation battle / has rotation concerns / key injury...". This makes the predictor more reliable.
-- scenario_1: One paragraph describing the single most likely way the match will unfold on the pitch. Focus on narrative: who will control the game, how the first 20–30 minutes might go, how pressure and transitions will play out. Use the data (xG, form, motivation) to inform the story but write as a match narrative (e.g. "Manchester City will likely establish early control through patient possession, probing Real Madrid's defensive vulnerabilities. The opening 20 minutes could see Madrid using home energy for fast starts, but City's superior defensive organization should weather this initial pressure."). Do not list stats; describe what will happen.
-- scenario_2: Object with title (short), body (one short paragraph describing what will happen in this alternative scenario — narrative, not a list of data; you may use probabilities to justify). probability_pct (number or null).
-- scenario_3: Same structure as scenario_2: narrative of what will happen on the pitch in this scenario.
-- scenario_4: Same structure as scenario_2: narrative of what will happen on the pitch in this scenario.
+- quick_summary: 2-3 sentences. Always use the REAL team names, league name, and venue from the context (e.g. "Monaco hosts Angers in a Ligue 1 match at Stade Louis II") — never output placeholder text like [Home], [Away], [League] or [Venue]. If "MOTIVATION AND CONTEXT ANALYSIS" or "SCRAPED NEWS" is provided in the context, you MUST use it: mention motivation factors, injuries/rotation, stakes (relegation, derby, must-win), and key news that could impact the match. If recent match commentaries/news include concrete results, include at least one factual sentence with opponent + result (e.g. "Lens come in confident after beating Reims 2-1"). Do NOT include score ranges or specific score predictions (e.g. no "1-0 or 2-1", "likely score range", "could end 2-1").
+- scenario_1: One paragraph describing the single most likely way the match will unfold on the pitch. Focus on narrative: who will control the game, how the first 20–30 minutes might go, how pressure and transitions will play out. Use the data (xG, form, motivation) to inform the story but write as a match narrative. Do not list stats; describe what will happen.
+- scenario_2: Object with title (short, descriptive of what happens in this scenario — e.g. "Home side grinds out a narrow win" or "Both teams score in an open game"; NOT generic labels like "Win probability" or "BTTS and goals"), body (2-3 sentences max, short and concise, describing what will happen on the pitch in this scenario), probability_pct (number or null).
+- scenario_3: Same structure as scenario_2: descriptive title + short concise body (2-3 sentences).
+- scenario_4: Same structure as scenario_2: descriptive title + short concise body (2-3 sentences).
 - key_forces_home: Array of 2-4 short bullet points. Derive from MOTIVATION AND CONTEXT ANALYSIS and SCRAPED NEWS when provided (injuries, rotation, form, stakes).
 - key_forces_away: Array of 2-4 short bullet points for the away team. Same: use motivation and news when provided.
 Return only valid JSON, no markdown."""
@@ -303,10 +362,7 @@ Return only valid JSON, no markdown."""
         if not raw:
             return default
         data = json.loads(raw)
-        for key in ("scenario_2", "scenario_3", "scenario_4"):
-            if key in data and not isinstance(data[key], dict):
-                data[key] = {"title": str(data[key])[:80], "body": "", "probability_pct": None}
-            data.setdefault(key, default[key])
+        data = _normalize_scenarios_payload(data, default)
         data.setdefault("quick_summary", default["quick_summary"])
         data.setdefault("scenario_1", default["scenario_1"])
         data.setdefault("key_forces_home", default["key_forces_home"])
@@ -372,3 +428,57 @@ def translate_analysis(analysis: dict, target_lang: str) -> dict:
         return out
     except Exception:
         return out
+
+
+CHAT_AI_SYSTEM = """You are a professional football match analyst assistant. The user has just viewed a match analysis and can ask you specific questions about it.
+
+You will receive:
+1. The current match analysis (summary, scenarios, key forces, probabilities, etc.) as context.
+2. Optionally recent news about the teams or the match.
+3. The user's question.
+
+Your task: Answer the user's question in a clear, concise way using ONLY the analysis and news provided. Do not invent data. If the analysis or news does not contain enough information to answer fully, say so and give a short answer based on what you have. You may add brief general football context if relevant. Reply in the same language as the user's question unless they ask for another language. Keep answers focused and under 300 words unless the question requires more."""
+
+
+def chat_ai_reply(
+    analysis_context: dict,
+    user_message: str,
+    language: str = "en",
+    news_context: str = "",
+) -> str:
+    """
+    Generates a single GPT reply for the AI chat, based on the match analysis and optional news.
+    analysis_context: full analysis object (quick_summary, scenarios, key_forces, etc.).
+    user_message: the user's question.
+    language: "en", "fr", or "es" for response language.
+    news_context: optional pre-formatted news text to include.
+    """
+    client = _client()
+    if not client:
+        return "Chat IA is temporarily unavailable."
+    if not (user_message or "").strip():
+        return "Please ask a specific question about the match analysis."
+    lang_names = {"en": "English", "fr": "French", "es": "Spanish"}
+    lang_name = lang_names.get((language or "en").strip().lower(), "English")
+    try:
+        context_parts = [
+            "Match analysis context (use this to answer the user):",
+            json.dumps(analysis_context, ensure_ascii=False, indent=0)[:12000],
+        ]
+        if (news_context or "").strip():
+            context_parts.append("\nRecent news (use if relevant to the question):")
+            context_parts.append((news_context or "").strip()[:4000])
+        system = CHAT_AI_SYSTEM + f"\n\nRespond in {lang_name}."
+        user_content = "\n\n".join(context_parts) + "\n\n---\nUser question: " + (user_message or "").strip()
+        r = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user_content},
+            ],
+            max_tokens=800,
+        )
+        raw = (r.choices[0].message.content or "").strip()
+        return raw or "I couldn't generate a reply. Please try again."
+    except Exception as e:
+        return f"Sorry, an error occurred: {str(e)[:200]}"

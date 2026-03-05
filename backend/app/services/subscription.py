@@ -100,6 +100,81 @@ def can_analyze(user_id: str) -> tuple[bool, str, bool, str | None]:
     return (True, "", full_analysis, None)
 
 
+def get_chat_limit(plan: str) -> int | None:
+    """
+    Retourne la limite de requêtes chat IA par jour.
+    Pro: 1/jour. Lifetime: None (illimité). Free/Starter: 0 (non autorisé).
+    """
+    if plan == PLAN_LIFETIME:
+        return None
+    if plan == PLAN_PRO:
+        return 1
+    return 0
+
+
+def get_chat_usage(user_id: str) -> tuple[int, date | None]:
+    """Récupère chat_requests_used_today et last_chat_date pour l'utilisateur."""
+    if not user_id or not _use_supabase():
+        return (0, None)
+    supabase = get_supabase_admin() or get_supabase()
+    try:
+        r = supabase.table("profiles").select("chat_requests_used_today, last_chat_date").eq("id", user_id).execute()
+        if not r.data or len(r.data) == 0:
+            return (0, None)
+        row = r.data[0]
+        used = int(row.get("chat_requests_used_today") or 0)
+        last = row.get("last_chat_date")
+        if last:
+            try:
+                last = date.fromisoformat(str(last)[:10])
+            except Exception:
+                last = None
+        return (used, last)
+    except Exception:
+        return (0, None)
+
+
+def can_use_chat_ai(user_id: str) -> tuple[bool, int | None, str]:
+    """
+    Retourne (autorisé, remaining, message).
+    remaining = None si illimité (Lifetime), sinon nombre de questions restantes aujourd'hui.
+    """
+    if not _use_supabase():
+        return (True, None, "")
+    plan, _, _, _, _ = get_plan_and_usage(user_id)
+    limit = get_chat_limit(plan)
+    if limit == 0:
+        return (False, 0, "Chat IA réservé aux abonnés Pro et Lifetime.")
+    today = datetime.now(timezone.utc).date()
+    used, last = get_chat_usage(user_id)
+    used = reset_if_new_day(used, last, today)
+    if limit is None:
+        return (True, None, "")
+    remaining = max(0, limit - used)
+    if remaining == 0:
+        return (False, 0, "Limite atteinte : 1 question par jour pour le plan Pro. Réessayez demain ou passez à Lifetime pour des questions illimitées.")
+    return (True, remaining, "")
+
+
+def consume_chat_ai(user_id: str) -> None:
+    """Incrémente chat_requests_used_today et met à jour last_chat_date."""
+    if not user_id or not _use_supabase():
+        return
+    today = datetime.now(timezone.utc).date()
+    used, last = get_chat_usage(user_id)
+    used = reset_if_new_day(used, last, today)
+    new_used = used + 1
+    supabase = get_supabase_admin() or get_supabase()
+    supabase.table("profiles").upsert(
+        {
+            "id": user_id,
+            "chat_requests_used_today": new_used,
+            "last_chat_date": today.isoformat(),
+        },
+        on_conflict="id",
+    ).execute()
+
+
 def consume_analysis(user_id: str, home_team: str | None = None, away_team: str | None = None) -> None:
     """Incrémente analyses_used_today/analyses_total, met à jour last_analysis_date, et journalise l'évènement d'analyse."""
     if not user_id or not _use_supabase():

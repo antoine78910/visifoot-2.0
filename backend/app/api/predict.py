@@ -11,6 +11,7 @@ from app.schemas.predict import (
     PredictRequest,
     PredictResponse,
     TranslateRequest,
+    ChatRequest,
     OverUnderItem,
     ExactScoreItem,
     MostLikelyScoreItem,
@@ -18,12 +19,12 @@ from app.schemas.predict import (
 )
 from app.services.data_loader import load_match_context
 from app.ml.poisson import predict_all
-from app.services.openai_summary import build_prompt_context, generate_ai_analysis, generate_ai_analysis_sportmonks, translate_analysis
+from app.services.openai_summary import build_prompt_context, generate_ai_analysis, generate_ai_analysis_sportmonks, translate_analysis, chat_ai_reply
 from app.services.news_fetcher import fetch_football_news
 from app.services.news_scraper import fetch_news_multi_source, format_news_for_prompt
 from app.services.motivation_analysis import run_motivation_analysis
 from app.services.api_football import get_predictions as api_get_predictions
-from app.services.subscription import can_analyze, consume_analysis
+from app.services.subscription import can_analyze, consume_analysis, can_use_chat_ai, consume_chat_ai
 
 router = APIRouter(prefix="/predict", tags=["predict"])
 
@@ -755,6 +756,52 @@ def get_match_result(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.post("/chat")
+def predict_chat(
+    payload: ChatRequest,
+    x_user_id: str | None = Header(None, alias="X-User-Id"),
+):
+    """
+    Chat IA: answer one user question about the current match analysis. Pro: 1 request/day, Lifetime: unlimited.
+    Requires X-User-Id. Body: message, analysis_context (optional), language (optional).
+    """
+    user_id = (x_user_id or "").strip()
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required to use the AI chat.")
+    allowed, remaining, msg = can_use_chat_ai(user_id)
+    if not allowed:
+        raise HTTPException(
+            status_code=403,
+            detail=msg or "Chat IA is not available for your plan.",
+        )
+    analysis_context = payload.analysis_context or {}
+    home_team = (analysis_context.get("home_team") or "").strip() or ""
+    away_team = (analysis_context.get("away_team") or "").strip() or ""
+    league = (analysis_context.get("league") or "").strip() or None
+    news_context = ""
+    if home_team and away_team:
+        try:
+            scraped_items = fetch_news_multi_source(
+                home_team=home_team,
+                away_team=away_team,
+                league=league,
+                max_items_total=12,
+                max_age_days=5,
+            )
+            news_context = format_news_for_prompt(scraped_items) if scraped_items else ""
+        except Exception:
+            news_context = ""
+    reply = chat_ai_reply(
+        analysis_context=analysis_context,
+        user_message=payload.message or "",
+        language=payload.language or "en",
+        news_context=news_context,
+    )
+    consume_chat_ai(user_id)
+    _, remaining_after, _ = can_use_chat_ai(user_id)
+    return {"answer": reply, "chat_remaining": remaining_after}
 
 
 @router.post("/translate")

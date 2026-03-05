@@ -1,13 +1,24 @@
 "use client";
 
+import { useState } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useGeoCurrency } from "@/hooks/useGeoCurrency";
 import { formatPrice } from "@/lib/geoCurrency";
 import { getWhopCheckoutUrl, getDatafastVisitorId } from "@/lib/whopCheckout";
+import type { WhopPlanId } from "@/lib/whopCheckout";
 import { getUserFromStorage } from "@/lib/auth";
 import { Medal, Check, Gem } from "lucide-react";
 
 const ACCENT = "#00ffe8";
+
+function Spinner({ className }: { className?: string }) {
+  return (
+    <svg className={`animate-spin ${className ?? ""}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden>
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+    </svg>
+  );
+}
 
 function LightningIcon({ className }: { className?: string }) {
   return (
@@ -49,6 +60,17 @@ function PricingPage() {
   const { config: currencyConfig, isLoading } = useGeoCurrency();
   const user = getUserFromStorage();
   const currentPlan = (user && user.plan) ? user.plan : "free";
+  const [loadingPlan, setLoadingPlan] = useState<WhopPlanId | null>(null);
+
+  const goToWhop = (plan: WhopPlanId, source: string) => {
+    setLoadingPlan(plan);
+    const url = getWhopCheckoutUrl(plan, currencyConfig.currency, getDatafastVisitorId(), source);
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        window.location.href = url;
+      }, 400);
+    });
+  };
 
   return (
     <div className="w-full px-4 pt-6 pb-12 sm:px-6 sm:pt-8 sm:pb-16 max-w-4xl mx-auto">
@@ -112,13 +134,18 @@ function PricingPage() {
           </ul>
           <button
             type="button"
-            onClick={() => {
-              window.location.href = getWhopCheckoutUrl("starter", currencyConfig.currency, getDatafastVisitorId(), "pricing-starter");
-            }}
-            className="mt-6 w-full py-3 px-4 rounded-xl font-semibold text-[#00ffe8] bg-transparent border-2 border-[#00ffe8]/50 hover:border-[#00ffe8] hover:shadow-[0_0_20px_4px_rgba(0,255,232,0.45)] transition-all duration-300 disabled:opacity-50 disabled:bg-zinc-800/50 disabled:border-zinc-600 disabled:text-zinc-400 disabled:shadow-none"
-            disabled={false}
+            onClick={() => goToWhop("starter", "pricing-starter")}
+            disabled={loadingPlan !== null}
+            className="mt-6 w-full py-3 px-4 rounded-xl font-semibold text-[#00ffe8] bg-transparent border-2 border-[#00ffe8]/50 hover:border-[#00ffe8] hover:shadow-[0_0_20px_4px_rgba(0,255,232,0.45)] transition-all duration-300 disabled:opacity-50 disabled:bg-zinc-800/50 disabled:border-zinc-600 disabled:text-zinc-400 disabled:shadow-none flex items-center justify-center gap-2"
           >
-            {t("pricing.unlockStarter")} - {formatPrice(currencyConfig, currencyConfig.starterAmount)}{t("pricing.perMonth")}
+            {loadingPlan === "starter" ? (
+              <>
+                <Spinner className="w-5 h-5 flex-shrink-0 text-[#00ffe8]" />
+                <span>Redirecting...</span>
+              </>
+            ) : (
+              `${t("pricing.unlockStarter")} - ${formatPrice(currencyConfig, currencyConfig.starterAmount)}${t("pricing.perMonth")}`
+            )}
           </button>
         </div>
         )}
@@ -174,13 +201,18 @@ function PricingPage() {
           </ul>
           <button
             type="button"
-            onClick={() => {
-              window.location.href = getWhopCheckoutUrl("pro", currencyConfig.currency, getDatafastVisitorId(), "pricing-pro");
-            }}
-            className="mt-6 w-full py-3 px-4 rounded-xl font-semibold text-[#0d0d12] bg-gradient-to-r from-[#00ffe8] to-[#00ddcc] hover:from-[#00ffe8] hover:to-[#00ddcc] hover:shadow-[0_0_24px_6px_rgba(0,255,232,0.5)] transition-all duration-300 disabled:opacity-50"
-            disabled={false}
+            onClick={() => goToWhop("pro", "pricing-pro")}
+            disabled={loadingPlan !== null}
+            className="mt-6 w-full py-3 px-4 rounded-xl font-semibold text-[#0d0d12] bg-gradient-to-r from-[#00ffe8] to-[#00ddcc] hover:from-[#00ffe8] hover:to-[#00ddcc] hover:shadow-[0_0_24px_6px_rgba(0,255,232,0.5)] transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {t("pricing.unlockPro")} - {formatPrice(currencyConfig, currencyConfig.proAmount)}{t("pricing.perMonth")}
+            {loadingPlan === "pro" ? (
+              <>
+                <Spinner className="w-5 h-5 flex-shrink-0 text-[#0d0d12]" />
+                <span>Redirecting...</span>
+              </>
+            ) : (
+              `${t("pricing.unlockPro")} - ${formatPrice(currencyConfig, currencyConfig.proAmount)}${t("pricing.perMonth")}`
+            )}
           </button>
         </div>
         )}
@@ -236,13 +268,18 @@ function PricingPage() {
           </ul>
           <button
             type="button"
-            onClick={() => {
-              window.location.href = getWhopCheckoutUrl("lifetime", currencyConfig.currency, getDatafastVisitorId(), "pricing-lifetime");
-            }}
-            className="mt-6 w-full py-3 px-4 rounded-xl font-semibold text-[#0d0d12] bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 hover:shadow-[0_0_22px_6px_rgba(245,158,11,0.45)] transition-all duration-300 disabled:opacity-50 disabled:text-zinc-500 shadow-[0_0_20px_-5px_rgba(245,158,11,0.4)]"
-            disabled={false}
+            onClick={() => goToWhop("lifetime", "pricing-lifetime")}
+            disabled={loadingPlan !== null}
+            className="mt-6 w-full py-3 px-4 rounded-xl font-semibold text-[#0d0d12] bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 hover:shadow-[0_0_22px_6px_rgba(245,158,11,0.45)] transition-all duration-300 disabled:opacity-50 disabled:text-zinc-500 shadow-[0_0_20px_-5px_rgba(245,158,11,0.4)] flex items-center justify-center gap-2"
           >
-            {t("pricing.unlockLifetime")} - {formatPrice(currencyConfig, currencyConfig.lifetimeAmount)}
+            {loadingPlan === "lifetime" ? (
+              <>
+                <Spinner className="w-5 h-5 flex-shrink-0 text-[#0d0d12]" />
+                <span>Redirecting...</span>
+              </>
+            ) : (
+              `${t("pricing.unlockLifetime")} - ${formatPrice(currencyConfig, currencyConfig.lifetimeAmount)}`
+            )}
           </button>
         </div>
         </div>
