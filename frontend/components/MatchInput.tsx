@@ -227,14 +227,14 @@ export function MatchInput({
           for (const line of lines) {
             if (!line.trim()) continue;
             try {
-              const event = JSON.parse(line) as { type?: string; step?: string; percent?: number; data?: Record<string, unknown>; message?: string };
+              const event = JSON.parse(line) as { type?: string; step?: string; percent?: number; data?: Record<string, unknown>; message?: string; code?: string };
               if (event.type === "progress") {
                 setProgress(event.percent ?? 0);
                 setProgressStep(event.step ?? "");
               } else if (event.type === "result" && event.data) {
                 data = event.data as Record<string, unknown>;
               } else if (event.type === "error") {
-                const code = (event as { code?: string }).code;
+                const code = event.code;
                 if (code === "starter" || code === "free") {
                   setLimitModalVariant(code === "starter" ? "pro_lifetime" : "free");
                   setLoading(false);
@@ -247,6 +247,27 @@ export function MatchInput({
                 // ignore JSON/parse errors for non-event lines
               } else throw parseErr;
             }
+          }
+        }
+        // Process any remaining buffer (last line may not end with \n when stream closes)
+        if (buffer.trim()) {
+          try {
+            const event = JSON.parse(buffer.trim()) as { type?: string; step?: string; percent?: number; data?: Record<string, unknown>; message?: string; code?: string };
+            if (event.type === "result" && event.data) {
+              data = event.data as Record<string, unknown>;
+            } else if (event.type === "error") {
+              const code = event.code;
+              if (code === "starter" || code === "free") {
+                setLimitModalVariant(code === "starter" ? "pro_lifetime" : "free");
+                setLoading(false);
+                return;
+              }
+              throw new Error(event.message ?? "Analysis failed.");
+            }
+          } catch (parseErr) {
+            if (parseErr instanceof Error && parseErr.message !== "Analysis failed.") {
+              // ignore
+            } else throw parseErr;
           }
         }
       }

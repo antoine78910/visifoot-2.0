@@ -846,9 +846,9 @@ def load_match_context_sportmonks(
         fixture_flat = {k: v for k, v in fixture_data.items() if k not in ("participants", "league", "venue")}
         sportmonks_fixture_with_predictions = {"data": {**fixture_flat, "predictions": probs_list}}
 
-    # Value Bets by Fixture ID (bookmaker, odd, fair_odd, stake, bet, is_value)
+    # Value Bets : uniquement quand on a des prédictions (évite de bloquer le flux 503)
     sportmonks_value_bets: Optional[list[dict[str, Any]]] = None
-    if fixture_id:
+    if fixture_id and use_api_probs:
         report("Loading Sportmonks value bets…", 28)
         sportmonks_value_bets = value_bets_by_fixture(int(fixture_id))
         if sportmonks_value_bets:
