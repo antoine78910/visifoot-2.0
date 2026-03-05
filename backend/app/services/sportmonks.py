@@ -506,6 +506,38 @@ def predictions_probabilities_by_fixture(
     return raw
 
 
+def value_bets_by_fixture(
+    fixture_id: int, include_type: bool = True
+) -> Optional[list[dict[str, Any]]]:
+    """
+    GET /predictions/value-bets/fixtures/{id}.
+    Retourne la liste des value bets (bookmaker, odd, fair_odd, stake, bet, is_value, type_id [+ type si include).
+    Doc: https://docs.sportmonks.com/v3/endpoints-and-entities/endpoints/predictions/get-value-bets-by-fixture-id
+    """
+    data = _get(
+        f"/predictions/value-bets/fixtures/{fixture_id}",
+        include="type" if include_type else None,
+    )
+    raw = data.get("data")
+    if raw is None:
+        return None
+    if not isinstance(raw, list):
+        return [raw] if isinstance(raw, dict) else None
+    type_list = data.get("type")
+    if isinstance(type_list, dict):
+        type_list = [type_list] if type_list.get("id") is not None else []
+    elif not isinstance(type_list, list):
+        type_list = []
+    type_by_id = {int(t["id"]): t for t in type_list if isinstance(t, dict) and t.get("id") is not None}
+    if type_by_id:
+        for v in raw:
+            if isinstance(v, dict) and v.get("type_id") is not None and "type" not in v:
+                tid = int(v.get("type_id"))
+                if tid in type_by_id:
+                    v["type"] = type_by_id[tid]
+    return raw
+
+
 def resolve_fixture_and_teams(home_team: str, away_team: str) -> Optional[dict[str, Any]]:
     """
     Trouve un prochain match entre les deux équipes et retourne fixture + infos équipes (logos).
@@ -814,11 +846,20 @@ def load_match_context_sportmonks(
         fixture_flat = {k: v for k, v in fixture_data.items() if k not in ("participants", "league", "venue")}
         sportmonks_fixture_with_predictions = {"data": {**fixture_flat, "predictions": probs_list}}
 
+    # Value Bets by Fixture ID (bookmaker, odd, fair_odd, stake, bet, is_value)
+    sportmonks_value_bets: Optional[list[dict[str, Any]]] = None
+    if fixture_id:
+        report("Loading Sportmonks value bets…", 28)
+        sportmonks_value_bets = value_bets_by_fixture(int(fixture_id))
+        if sportmonks_value_bets:
+            print(f"[sportmonks] value_bets_by_fixture({fixture_id}) -> {len(sportmonks_value_bets)} items")
+
     data_recap: dict[str, Any] = {
         "data_source": "Sportmonks",
         "pipeline_steps": pipeline_steps,
         "sportmonks_predictions_unavailable_reason": None if use_api_probs else "Predictions add-on or fixture not predictable",
         "sportmonks_fixture_with_predictions": sportmonks_fixture_with_predictions,
+        "sportmonks_value_bets": sportmonks_value_bets,
         "sportmonks_predictions": {
             "home_win": home_win,
             "draw": draw,

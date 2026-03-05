@@ -368,6 +368,7 @@ def _build_analysis_recap(
         "api_requests_estimate": "~17–21 requests (API-Football)" if recap.get("data_source") == "API-Football" else None,
         "pipeline_steps": steps,
         "sportmonks_fixture_with_predictions": recap.get("sportmonks_fixture_with_predictions"),
+        "sportmonks_value_bets": recap.get("sportmonks_value_bets"),
     }
 
 
@@ -443,6 +444,10 @@ def _build_response(
     sportmonks_fixture = (ctx.get("data_recap") or {}).get("sportmonks_fixture_with_predictions")
     if sportmonks_fixture is not None:
         resp["sportmonks_fixture_with_predictions"] = sportmonks_fixture
+    # Value bets (bookmaker, odd, fair_odd, stake, bet, is_value) — Sportmonks Predictions add-on
+    value_bets = (ctx.get("data_recap") or {}).get("sportmonks_value_bets")
+    if value_bets is not None:
+        resp["value_bets"] = value_bets
     return resp
 
 
@@ -463,6 +468,8 @@ def run_predict_with_progress(
         home_team_id=payload.home_team_id,
         away_team_id=payload.away_team_id,
     )
+    if not ctx:
+        raise HTTPException(status_code=404, detail="No fixture found for this match.")
     # Sportmonks : si les prédictions ne sont pas dispo (predictable: false ou add-on manquant), erreur 503
     err = ctx.get("_sportmonks_predictions_unavailable_error")
     if err:
@@ -618,6 +625,9 @@ def predict_stream(
             if user_id:
                 consume_analysis(user_id)
             progress_queue.put({"type": "result", "data": result})
+        except HTTPException as e:
+            detail = e.detail if isinstance(e.detail, str) else (str(e.detail) if e.detail else str(e))
+            progress_queue.put({"type": "error", "message": detail, "code": "predictions_unavailable" if e.status_code == 503 else None})
         except Exception as e:  # noqa: BLE001
             progress_queue.put({"type": "error", "message": str(e)})
 
