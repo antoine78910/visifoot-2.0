@@ -44,15 +44,21 @@ def _get(path: str, params: Optional[dict[str, Any]] = None, include: Optional[s
         return {}
 
 
-def teams_search(name: str, limit: int = 5) -> list[dict[str, Any]]:
-    """GET /teams/search/{name}. Retourne liste de { id, name, short_code, image_path, ... }."""
+def teams_search(
+    name: str, limit: int = 5, include: Optional[str] = None
+) -> list[dict[str, Any]] | dict[str, Any]:
+    """
+    GET /teams/search/{name}. Retourne liste de { id, name, short_code, image_path, country_id, ... }.
+    Si include est fourni (ex. "country"), retourne la réponse complète { "data": [...], "country": [...] }.
+    """
     name_clean = (name or "").strip()
     if not name_clean:
-        return []
-    # API: search by name (encode the query)
+        return [] if not include else {}
     import urllib.parse
     q = urllib.parse.quote(name_clean)
-    data = _get(f"/teams/search/{q}", params={"per_page": limit})
+    data = _get(f"/teams/search/{q}", params={"per_page": limit}, include=include)
+    if include:
+        return data
     return data.get("data") or []
 
 
@@ -165,10 +171,20 @@ def _team_matches_query_sportmonks(team: dict, q_normalized: str) -> bool:
     return False
 
 
+def _team_country_allowed(country_name: Optional[str]) -> bool:
+    """True si le pays fait partie des pays autorisés (Europe + 27 ligues)."""
+    from app.core.leagues import ALLOWED_COUNTRIES_FOR_SUGGESTIONS
+    c = (country_name or "").strip()
+    if not c:
+        return False
+    return c in ALLOWED_COUNTRIES_FOR_SUGGESTIONS
+
+
 def get_teams_for_autocomplete_sportmonks(q: Optional[str] = None, limit: int = 80) -> list[dict[str, Any]]:
     """
     Liste d'équipes pour l'autocomplete (id, name, crest, country).
     Suggestion intelligente : alias (psg→Paris SG, aja→Auxerre) + recherche Sportmonks.
+    Ne garde que les équipes dont le pays est en Europe ou dans les 27 ligues.
     """
     if not _use_sportmonks():
         print("[sportmonks] token non configuré -> []")
@@ -192,8 +208,24 @@ def get_teams_for_autocomplete_sportmonks(q: Optional[str] = None, limit: int = 
     per_search = max(limit // len(search_terms), 10)
 
     for term in search_terms:
-        raw = teams_search(term, limit=per_search)
-        print(f"[sportmonks] teams_search({term!r}, {per_search}) -> {len(raw or [])} résultats")
+        raw_response = teams_search(term, limit=per_search, include="country")
+        if isinstance(raw_response, dict):
+            raw = raw_response.get("data") or []
+            # Map country_id -> name (Sportmonks renvoie country/countries en liste ou objet)
+            country_list = raw_response.get("country") or raw_response.get("countries")
+            if isinstance(country_list, dict):
+                country_list = [country_list] if country_list.get("id") is not None else []
+            elif not isinstance(country_list, list):
+                country_list = []
+            country_by_id: dict[int, str] = {}
+            for co in country_list:
+                if isinstance(co, dict) and co.get("id") is not None:
+                    country_by_id[int(co["id"])] = (co.get("name") or "").strip()
+        else:
+            raw = raw_response or []
+            country_by_id = {}
+
+        print(f"[sportmonks] teams_search({term!r}, {per_search}) -> {len(raw)} résultats")
         for t in raw:
             tid = t.get("id")
             if tid is None:
@@ -209,12 +241,16 @@ def get_teams_for_autocomplete_sportmonks(q: Optional[str] = None, limit: int = 
                 continue
             if q_normalized and not _team_matches_query_sportmonks(t, q_normalized):
                 continue
+            cid = t.get("country_id")
+            country_name = country_by_id.get(int(cid)) if cid is not None and country_by_id else None
+            if not _team_country_allowed(country_name):
+                continue
             seen_ids.add(tid_int)
             result.append({
                 "id": tid_int,
                 "name": name,
                 "crest": _team_crest(t),
-                "country": None,  # Sportmonks team peut avoir country_id; on ne charge pas l'include ici
+                "country": country_name,
             })
             if len(result) >= limit:
                 break
@@ -231,7 +267,7 @@ def get_teams_for_autocomplete_sportmonks(q: Optional[str] = None, limit: int = 
         return (len(TEAM_SEARCH_ALIASES), name)
 
     result.sort(key=sort_key)
-    print(f"[sportmonks] total -> {len(result)} teams")
+    print(f"[sportmonks] total -> {len(result)} teams (Europe + 27 ligues)")
     return result[:limit]
 
 

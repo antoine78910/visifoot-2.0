@@ -603,10 +603,22 @@ def _team_relevance_score(name: str, q_normalized: str) -> tuple[int, int, str]:
     return (4, _priority_for_name(n), n)
 
 
+def _country_allowed_for_suggestions(raw_country: Optional[str]) -> bool:
+    """True si le pays (EN ou FR) fait partie des pays autorisés (Europe + 27 ligues)."""
+    from app.core.leagues import ALLOWED_COUNTRIES_FOR_SUGGESTIONS
+    c = (raw_country or "").strip()
+    if not c:
+        return False  # pas de pays → on exclut (seules les équipes avec pays autorisé passent)
+    # Normaliser FR -> EN pour comparaison
+    en = COUNTRY_EN.get(c) or c
+    return en in ALLOWED_COUNTRIES_FOR_SUGGESTIONS
+
+
 def get_teams_from_supabase_direct(q: str, limit: int = 80) -> Optional[list[dict]]:
     """
     Recherche directe Supabase par search_terms (une requête, pas de cache complet).
     Utilisé pour accélérer l'autocomplete quand une requête q est fournie.
+    Ne garde que les équipes dont le pays est en Europe ou dans les 27 ligues.
     """
     from app.core.config import get_settings
     s = get_settings()
@@ -633,7 +645,7 @@ def get_teams_from_supabase_direct(q: str, limit: int = 80) -> Optional[list[dic
                 "country": _country_bilingual((row.get("country") or "").strip() or None),
             }
             for row in rows
-            if row.get("logo_url")
+            if row.get("logo_url") and _country_allowed_for_suggestions(row.get("country"))
         ]
         teams = [
             t for t in teams
@@ -675,7 +687,7 @@ def get_teams_from_supabase(
                 "country": _country_bilingual((row.get("country") or "").strip() or None),
             }
             for row in data
-            if row.get("logo_url")
+            if row.get("logo_url") and _country_allowed_for_suggestions(row.get("country"))
         ]
         if q_clean:
             before = len(teams)

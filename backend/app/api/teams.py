@@ -103,12 +103,13 @@ def list_teams(q: Optional[str] = None, limit: int = 80):
             demo = [t for t in demo if t.lower().startswith(ql) or any(w.startswith(ql) for w in t.lower().split())][:limit]
         return {"teams": [{"id": None, "name": n, "crest": None} for n in demo], "leagues": []}
     from app.core.supabase_client import get_supabase
+    from app.services.api_football import _country_allowed_for_suggestions
     supabase = get_supabase()
     r = supabase.table("teams").select("slug, name, logo_url, country").ilike("name", f"{q_clean}%").limit(limit * 2).execute()
     raw = [
         {"id": x.get("slug"), "name": (x.get("name") or x.get("slug")).strip(), "crest": x.get("logo_url"), "country": (x.get("country") or "").strip() or None}
         for x in (r.data or [])
-        if x.get("logo_url")
+        if x.get("logo_url") and _country_allowed_for_suggestions(x.get("country"))
     ]
     raw = _dedupe_teams_prefer_country(raw)[:limit]
     return {"teams": raw, "leagues": LEAGUES}

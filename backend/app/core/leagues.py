@@ -74,6 +74,16 @@ LEAGUES: list[League] = [
 ]
 LEAGUE_IDS: list[int] = [L["id"] for L in LEAGUES]
 
+# Pays autorisés pour les suggestions d'équipes : Europe + pays des 27 ligues (ex. Saudi Arabia).
+# Exclut Brésil, Argentine, USA, Maroc, etc.
+ALLOWED_COUNTRIES_FOR_SUGGESTIONS: frozenset[str] = frozenset({
+    "France", "England", "Spain", "Germany", "Italy", "Portugal", "Netherlands", "Belgium",
+    "Turkey", "Scotland", "Switzerland", "Austria", "Greece", "Denmark", "Sweden", "Norway",
+    "Poland", "Czech Republic", "Croatia", "Serbia", "Ukraine", "Russia",
+    "Wales", "Northern Ireland", "Ireland", "Romania", "Bulgaria", "Hungary", "Israel",
+    "Saudi Arabia",  # 27 ligues (Pro League)
+})
+
 # Saison courante au sens API-Football : année de *début* de la saison (ex: 2025 = 2025-26).
 # En Europe la saison commence en août ; avant août on est encore dans la saison N-1.
 def current_season() -> int:
