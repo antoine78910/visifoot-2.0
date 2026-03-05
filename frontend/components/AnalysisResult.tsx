@@ -382,8 +382,6 @@ export function AnalysisResult({ result }: { result: Result }) {
   const away = result.away_team ?? "Away";
   const { t } = useLanguage();
   const fullAnalysis = result.full_analysis !== false;
-  const probabilitiesModel = result.analysis_recap?.probabilities?.model ?? "";
-  const probabilitiesSourceLabel = probabilitiesModel.toLowerCase().includes("sportmonks") ? "SportMonks" : "Custom";
   const comparisonSourceLabel = "Custom";
   const [showUnlockModal1, setShowUnlockModal1] = useState(false);
   const [showUnlockModal2, setShowUnlockModal2] = useState(false);
@@ -789,63 +787,34 @@ export function AnalysisResult({ result }: { result: Result }) {
         </>
       )}
 
-      {/* Exact probabilities — titre toujours visible; pour free: contenu flouté + overlay 15% */}
+      {/* Exact probabilities — notre modèle Poisson uniquement */}
       <section className="pt-6 border-t border-white/5">
         <h2 className="text-lg font-semibold text-white mb-4">📊 Exact probabilities</h2>
-        <p className="text-zinc-500 text-xs -mt-2 mb-4">{t("analysis.statsSource").replace("{source}", probabilitiesSourceLabel)}</p>
         {fullAnalysis ? (
           <>
             <div className="space-y-4 mb-4">
               <div className="flex items-center gap-4">
                 <span className="text-zinc-300 text-sm w-28 flex-shrink-0">{home} win</span>
                 <div className="flex-1 h-3 bg-dark-input rounded-full overflow-hidden min-w-0">
-                  <div className="h-full bg-[#00ffe8] rounded-full transition-all duration-500" style={{ width: `${result.prob_home ?? 0}%` }} />
+                  <div className="h-full bg-[#00ffe8] rounded-full transition-all duration-500" style={{ width: `${result.internal_prob_home ?? result.prob_home ?? 0}%` }} />
                 </div>
-                <span className="text-[#00ffe8] font-semibold text-sm w-10 text-right flex-shrink-0">{result.prob_home ?? 0}%</span>
+                <span className="text-[#00ffe8] font-semibold text-sm w-10 text-right flex-shrink-0">{result.internal_prob_home ?? result.prob_home ?? 0}%</span>
               </div>
               <div className="flex items-center gap-4">
                 <span className="text-zinc-300 text-sm w-28 flex-shrink-0">Draw</span>
                 <div className="flex-1 h-3 bg-dark-input rounded-full overflow-hidden min-w-0">
-                  <div className="h-full bg-[#00ffe8] rounded-full transition-all duration-500" style={{ width: `${result.prob_draw ?? 0}%` }} />
+                  <div className="h-full bg-[#a3a3a3] rounded-full transition-all duration-500" style={{ width: `${result.internal_prob_draw ?? result.prob_draw ?? 0}%` }} />
                 </div>
-                <span className="text-zinc-300 font-semibold text-sm w-10 text-right flex-shrink-0">{result.prob_draw ?? 0}%</span>
+                <span className="text-zinc-300 font-semibold text-sm w-10 text-right flex-shrink-0">{result.internal_prob_draw ?? result.prob_draw ?? 0}%</span>
               </div>
               <div className="flex items-center gap-4">
                 <span className="text-zinc-300 text-sm w-28 flex-shrink-0">{away} win</span>
                 <div className="flex-1 h-3 bg-dark-input rounded-full overflow-hidden min-w-0">
-                  <div className="h-full bg-[#00ffe8] rounded-full transition-all duration-500" style={{ width: `${result.prob_away ?? 0}%` }} />
+                  <div className="h-full bg-[#ef4444] rounded-full transition-all duration-500" style={{ width: `${result.internal_prob_away ?? result.prob_away ?? 0}%` }} />
                 </div>
-                <span className="text-[#ef4444] font-semibold text-sm w-10 text-right flex-shrink-0">{result.prob_away ?? 0}%</span>
+                <span className="text-[#ef4444] font-semibold text-sm w-10 text-right flex-shrink-0">{result.internal_prob_away ?? result.prob_away ?? 0}%</span>
               </div>
             </div>
-            {(result.internal_prob_home != null || result.internal_prob_draw != null || result.internal_prob_away != null) && (
-              <div className="rounded-lg border border-white/10 bg-white/5 p-3 mb-4">
-                <p className="text-zinc-400 text-xs mb-2">Our model (all data) - 1X2 comparison</p>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-4">
-                    <span className="text-zinc-300 text-sm w-28 flex-shrink-0">{home} win</span>
-                    <div className="flex-1 h-2.5 bg-dark-input rounded-full overflow-hidden min-w-0">
-                      <div className="h-full bg-[#00ffe8] rounded-full" style={{ width: `${result.internal_prob_home ?? 0}%` }} />
-                    </div>
-                    <span className="text-[#00ffe8] font-semibold text-xs w-10 text-right flex-shrink-0">{result.internal_prob_home ?? 0}%</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-zinc-300 text-sm w-28 flex-shrink-0">Draw</span>
-                    <div className="flex-1 h-2.5 bg-dark-input rounded-full overflow-hidden min-w-0">
-                      <div className="h-full bg-[#a3a3a3] rounded-full" style={{ width: `${result.internal_prob_draw ?? 0}%` }} />
-                    </div>
-                    <span className="text-zinc-300 font-semibold text-xs w-10 text-right flex-shrink-0">{result.internal_prob_draw ?? 0}%</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-zinc-300 text-sm w-28 flex-shrink-0">{away} win</span>
-                    <div className="flex-1 h-2.5 bg-dark-input rounded-full overflow-hidden min-w-0">
-                      <div className="h-full bg-[#ef4444] rounded-full" style={{ width: `${result.internal_prob_away ?? 0}%` }} />
-                    </div>
-                    <span className="text-[#ef4444] font-semibold text-xs w-10 text-right flex-shrink-0">{result.internal_prob_away ?? 0}%</span>
-                  </div>
-                </div>
-              </div>
-            )}
             {result.implied_odds_home != null && (
               <>
                 <p className="text-zinc-500 text-xs mb-2">{t("betting.impliedOdds")} (decimal, compare with bookmakers)</p>
@@ -864,23 +833,23 @@ export function AnalysisResult({ result }: { result: Result }) {
                 <div className="flex items-center gap-4">
                   <span className="text-zinc-300 text-sm w-28 flex-shrink-0">{home} win</span>
                   <div className="flex-1 h-3 bg-dark-input rounded-full overflow-hidden min-w-0">
-                    <div className="h-full bg-[#00ffe8] rounded-full" style={{ width: `${result.prob_home ?? 0}%` }} />
+                    <div className="h-full bg-[#00ffe8] rounded-full" style={{ width: `${result.internal_prob_home ?? result.prob_home ?? 0}%` }} />
                   </div>
-                  <span className="text-[#00ffe8] font-semibold text-sm w-10 text-right flex-shrink-0">{result.prob_home ?? 0}%</span>
+                  <span className="text-[#00ffe8] font-semibold text-sm w-10 text-right flex-shrink-0">{result.internal_prob_home ?? result.prob_home ?? 0}%</span>
                 </div>
                 <div className="flex items-center gap-4">
                   <span className="text-zinc-300 text-sm w-28 flex-shrink-0">Draw</span>
                   <div className="flex-1 h-3 bg-dark-input rounded-full overflow-hidden min-w-0">
-                    <div className="h-full bg-[#00ffe8] rounded-full" style={{ width: `${result.prob_draw ?? 0}%` }} />
+                    <div className="h-full bg-[#00ffe8] rounded-full" style={{ width: `${result.internal_prob_draw ?? result.prob_draw ?? 0}%` }} />
                   </div>
-                  <span className="text-zinc-300 font-semibold text-sm w-10 text-right flex-shrink-0">{result.prob_draw ?? 0}%</span>
+                  <span className="text-zinc-300 font-semibold text-sm w-10 text-right flex-shrink-0">{result.internal_prob_draw ?? result.prob_draw ?? 0}%</span>
                 </div>
                 <div className="flex items-center gap-4">
                   <span className="text-zinc-300 text-sm w-28 flex-shrink-0">{away} win</span>
                   <div className="flex-1 h-3 bg-dark-input rounded-full overflow-hidden min-w-0">
-                    <div className="h-full bg-[#00ffe8] rounded-full" style={{ width: `${result.prob_away ?? 0}%` }} />
+                    <div className="h-full bg-[#00ffe8] rounded-full" style={{ width: `${result.internal_prob_away ?? result.prob_away ?? 0}%` }} />
                   </div>
-                  <span className="text-[#ef4444] font-semibold text-sm w-10 text-right flex-shrink-0">{result.prob_away ?? 0}%</span>
+                  <span className="text-[#ef4444] font-semibold text-sm w-10 text-right flex-shrink-0">{result.internal_prob_away ?? result.prob_away ?? 0}%</span>
                 </div>
               </div>
               {result.implied_odds_home != null && (
@@ -936,13 +905,14 @@ export function AnalysisResult({ result }: { result: Result }) {
                 <p className="text-zinc-500 text-xs mt-1">{t("analysis.expectedGoals")} (xG): {result.xg_home ?? 0} – {result.xg_away ?? 0}</p>
               </div>
               {result.exact_scores && result.exact_scores.length > 1 && (
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-zinc-400">
+                <p className="text-zinc-400 text-xs mt-1">
                   {result.exact_scores.slice(1, 5).map((s, i) => (
-                    <span key={i} className="text-xs">
+                    <span key={i}>
+                      {i > 0 && " · "}
                       {i + 2}e: <span className="text-white">{s.home}-{s.away}</span> <span className="text-[#00ffe8]">{s.probability}%</span>
                     </span>
                   ))}
-                </div>
+                </p>
               )}
             </div>
           )}
@@ -1123,213 +1093,6 @@ export function AnalysisResult({ result }: { result: Result }) {
         </div>
       </section>
         </>
-      )}
-
-      {/* Récap: toutes les étapes + données API utilisées pour cette analyse */}
-      {result.analysis_recap && (
-        <section className="pt-6 mt-6 border-t border-white/10">
-          <h2 className="text-lg font-semibold text-white mb-2">📋 {t("analysis.recapTitle")}</h2>
-          <p className="text-zinc-500 text-xs mb-3">{t("analysis.recapSubtitle")}</p>
-          {/* Liste des étapes du pipeline + données prises de l'API */}
-          {result.analysis_recap.pipeline_steps && result.analysis_recap.pipeline_steps.length > 0 && (
-            <div className="rounded-lg bg-white/5 border border-white/10 p-4 mb-4">
-              <h3 className="font-medium text-[#00ffe8] mb-3">{t("analysis.recapPipelineSteps")}</h3>
-              <ol className="space-y-3 list-none">
-                {result.analysis_recap.pipeline_steps
-                  .sort((a, b) => a.order - b.order)
-                  .map((step, idx) => (
-                    <li key={idx} className="text-sm">
-                      <span className="font-medium text-white">
-                        {step.order}. {t(step.title_key)}
-                      </span>
-                      <p className="text-zinc-400 text-xs mt-0.5 pl-0">{step.detail}</p>
-                    </li>
-                  ))}
-              </ol>
-            </div>
-          )}
-          <div className="rounded-lg bg-white/5 border border-white/10 p-4 text-sm space-y-4">
-            <div>
-              <h3 className="font-medium text-[#00ffe8] mb-1">{t("analysis.recapDataSource")}</h3>
-              <p className="text-zinc-300">{result.analysis_recap.data_source}</p>
-              {result.analysis_recap.api_requests_estimate && (
-                <p className="text-zinc-500 text-xs mt-0.5">{result.analysis_recap.api_requests_estimate}</p>
-              )}
-            </div>
-            {result.analysis_recap.form && (
-              <div>
-                <h3 className="font-medium text-[#00ffe8] mb-1">{t("analysis.recapForm")}</h3>
-                <ul className="text-zinc-300 space-y-0.5 list-none text-xs">
-                  <li>{t("analysis.recapFormMatches").replace("{home}", String(result.analysis_recap.form.home_matches_used ?? 5)).replace("{away}", String(result.analysis_recap.form.away_matches_used ?? 5))}</li>
-                  <li>{t("analysis.recapFormWdl").replace("{home}", result.analysis_recap.form.home_wdl ?? "—").replace("{away}", result.analysis_recap.form.away_wdl ?? "—")}</li>
-                  <li>{t("analysis.recapFormGoals").replace("{hFor}", String(result.analysis_recap.form.home_goals_for_avg ?? "—")).replace("{hAg}", String(result.analysis_recap.form.home_goals_against_avg ?? "—")).replace("{aFor}", String(result.analysis_recap.form.away_goals_for_avg ?? "—")).replace("{aAg}", String(result.analysis_recap.form.away_goals_against_avg ?? "—"))}</li>
-                </ul>
-              </div>
-            )}
-            {result.analysis_recap.h2h && (
-              <div>
-                <h3 className="font-medium text-[#00ffe8] mb-1">{t("analysis.recapH2h")}</h3>
-                <p className="text-zinc-300 text-xs">
-                  {t("analysis.recapH2hDetail")
-                    .replace("{count}", String(result.analysis_recap.h2h.matches_count ?? 0))
-                    .replace("{homeWins}", String(result.analysis_recap.h2h.home_wins ?? 0))
-                    .replace("{draws}", String(result.analysis_recap.h2h.draws ?? 0))
-                    .replace("{awayWins}", String(result.analysis_recap.h2h.away_wins ?? 0))
-                    .replace("{seasons}", result.analysis_recap.h2h.seasons_used != null ? String(result.analysis_recap.h2h.seasons_used) : "—")}
-                </p>
-                {(result.analysis_recap.h2h.raw_matches_count ?? 0) > 0 && (
-                  <p className="text-zinc-400 text-xs mt-1">
-                    {t("analysis.recapH2hRawDetail")
-                      .replace("{count}", String(result.analysis_recap.h2h.raw_matches_count ?? 0))
-                      .replace("{homeWins}", String(result.analysis_recap.h2h.raw_home_wins ?? 0))
-                      .replace("{draws}", String(result.analysis_recap.h2h.raw_draws ?? 0))
-                      .replace("{awayWins}", String(result.analysis_recap.h2h.raw_away_wins ?? 0))}
-                  </p>
-                )}
-                {result.analysis_recap.h2h.season_breakdown && result.analysis_recap.h2h.season_breakdown.length > 0 && (
-                  <div className="text-zinc-400 text-xs mt-2 space-y-1">
-                    <p>{t("analysis.recapH2hSeasonBreakdown")}</p>
-                    {result.analysis_recap.h2h.season_breakdown.map((s, idx) => {
-                      const row = s as { season?: string; weight?: number; raw_home_wins?: number; raw_draws?: number; raw_away_wins?: number; weighted_home_wins?: number; weighted_draws?: number; weighted_away_wins?: number };
-                      const rH = row.raw_home_wins ?? 0;
-                      const rD = row.raw_draws ?? 0;
-                      const rA = row.raw_away_wins ?? 0;
-                      const wH = Number(row.weighted_home_wins ?? 0).toFixed(1);
-                      const wD = Number(row.weighted_draws ?? 0).toFixed(1);
-                      const wA = Number(row.weighted_away_wins ?? 0).toFixed(1);
-                      return (
-                        <p key={idx}>
-                          {String(row.season ?? "—")}: raw {rH}-{rD}-{rA}
-                          {" · "}weighted {wH}-{wD}-{wA}
-                          {" · "}w={String(row.weight ?? "—")}
-                        </p>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-            {result.analysis_recap.probabilities && (
-              <div>
-                <h3 className="font-medium text-[#00ffe8] mb-1">{t("analysis.recapProbabilities")}</h3>
-                <p className="text-zinc-300 text-xs">
-                  {t("analysis.recapProbDetail")
-                    .replace("{model}", result.analysis_recap.probabilities.model ?? "Poisson")
-                    .replace("{xgHome}", typeof result.analysis_recap.probabilities.xg_home === "number" ? result.analysis_recap.probabilities.xg_home.toFixed(2) : "—")
-                    .replace("{xgAway}", typeof result.analysis_recap.probabilities.xg_away === "number" ? result.analysis_recap.probabilities.xg_away.toFixed(2) : "—")}
-                </p>
-                {"sportmonks_unavailable_reason" in result.analysis_recap.probabilities && result.analysis_recap.probabilities.sportmonks_unavailable_reason && (
-                  <p className="text-zinc-400 text-xs mt-1">
-                    {t("analysis.recapProbSportmonksUnavailable").replace("{reason}", result.analysis_recap.probabilities.sportmonks_unavailable_reason)}
-                  </p>
-                )}
-              </div>
-            )}
-            {result.analysis_recap.ai_summary && (
-              <div>
-                <h3 className="font-medium text-[#00ffe8] mb-1">{t("analysis.recapAiSummary")}</h3>
-                <p className="text-zinc-300 text-xs">
-                  {result.analysis_recap.ai_summary.news_included
-                    ? t("analysis.recapAiWithNews")
-                    : t("analysis.recapAiNoNews")}
-                </p>
-              </div>
-            )}
-            {result.analysis_recap.motivation && (result.analysis_recap.motivation.match_context_summary || result.analysis_recap.motivation.home_motivation_label) && (
-              <div>
-                <h3 className="font-medium text-[#00ffe8] mb-1">{t("analysis.matchImportance")}</h3>
-                {result.analysis_recap.motivation.match_context_summary && (
-                  <p className="text-zinc-300 text-xs mb-2">{result.analysis_recap.motivation.match_context_summary}</p>
-                )}
-                <p className="text-zinc-400 text-xs">
-                  Home motivation: {result.analysis_recap.motivation.home_motivation_label ?? "—"}
-                  {result.analysis_recap.motivation.home_motivation_score != null && ` (score ${result.analysis_recap.motivation.home_motivation_score})`}
-                  {" · "}
-                  Away motivation: {result.analysis_recap.motivation.away_motivation_label ?? "—"}
-                  {result.analysis_recap.motivation.away_motivation_score != null && ` (score ${result.analysis_recap.motivation.away_motivation_score})`}
-                </p>
-              </div>
-            )}
-            {result.analysis_recap.stats_period && (
-              <div>
-                <h3 className="font-medium text-[#00ffe8] mb-1">{t("analysis.recapStatsPeriod")}</h3>
-                <p className="text-zinc-300 text-xs">{result.analysis_recap.stats_period}</p>
-              </div>
-            )}
-            {result.analysis_recap.how_bars_work && Object.keys(result.analysis_recap.how_bars_work).length > 0 && (
-              <div>
-                <h3 className="font-medium text-[#00ffe8] mb-2">{t("analysis.recapHowBars")}</h3>
-                <ul className="space-y-1.5 text-xs text-zinc-300 list-none">
-                  {(["attack", "defense", "goals", "form", "h2h", "overall"] as const).map((key) => {
-                    const label = t(`analysis.recapBarLabel.${key}`);
-                    const text = result.analysis_recap!.how_bars_work![key];
-                    return text ? <li key={key}><span className="text-white font-medium">{label}:</span> {text}</li> : null;
-                  })}
-                </ul>
-              </div>
-            )}
-            {result.analysis_recap.how_score_prediction_works && (
-              <div>
-                <h3 className="font-medium text-[#00ffe8] mb-1">{t("analysis.recapHowScore")}</h3>
-                <p className="text-zinc-300 text-xs whitespace-pre-line">{result.analysis_recap.how_score_prediction_works}</p>
-              </div>
-            )}
-            {result.analysis_recap.raw_data && (
-              <div>
-                <h3 className="font-medium text-[#00ffe8] mb-2">{t("analysis.recapRawData")}</h3>
-                <div className="rounded bg-black/20 p-3 text-xs text-zinc-400 font-mono space-y-2 overflow-x-auto">
-                  {result.analysis_recap.raw_data.home_goals_for_last5 && (
-                    <p><span className="text-zinc-500">home_goals_for (last 5):</span> [{result.analysis_recap.raw_data.home_goals_for_last5.join(", ")}]</p>
-                  )}
-                  {result.analysis_recap.raw_data.home_goals_against_last5 && (
-                    <p><span className="text-zinc-500">home_goals_against (last 5):</span> [{result.analysis_recap.raw_data.home_goals_against_last5.join(", ")}]</p>
-                  )}
-                  {result.analysis_recap.raw_data.away_goals_for_last5 && (
-                    <p><span className="text-zinc-500">away_goals_for (last 5):</span> [{result.analysis_recap.raw_data.away_goals_for_last5.join(", ")}]</p>
-                  )}
-                  {result.analysis_recap.raw_data.away_goals_against_last5 && (
-                    <p><span className="text-zinc-500">away_goals_against (last 5):</span> [{result.analysis_recap.raw_data.away_goals_against_last5.join(", ")}]</p>
-                  )}
-                  {result.analysis_recap.raw_data.home_form_last5 && result.analysis_recap.raw_data.home_form_last5.length > 0 && (
-                    <p><span className="text-zinc-500">home_form (last 5):</span> [{result.analysis_recap.raw_data.home_form_last5.join(", ")}]</p>
-                  )}
-                  {result.analysis_recap.raw_data.away_form_last5 && result.analysis_recap.raw_data.away_form_last5.length > 0 && (
-                    <p><span className="text-zinc-500">away_form (last 5):</span> [{result.analysis_recap.raw_data.away_form_last5.join(", ")}]</p>
-                  )}
-                  {result.analysis_recap.raw_data.averages && (
-                    <p><span className="text-zinc-500">averages:</span> home_for={result.analysis_recap.raw_data.averages.home_goals_for ?? "—"}, home_against={result.analysis_recap.raw_data.averages.home_goals_against ?? "—"}, away_for={result.analysis_recap.raw_data.averages.away_goals_for ?? "—"}, away_against={result.analysis_recap.raw_data.averages.away_goals_against ?? "—"}</p>
-                  )}
-                  {result.analysis_recap.raw_data.lambdas && (
-                    <p><span className="text-zinc-500">lambdas:</span> lambda_home={result.analysis_recap.raw_data.lambdas.lambda_home ?? "—"}, lambda_away={result.analysis_recap.raw_data.lambdas.lambda_away ?? "—"}</p>
-                  )}
-                  {result.analysis_recap.raw_data.comparison_pcts && (
-                    <p><span className="text-zinc-500">comparison_pcts (bar %):</span> attack={result.analysis_recap.raw_data.comparison_pcts.attack_home_pct ?? "—"}%, defense={result.analysis_recap.raw_data.comparison_pcts.defense_home_pct ?? "—"}%, form={result.analysis_recap.raw_data.comparison_pcts.form_home_pct ?? "—"}%, h2h={result.analysis_recap.raw_data.comparison_pcts.h2h_home_pct ?? "—"}%, goals={result.analysis_recap.raw_data.comparison_pcts.goals_home_pct ?? "—"}%, overall={result.analysis_recap.raw_data.comparison_pcts.overall_home_pct ?? "—"}%</p>
-                  )}
-                  {result.analysis_recap.raw_data.h2h && (
-                    <p><span className="text-zinc-500">h2h:</span> home_wins={result.analysis_recap.raw_data.h2h.home_wins ?? "—"}, draws={result.analysis_recap.raw_data.h2h.draws ?? "—"}, away_wins={result.analysis_recap.raw_data.h2h.away_wins ?? "—"}, matches={result.analysis_recap.raw_data.h2h.matches_count ?? "—"}</p>
-                  )}
-                </div>
-              </div>
-            )}
-            {(result.scraped_news_count != null && result.scraped_news_count > 0) && (
-              <div>
-                <h3 className="font-medium text-[#00ffe8] mb-1">{t("analysis.recapScrapedNews")}</h3>
-                <p className="text-zinc-300 text-xs">{t("analysis.recapScrapedNewsCount").replace("{count}", String(result.scraped_news_count))}</p>
-              </div>
-            )}
-            {result.motivation_analysis && result.motivation_analysis.trim() && (
-              <div>
-                <h3 className="font-medium text-[#00ffe8] mb-1">{t("analysis.recapMotivationAnalysis")}</h3>
-                <details className="text-xs">
-                  <summary className="text-zinc-400 cursor-pointer">{t("analysis.recapMotivationExpand")}</summary>
-                  <pre className="mt-2 p-3 rounded bg-black/20 text-zinc-300 whitespace-pre-wrap font-sans text-xs overflow-x-auto max-h-96 overflow-y-auto">
-                    {result.motivation_analysis}
-                  </pre>
-                </details>
-              </div>
-            )}
-          </div>
-        </section>
       )}
 
       <section className="pt-6 mt-6 border-t border-white/5">

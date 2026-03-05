@@ -82,7 +82,9 @@ export function LandingMatchSearch({ analyseHref = "/analyse" }: LandingMatchSea
       </div>
 
       {selectedTeam && (
-        <div className="mt-6 p-4 rounded-2xl bg-white/5 border border-white/10">
+        <div className="relative mt-6">
+          <div className="absolute -inset-1 rounded-2xl bg-[#00ffe8]/20 blur-xl pointer-events-none" aria-hidden />
+          <div className="relative p-4 rounded-2xl bg-white/5 border border-white/10">
           <h3 className="text-sm font-semibold text-white mb-1">Upcoming matches</h3>
           <p className="text-zinc-500 text-xs mb-4">Click a match to analyze it with AI</p>
           {loadingUpcoming ? (
@@ -142,6 +144,7 @@ export function LandingMatchSearch({ analyseHref = "/analyse" }: LandingMatchSea
               ))}
             </ul>
           )}
+          </div>
         </div>
       )}
     </div>

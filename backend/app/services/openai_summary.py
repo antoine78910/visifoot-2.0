@@ -27,7 +27,7 @@ You will receive a JSON object containing:
 ANALYSIS REQUIREMENTS:
 
 1. MATCH OVERVIEW
-   Explain the general context: competition, teams involved, importance of the match.
+   One paragraph describing the single most likely way the match will unfold on the pitch. Narrative focus: who will control the game, how the opening 20–30 minutes might go, pressure and transitions. Use data to inform but describe what will happen (e.g. "Team X will likely establish early control through patient possession..."). Do not just list context or stats.
 
 2. WIN PROBABILITY ANALYSIS
    Interpret home win %, draw %, away win %. Explain which team is favored and why.
@@ -45,7 +45,7 @@ ANALYSIS REQUIREMENTS:
    If injuries are provided, explain how they may affect the match outcome.
 
 7. KEY MATCH DYNAMICS
-   Tempo of the match, possible tactical scenario, likely match pattern.
+   Describe what will happen on the pitch in an alternative scenario: tempo, tactical pattern, how the game might unfold. Narrative, not a list of data.
 
 8. FINAL MATCH INSIGHT
    Summarize: which team has the edge, likely score range, level of match balance.
@@ -134,7 +134,7 @@ def generate_quick_summary(context: str) -> str:
 
 
 def generate_scenario_1(context: str) -> str:
-    """Un paragraphe décrivant un scénario probable du match."""
+    """One paragraph describing the single most likely way the match will unfold on the pitch (narrative)."""
     client = _client()
     if not client:
         return "Scenario based on expected goals and form (AI scenario unavailable)."
@@ -142,7 +142,7 @@ def generate_scenario_1(context: str) -> str:
         r = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "You are a football analyst. In one paragraph, describe how the match might unfold: who dominates, when goals might come, tactical balance. Be concrete but neutral. Use the same language as the team names (e.g. French for French teams)."},
+                {"role": "system", "content": "You are a football analyst. In one paragraph, describe the single most likely way the match will unfold on the pitch: who will control the game, how the opening 20–30 minutes might go, how pressure and transitions will play out. Write as a match narrative (e.g. 'Team X will likely establish early control through patient possession...'). Use the data to inform the story but do not list stats; describe what will happen. Use the same language as the team names (e.g. French for French teams)."},
                 {"role": "user", "content": context},
             ],
             max_tokens=400,
@@ -282,10 +282,10 @@ def generate_ai_analysis(
     system += lang_instruction
     system += """
 - quick_summary: 2-3 sentences. Always use the REAL team names, league name, and venue from the context (e.g. "Monaco hosts Angers in a Ligue 1 match at Stade Louis II") — never output placeholder text like [Home], [Away], [League] or [Venue]. If "MOTIVATION AND CONTEXT ANALYSIS" or "SCRAPED NEWS" is provided in the context, you MUST use it: mention motivation factors, injuries/rotation, stakes (relegation, derby, must-win), and key news that could impact the match. E.g. "Our AI has analyzed news and context: [team] is in a relegation battle / has rotation concerns / key injury...". This makes the predictor more reliable.
-- scenario_1: One paragraph describing how the match might unfold. If motivation analysis is provided, reflect it (e.g. more motivated team, rotation, pressure).
-- scenario_2: Object with title (short), body (2 sentences + optional "Professional tip: ..."), probability_pct (number or null). Use news/motivation when relevant.
-- scenario_3: Same structure as scenario_2 (e.g. offensive duel, goals galore, over 2.5).
-- scenario_4: Same structure (e.g. offensive inefficiency, BTTS No).
+- scenario_1: One paragraph describing the single most likely way the match will unfold on the pitch. Focus on narrative: who will control the game, how the first 20–30 minutes might go, how pressure and transitions will play out. Use the data (xG, form, motivation) to inform the story but write as a match narrative (e.g. "Manchester City will likely establish early control through patient possession, probing Real Madrid's defensive vulnerabilities. The opening 20 minutes could see Madrid using home energy for fast starts, but City's superior defensive organization should weather this initial pressure."). Do not list stats; describe what will happen.
+- scenario_2: Object with title (short), body (one short paragraph describing what will happen in this alternative scenario — narrative, not a list of data; you may use probabilities to justify). probability_pct (number or null).
+- scenario_3: Same structure as scenario_2: narrative of what will happen on the pitch in this scenario.
+- scenario_4: Same structure as scenario_2: narrative of what will happen on the pitch in this scenario.
 - key_forces_home: Array of 2-4 short bullet points. Derive from MOTIVATION AND CONTEXT ANALYSIS and SCRAPED NEWS when provided (injuries, rotation, form, stakes).
 - key_forces_away: Array of 2-4 short bullet points for the away team. Same: use motivation and news when provided.
 Return only valid JSON, no markdown."""
