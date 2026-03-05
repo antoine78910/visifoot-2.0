@@ -37,8 +37,8 @@ export function LogoCloud() {
     <div
       className="w-full overflow-hidden py-4 [--logo-size:4.5rem] sm:[--logo-size:5.5rem] md:[--logo-size:6rem]"
       style={{
-        maskImage: "linear-gradient(to right, transparent 0%, black 2%, black 98%, transparent 100%)",
-        WebkitMaskImage: "linear-gradient(to right, transparent 0%, black 2%, black 98%, transparent 100%)",
+        maskImage: "linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%)",
+        WebkitMaskImage: "linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%)",
       }}
     >
       <InfiniteSlider gap={24} reverse speed={22} copies={3} className="flex items-center">

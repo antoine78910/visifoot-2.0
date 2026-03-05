@@ -60,7 +60,7 @@ export default function LandingPage() {
           <LandingMatchSearch analyseHref={ANALYSE_HREF} />
         </section>
 
-        <section className="relative mx-auto mt-6 sm:mt-8 w-full max-w-6xl px-4 flex-shrink-0">
+        <section className="relative mx-auto -mt-1 sm:mt-0 w-full max-w-6xl px-4 flex-shrink-0">
           <h2 className="mb-2 text-center text-sm font-medium tracking-wide text-zinc-500 sm:text-base">
             27 Major European Football Leagues Covered
           </h2>
