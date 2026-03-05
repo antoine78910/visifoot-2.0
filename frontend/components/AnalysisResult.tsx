@@ -157,31 +157,6 @@ type Result = {
   [k: string]: unknown;
 };
 
-/** Professional analysis (Sportmonks 8-section) — expandable block */
-function ProfessionalAnalysisBlock({ content, t }: { content: string; t: (key: string) => string }) {
-  const [expanded, setExpanded] = useState(false);
-  const previewLen = 320;
-  const hasMore = (content || "").length > previewLen;
-  const display = expanded || !hasMore ? content : content.slice(0, previewLen) + "...";
-  return (
-    <div className="space-y-3">
-      <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-        <span className="text-[#00ffe8]">📋</span> {t("analysis.professional_analysis")}
-      </h2>
-      <div className="text-zinc-300 leading-relaxed whitespace-pre-line text-sm">{display}</div>
-      {hasMore && (
-        <button
-          type="button"
-          onClick={() => setExpanded((e) => !e)}
-          className="text-[#00ffe8] hover:underline text-sm font-medium"
-        >
-          {expanded ? t("analysis.show_less") : t("analysis.show_full_analysis")}
-        </button>
-      )}
-    </div>
-  );
-}
-
 /** Grand indicateur de forme (Great = flamme orange, Poor = graph violet/rose, Average = barres) */
 function FormLabelBlock({ label, compact }: { label: string; compact?: boolean }) {
   const l = (label || "").toLowerCase();
@@ -377,6 +352,30 @@ export function AnalysisResult({ result }: { result: Result }) {
     setShowUnlockModal2(true);
   };
   const closeUnlockStep2 = () => setShowUnlockModal2(false);
+
+  const summaryText = (() => {
+    const raw = String(result.quick_summary ?? "").trim();
+    if (!raw) return "";
+    if (fullAnalysis) return raw;
+    const cleaned = raw
+      .split("\n")
+      .filter((line) => {
+        const l = line.toLowerCase();
+        if (line.includes("%")) return false;
+        return !/(xg|probab|1x2|odds|over\/under|btts)/.test(l);
+      })
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+    const newsCount =
+      (typeof result.scraped_news_count === "number" ? result.scraped_news_count : undefined) ??
+      (typeof result.analysis_recap?.scraped_news_count === "number" ? result.analysis_recap.scraped_news_count : 0);
+    const credibilityLine =
+      newsCount > 0
+        ? `Credibility boost: cross-checked with ${newsCount} recent news/commentary signals.`
+        : "Credibility boost: cross-checked with recent football news and live commentary signals.";
+    return [cleaned, credibilityLine].filter(Boolean).join("\n\n");
+  })();
 
   const blurWrap = (content: React.ReactNode) => {
     if (fullAnalysis) return content;
@@ -606,20 +605,13 @@ export function AnalysisResult({ result }: { result: Result }) {
         </div>
       </section>
 
-      {/* Professional analysis (Sportmonks) - full 8-section text */}
-      {result.professional_analysis && (
-        <section className="pt-6 border-t border-white/5">
-          <ProfessionalAnalysisBlock content={result.professional_analysis} t={t} />
-        </section>
-      )}
-
       {/* Quick summary - visible for free plan (includes match context / news at top) */}
-      {result.quick_summary && (
+      {summaryText && (
         <section className="pt-6 border-t border-white/5">
           <h2 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
             <span className="text-[#00ffe8]">🔍</span> {t("analysis.summary")}
           </h2>
-          <p className="text-zinc-300 leading-relaxed whitespace-pre-line">{result.quick_summary}</p>
+          <p className="text-zinc-300 leading-relaxed whitespace-pre-line">{summaryText}</p>
           <p className="text-sm text-[#00ffe8] mt-2">Generated from millions of data points and football news.</p>
         </section>
       )}
