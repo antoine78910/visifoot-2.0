@@ -264,9 +264,24 @@ def team_upcoming_fixtures(team_id: int, limit: int = 10) -> list[dict[str, Any]
         raw = raw.get("data") if isinstance(raw.get("data"), list) else []
     if not isinstance(raw, list):
         raw = []
-    # Garder uniquement les matchs futurs (au cas où l'API inclurait le jour même déjà joués)
+    # Inclure les participants à la racine (format list endpoint Sportmonks) dans chaque fixture
+    if raw and (not raw[0] or "participants" not in raw[0]) and isinstance(data.get("participants"), list):
+        by_fid: dict[int, list] = {}
+        for p in data.get("participants", []):
+            if isinstance(p, dict):
+                fid = p.get("fixture_id")
+                if fid is not None:
+                    by_fid.setdefault(int(fid), []).append(p)
+        for f in raw:
+            if "participants" not in f or not f.get("participants"):
+                fid = f.get("id")
+                if fid is not None:
+                    f["participants"] = by_fid.get(int(fid), [])
+    # Garder uniquement les matchs futurs où l'équipe demandée joue bien (filtrer Super Lig etc. si mauvais team_id)
     upcoming = []
     for f in raw:
+        if not _fixture_involves_team(f, team_id):
+            continue
         sat = f.get("starting_at") or ""
         try:
             if sat:
@@ -332,20 +347,36 @@ def resolve_fixture_and_teams(home_team: str, away_team: str) -> Optional[dict[s
     return None
 
 
+def _fixture_involves_team(fixture_data: dict, team_id: int) -> bool:
+    """True si l'équipe team_id est bien un des participants du match (évite mauvais résultats API)."""
+    inc = fixture_data.get("participants") or fixture_data.get("participant")
+    if not inc:
+        return True  # pas d'info → on garde
+    participants = inc if isinstance(inc, list) else [inc.get("home"), inc.get("away")] if isinstance(inc, dict) else []
+    tid = int(team_id)
+    for p in participants:
+        if not isinstance(p, dict):
+            continue
+        pid = p.get("id") or p.get("team_id")
+        if pid is not None and int(pid) == tid:
+            return True
+    return False
+
+
 def _extract_participants(fixture_data: dict) -> tuple[Optional[dict], Optional[dict]]:
     """Extrait home et away participant (équipe) depuis la réponse fixture avec include=participants."""
     inc = fixture_data.get("participants") or fixture_data.get("participant")
     if isinstance(inc, list):
+        home_p, away_p = None, None
         for p in inc:
             meta = p.get("meta") or {}
             loc = (meta.get("location") or "").lower()
             if loc == "home":
-                return (p, None)
-        for p in inc:
-            meta = p.get("meta") or {}
-            loc = (meta.get("location") or "").lower()
-            if loc == "away":
-                return (None, p)
+                home_p = p
+            elif loc == "away":
+                away_p = p
+        if home_p is not None or away_p is not None:
+            return (home_p, away_p)
         if len(inc) >= 2:
             return (inc[0], inc[1])
         return (inc[0] if inc else None, None)

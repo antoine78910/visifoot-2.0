@@ -25,23 +25,23 @@ const LEAGUE_LOGOS = [
   { src: "/lp-logos/logo-19.png", alt: "Süper Lig" },
   { src: "/lp-logos/logo-20.png", alt: "Championship" },
   { src: "/lp-logos/logo-21.png", alt: "Saudi Pro League" },
-  { src: "/lp-logos/logo-22.png", alt: "League logo" },
-  { src: "/lp-logos/logo-23.png", alt: "League logo" },
-  { src: "/lp-logos/logo-24.png", alt: "League logo" },
-  { src: "/lp-logos/logo-25.png", alt: "League logo" },
+  { src: "/lp-logos/logo-22.png", alt: "Ukrainian Premier League" },
+  { src: "/lp-logos/logo-23.png", alt: "Elite Serien" },
+  { src: "/lp-logos/logo-24.png", alt: "SPFL" },
+  { src: "/lp-logos/logo-25.png", alt: "Süper Lig" },
   { src: "/lp-logos/logo-26.png", alt: "League logo" },
 ];
 
 export function LogoCloud() {
   return (
     <div
-      className="overflow-hidden py-4 [--logo-size:2.5rem] sm:[--logo-size:3rem]"
+      className="overflow-hidden py-6 [--logo-size:3.5rem] sm:[--logo-size:4.5rem] md:[--logo-size:5rem]"
       style={{
         maskImage: "linear-gradient(to right, transparent, black, transparent)",
         WebkitMaskImage: "linear-gradient(to right, transparent, black, transparent)",
       }}
     >
-      <InfiniteSlider gap={32} reverse speed={28} speedOnHover={52} className="flex items-center">
+      <InfiniteSlider gap={40} reverse speed={28} className="flex items-center">
         {LEAGUE_LOGOS.map((logo) => (
           <img
             alt={logo.alt}
