@@ -80,29 +80,33 @@ def _implied_odds(p: float) -> float:
 
 
 def _out_from_sportmonks(ctx: dict) -> dict:
-    """Construit l'objet `out` à partir du contexte Sportmonks (data_recap.sportmonks_predictions)."""
+    """
+    Construit l'objet `out` à partir du contexte Sportmonks (data_recap.sportmonks_predictions).
+    Utilise UNIQUEMENT les données de l'API Sportmonks, pas de valeurs approximées.
+    Les champs non disponibles dans l'API sont retournés comme None ou listes vides.
+    """
     recap = ctx.get("data_recap") or {}
     sp = recap.get("sportmonks_predictions") or {}
-    prob_home = round(float(sp.get("home_win") or 33.33), 1)
-    prob_draw = round(float(sp.get("draw") or 33.33), 1)
-    prob_away = round(float(sp.get("away_win") or 33.33), 1)
-    xg_home = round(float(sp.get("xg_home") or 1.2), 2)
-    xg_away = round(float(sp.get("xg_away") or 1.2), 2)
+
+    # Données de l'API Sportmonks uniquement
+    prob_home = round(float(sp.get("home_win") or 0), 1)
+    prob_draw = round(float(sp.get("draw") or 0), 1)
+    prob_away = round(float(sp.get("away_win") or 0), 1)
+    xg_home = round(float(sp.get("xg_home") or 0), 2)
+    xg_away = round(float(sp.get("xg_away") or 0), 2)
     xg_total = round(xg_home + xg_away, 2)
-    over_25 = float(sp.get("over_2_5") or 50)
-    under_25 = float(sp.get("under_2_5") or 50)
-    btts_yes = float(sp.get("btts_yes") or 50)
-    btts_no = float(sp.get("btts_no") or 50)
+
+    # Over/Under : uniquement 2.5 de l'API
+    over_25 = float(sp.get("over_2_5") or 0)
+    under_25 = float(sp.get("under_2_5") or 0)
     over_under = [
-        {"line": "0.5", "over_pct": 85.0, "under_pct": 15.0},
-        {"line": "1.5", "over_pct": 65.0, "under_pct": 35.0},
         {"line": "2.5", "over_pct": over_25, "under_pct": under_25},
-        {"line": "3.5", "over_pct": 35.0, "under_pct": 65.0},
     ]
-    double_chance_1x = round(prob_home + prob_draw, 1)
-    double_chance_x2 = round(prob_draw + prob_away, 1)
-    double_chance_12 = round(prob_home + prob_away, 1)
-    upset = round(min(prob_home, prob_away), 1)
+
+    # BTTS de l'API
+    btts_yes = float(sp.get("btts_yes") or 0)
+    btts_no = float(sp.get("btts_no") or 0)
+
     return {
         "xg_home": xg_home,
         "xg_away": xg_away,
@@ -110,26 +114,22 @@ def _out_from_sportmonks(ctx: dict) -> dict:
         "prob_home": prob_home,
         "prob_draw": prob_draw,
         "prob_away": prob_away,
-        "implied_odds_home": _implied_odds(prob_home),
-        "implied_odds_draw": _implied_odds(prob_draw),
-        "implied_odds_away": _implied_odds(prob_away),
+        "implied_odds_home": _implied_odds(prob_home) if prob_home > 0 else None,
+        "implied_odds_draw": _implied_odds(prob_draw) if prob_draw > 0 else None,
+        "implied_odds_away": _implied_odds(prob_away) if prob_away > 0 else None,
         "btts_yes_pct": btts_yes,
         "btts_no_pct": btts_no,
         "over_under": over_under,
+        # Champs non calculés (pas d'approximation Poisson)
         "exact_scores": [],
-        "most_likely_score": {"home": 1, "away": 1, "probability": 0.0},
-        "total_goals_distribution": {"0": 20.0, "1": 25.0, "2": 30.0, "3+": 25.0},
-        "goal_difference_dist": {"1": 40.0, "2": 35.0, "3+": 25.0},
-        "double_chance_1x": double_chance_1x,
-        "double_chance_x2": double_chance_x2,
-        "double_chance_12": double_chance_12,
-        "asian_handicap": {
-            "home_neg1_pct": 50.0,
-            "home_plus1_pct": 50.0,
-            "away_neg1_pct": 50.0,
-            "away_plus1_pct": 50.0,
-        },
-        "upset_probability": upset,
+        "most_likely_score": None,
+        "total_goals_distribution": None,
+        "goal_difference_dist": None,
+        "double_chance_1x": None,
+        "double_chance_x2": None,
+        "double_chance_12": None,
+        "asian_handicap": None,
+        "upset_probability": None,
         "api_advice": None,
     }
 

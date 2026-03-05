@@ -1110,21 +1110,23 @@ def get_match_news_and_comments(
 def _parse_sportmonks_predictions_array(predictions_list: list[dict[str, Any]]) -> dict[str, Any]:
     """
     Parse le tableau predictions de l'API Sportmonks (Fulltime Result, Over/Under 2.5, BTTS, Correct Score).
-    Retourne dict avec home_win, draw, away_win, over_2_5, under_2_5, btts_yes, btts_no, xg_home, xg_away (optionnel).
+    Retourne dict avec home_win, draw, away_win, over_2_5, under_2_5, btts_yes, btts_no, xg_home, xg_away.
+    Retourne 0 ou None pour les valeurs non disponibles (pas d'approximation).
     """
     out: dict[str, Any] = {
-        "home_win": 33.33,
-        "draw": 33.33,
-        "away_win": 33.33,
-        "over_2_5": 50.0,
-        "under_2_5": 50.0,
-        "btts_yes": 50.0,
-        "btts_no": 50.0,
-        "xg_home": 1.2,
-        "xg_away": 1.2,
+        "home_win": 0.0,
+        "draw": 0.0,
+        "away_win": 0.0,
+        "over_2_5": 0.0,
+        "under_2_5": 0.0,
+        "btts_yes": 0.0,
+        "btts_no": 0.0,
+        "xg_home": 0.0,
+        "xg_away": 0.0,
     }
     if not predictions_list or not isinstance(predictions_list, list):
         return out
+
     for p in predictions_list:
         if not isinstance(p, dict):
             continue
@@ -1138,17 +1140,17 @@ def _parse_sportmonks_predictions_array(predictions_list: list[dict[str, Any]]) 
 
         if type_id == 237 or "fulltime" in code or "fulltime_result" in dev_name:
             if "home" in pred_vals and "draw" in pred_vals and "away" in pred_vals:
-                out["home_win"] = float(pred_vals.get("home") or 33.33)
-                out["draw"] = float(pred_vals.get("draw") or 33.33)
-                out["away_win"] = float(pred_vals.get("away") or 33.33)
+                out["home_win"] = float(pred_vals.get("home") or 0)
+                out["draw"] = float(pred_vals.get("draw") or 0)
+                out["away_win"] = float(pred_vals.get("away") or 0)
         elif type_id == 235 or ("over" in code and "2" in code and "5" in code):
             if "yes" in pred_vals and "no" in pred_vals:
-                out["over_2_5"] = float(pred_vals.get("yes") or 50)
-                out["under_2_5"] = float(pred_vals.get("no") or 50)
+                out["over_2_5"] = float(pred_vals.get("yes") or 0)
+                out["under_2_5"] = float(pred_vals.get("no") or 0)
         elif type_id == 231 or "btts" in code or "both" in code:
             if "yes" in pred_vals and "no" in pred_vals:
-                out["btts_yes"] = float(pred_vals.get("yes") or 50)
-                out["btts_no"] = float(pred_vals.get("no") or 50)
+                out["btts_yes"] = float(pred_vals.get("yes") or 0)
+                out["btts_no"] = float(pred_vals.get("no") or 0)
         elif type_id == 240 or "correct" in code or "correct_score" in dev_name:
             scores = pred_vals.get("scores")
             if isinstance(scores, dict):
@@ -1172,6 +1174,8 @@ def _parse_sportmonks_predictions_array(predictions_list: list[dict[str, Any]]) 
                 if total_p > 0:
                     out["xg_home"] = round(xg_h, 2)
                     out["xg_away"] = round(xg_a, 2)
+
+    print(f"[sportmonks] Parsed predictions: home_win={out['home_win']}%, draw={out['draw']}%, away_win={out['away_win']}%, over2.5={out['over_2_5']}%, btts_yes={out['btts_yes']}%")
     return out
 
 
@@ -1343,30 +1347,109 @@ def load_match_context_sportmonks(
     aw, ad, al = 0, 0, 0
     h2h_hw, h2h_hd, h2h_ha = 0.0, 0.0, 0.0
     h2h_home_pct_override: Optional[float] = None
-    if home_team_id and away_team_id:
-        report("Loading H2H (last 5 seasons)…", 22)
-        try:
-            h2h_hw, h2h_hd, h2h_ha = get_h2h_last_5_seasons(int(home_team_id), int(away_team_id))
-            total_h2h = h2h_hw + h2h_hd + h2h_ha
-            if total_h2h > 0:
-                h2h_home_pct_override = 100.0 * (h2h_hw + 0.5 * h2h_hd) / total_h2h
-        except Exception as e:
-            print(f"[sportmonks] H2H last 5 seasons: {e}")
-    if not (h2h_hw or h2h_hd or h2h_ha):
-        h2h_list = fixture_data.get("h2h")
-        if isinstance(h2h_list, list):
-            for m in h2h_list:
-                if not isinstance(m, dict):
+
+    # Utiliser les données H2H de l'API (récupérées via /fixtures/head-to-head)
+    h2h_list = fixture_data.get("h2h")
+    if home_team_id and away_team_id and h2h_list and isinstance(h2h_list, list):
+        report("Parsing H2H from API…", 22)
+        print(f"[sportmonks] Processing {len(h2h_list)} H2H matches from API")
+
+        # Parser chaque match H2H avec pondération par année
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        current_year = now.year
+
+        for m in h2h_list:
+            if not isinstance(m, dict):
+                continue
+
+            # Déterminer l'année du match pour la pondération
+            match_date = m.get("starting_at") or m.get("date") or ""
+            match_year = current_year
+            if match_date:
+                try:
+                    match_year = int(match_date[:4])
+                except (ValueError, TypeError):
+                    pass
+
+            # Pondération : plus récent = plus de poids (1.0 pour cette année, 0.8 pour -1 an, etc.)
+            years_ago = current_year - match_year
+            if years_ago >= 5:
+                weight = 0.2
+            elif years_ago == 4:
+                weight = 0.2
+            elif years_ago == 3:
+                weight = 0.4
+            elif years_ago == 2:
+                weight = 0.6
+            elif years_ago == 1:
+                weight = 0.8
+            else:
+                weight = 1.0
+
+            # Analyser le résultat - l'API renvoie le résultat du point de vue de home_team_id
+            # On doit identifier quel participant est home et away dans CE match
+            participants = m.get("participants", [])
+            scores = m.get("scores", [])
+
+            # Extraire les scores
+            home_goals = 0
+            away_goals = 0
+            for s in (scores if isinstance(scores, list) else []):
+                if not isinstance(s, dict):
                     continue
-                res = (m.get("result") or "").strip().lower()
-                if res == "home":
-                    h2h_hw += 1
-                elif res == "draw":
-                    h2h_hd += 1
-                elif res == "away":
-                    h2h_ha += 1
-            if h2h_hw or h2h_hd or h2h_ha:
-                print(f"[sportmonks] H2H from fixture include: home_wins={h2h_hw}, draws={h2h_hd}, away_wins={h2h_ha}")
+                score_obj = s.get("score") or s
+                part = score_obj.get("participant") or s.get("participant")
+                g = int(score_obj.get("goals", 0) or s.get("goals", 0) or 0)
+                if part == "home":
+                    home_goals += g
+                elif part == "away":
+                    away_goals += g
+
+            # Identifier qui était à domicile dans CE match H2H
+            match_home_id = None
+            match_away_id = None
+            for p in (participants if isinstance(participants, list) else []):
+                if not isinstance(p, dict):
+                    continue
+                meta = p.get("meta") or {}
+                loc = (meta.get("location") or "").lower()
+                tid = int(p.get("id") or p.get("team_id") or 0)
+                if loc == "home":
+                    match_home_id = tid
+                elif loc == "away":
+                    match_away_id = tid
+
+            # Si on ne peut pas déterminer, skip
+            if not match_home_id or not match_away_id:
+                continue
+
+            # Calculer le résultat du point de vue de notre home_team_id actuel
+            # Si notre home_team était à domicile dans ce match H2H
+            if match_home_id == home_team_id:
+                if home_goals > away_goals:
+                    h2h_hw += weight
+                elif home_goals < away_goals:
+                    h2h_ha += weight
+                else:
+                    h2h_hd += weight
+            # Si notre home_team était à l'extérieur dans ce match H2H
+            elif match_away_id == home_team_id:
+                if away_goals > home_goals:
+                    h2h_hw += weight
+                elif away_goals < home_goals:
+                    h2h_ha += weight
+                else:
+                    h2h_hd += weight
+
+        total_h2h = h2h_hw + h2h_hd + h2h_ha
+        if total_h2h > 0:
+            h2h_home_pct_override = 100.0 * (h2h_hw + 0.5 * h2h_hd) / total_h2h
+            print(f"[sportmonks] H2H from API (weighted): home_wins={h2h_hw:.1f}, draws={h2h_hd:.1f}, away_wins={h2h_ha:.1f}")
+        else:
+            print(f"[sportmonks] No valid H2H data found in API response")
+    else:
+        print(f"[sportmonks] No H2H data available from API")
     lambda_home_calc = xg_home
     lambda_away_calc = xg_away
     comparison_pcts: Optional[dict[str, float]] = None
