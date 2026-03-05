@@ -51,7 +51,7 @@ export default function LandingPage() {
 
       <main className="relative z-10 flex-1 flex flex-col items-center px-4 pt-24 pb-12 sm:pt-28 sm:pb-16">
         <section className="text-center max-w-3xl mx-auto mb-10 sm:mb-14 pt-4">
-          <h1 className="text-xl sm:text-2xl md:text-4xl lg:text-5xl font-bold text-white leading-tight mb-4 sm:mb-5 sm:whitespace-nowrap">
+          <h1 className="text-3xl sm:text-4xl md:text-4xl lg:text-5xl font-bold text-white leading-tight mb-4 sm:mb-5 sm:whitespace-nowrap">
             Predicts all football matches <span className="text-[#00ffe8]">with AI!</span>
           </h1>
           <p className="text-zinc-400 text-base sm:text-lg mb-8">
@@ -181,7 +181,7 @@ export default function LandingPage() {
 
             <h3 className="text-white font-semibold text-sm mb-2">Quick summary</h3>
             <p className="text-zinc-300 text-sm leading-relaxed">
-              Visifoot AI analyzes form, recent actions and key stats: PSG arrives with a confident attack, while Real is chaining good results. A match that promises to be open with opportunities on both sides.
+              DeepFoot AI analyzes form, recent actions and key stats: PSG arrives with a confident attack, while Real is chaining good results. A match that promises to be open with opportunities on both sides.
             </p>
 
             <div className="border-t border-white/10 mt-6 pt-6" />
@@ -203,48 +203,64 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Feature cards */}
-        <section className="w-full max-w-4xl mx-auto mt-12 sm:mt-16 px-4">
-          <h2 className="text-2xl sm:text-3xl font-bold text-white text-center mb-10">
+        {/* Why use DeepFoot — 3 feature blocks */}
+        <section className="w-full max-w-5xl mx-auto mt-14 sm:mt-20 px-4 sm:px-6">
+          <h2 className="text-2xl sm:text-3xl font-bold text-white text-center mb-10 sm:mb-12">
             Why use DeepFoot?
           </h2>
-          <div className="grid sm:grid-cols-3 gap-6 sm:gap-8">
-            <div className="rounded-2xl bg-white/5 border border-white/10 p-6 text-center shadow-lg">
-              <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center mx-auto mb-4">
-                <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="6" y1="20" x2="6" y2="14" stroke="#22c55e" />
-                  <line x1="10" y1="20" x2="10" y2="8" stroke="#ec4899" />
-                  <line x1="14" y1="20" x2="14" y2="12" stroke="#3b82f6" />
-                  <line x1="18" y1="20" x2="18" y2="10" stroke="#00ffe8" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-bold text-white mb-2">Real-time stats</h3>
-              <p className="text-zinc-400 text-sm">
-                Analysis of 50+ variables per match
+          <div className="grid gap-6 sm:gap-8 md:grid-cols-3">
+            {/* AI Match Predictions */}
+            <div className="group rounded-2xl bg-white/[0.06] border border-white/10 p-6 sm:p-7 shadow-lg hover:border-[#00ffe8]/30 hover:shadow-[0_0_40px_rgba(0,255,232,0.08)] transition-all duration-300">
+              <div className="text-3xl sm:text-4xl mb-4">🧠</div>
+              <h3 className="text-lg sm:text-xl font-bold text-white mb-2">AI Match Predictions</h3>
+              <p className="text-zinc-400 text-sm sm:text-base mb-4 leading-relaxed">
+                Analyse automatique de milliers de matchs pour calculer les probabilités réelles.
+              </p>
+              <ul className="space-y-1.5 text-zinc-300 text-sm mb-4">
+                <li>• win / draw / loss probabilities</li>
+                <li>• over / under probabilities</li>
+                <li>• BTTS probability</li>
+                <li>• upset probability</li>
+              </ul>
+              <p className="text-[#00ffe8] text-sm font-medium">
+                👉 Trouve les value bets avant les bookmakers.
               </p>
             </div>
-            <div className="rounded-2xl bg-white/5 border border-white/10 p-6 text-center shadow-lg">
-              <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-4">
-                <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10" stroke="#ef4444" />
-                  <circle cx="12" cy="12" r="6" stroke="#e4e4e7" />
-                  <circle cx="12" cy="12" r="2" fill="#3b82f6" stroke="#3b82f6" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-bold text-white mb-2">Accurate predictions</h3>
-              <p className="text-zinc-400 text-sm">
-                AI trained on thousands of matches
+
+            {/* Advanced Match Analytics */}
+            <div className="group rounded-2xl bg-white/[0.06] border border-white/10 p-6 sm:p-7 shadow-lg hover:border-[#00ffe8]/30 hover:shadow-[0_0_40px_rgba(0,255,232,0.08)] transition-all duration-300">
+              <div className="text-3xl sm:text-4xl mb-4">📊</div>
+              <h3 className="text-lg sm:text-xl font-bold text-white mb-2">Advanced Match Analytics</h3>
+              <p className="text-zinc-400 text-sm sm:text-base mb-4 leading-relaxed">
+                Toutes les données importantes dans une seule analyse :
+              </p>
+              <ul className="space-y-1.5 text-zinc-300 text-sm mb-4">
+                <li>• form des équipes</li>
+                <li>• head-to-head historique</li>
+                <li>• classement</li>
+                <li>• recent performance</li>
+                <li>• tendances des matchs</li>
+              </ul>
+              <p className="text-[#00ffe8] text-sm font-medium">
+                👉 Comprendre pourquoi une équipe est favorite.
               </p>
             </div>
-            <div className="rounded-2xl bg-white/5 border border-white/10 p-6 text-center shadow-lg">
-              <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center mx-auto mb-4">
-                <svg className="w-7 h-7 text-amber-400" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-bold text-white mb-2">Instant analysis</h3>
-              <p className="text-zinc-400 text-sm">
-                Results in seconds
+
+            {/* Smart Betting Insights */}
+            <div className="group rounded-2xl bg-white/[0.06] border border-white/10 p-6 sm:p-7 shadow-lg hover:border-[#00ffe8]/30 hover:shadow-[0_0_40px_rgba(0,255,232,0.08)] transition-all duration-300">
+              <div className="text-3xl sm:text-4xl mb-4">📈</div>
+              <h3 className="text-lg sm:text-xl font-bold text-white mb-2">Smart Betting Insights</h3>
+              <p className="text-zinc-400 text-sm sm:text-base mb-4 leading-relaxed">
+                DeepFoot transforme les données en décisions de pari.
+              </p>
+              <ul className="space-y-1.5 text-zinc-300 text-sm mb-4">
+                <li>• double chance probabilities</li>
+                <li>• over/under insights</li>
+                <li>• market probabilities</li>
+                <li>• upset detection</li>
+              </ul>
+              <p className="text-[#00ffe8] text-sm font-medium">
+                👉 Identifie les paris les plus sûrs et les plus rentables.
               </p>
             </div>
           </div>

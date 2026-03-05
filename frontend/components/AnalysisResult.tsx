@@ -185,21 +185,22 @@ function FormLabelBlock({ label, compact }: { label: string; compact?: boolean }
   );
 }
 
+const formIconSize = "w-5 h-5 sm:w-6 sm:h-6";
 function AppleCheck() {
   return (
-    <span className="inline-flex items-center justify-center w-6 h-6 flex-shrink-0" title="Victoire" aria-hidden>✅</span>
+    <span className={`inline-flex items-center justify-center ${formIconSize} flex-shrink-0`} title="Victoire" aria-hidden>✅</span>
   );
 }
 
 function AppleCross() {
   return (
-    <span className="inline-flex items-center justify-center w-6 h-6 flex-shrink-0" title="Défaite" aria-hidden>❌</span>
+    <span className={`inline-flex items-center justify-center ${formIconSize} flex-shrink-0`} title="Défaite" aria-hidden>❌</span>
   );
 }
 
 function AppleDraw() {
   return (
-    <span className="inline-flex items-center justify-center w-6 h-6 flex-shrink-0" title="Nul" aria-hidden>➖</span>
+    <span className={`inline-flex items-center justify-center ${formIconSize} flex-shrink-0`} title="Nul" aria-hidden>➖</span>
   );
 }
 
@@ -207,7 +208,7 @@ function FormIcon({ result }: { result: string }) {
   if (result === "W") return <AppleCheck />;
   if (result === "D") return <AppleDraw />;
   if (result === "L") return <AppleCross />;
-  return <span className="inline-flex w-6 h-6 items-center justify-center rounded border border-zinc-500/50 text-zinc-500 text-xs flex-shrink-0" title="À venir">?</span>;
+  return <span className={`inline-flex ${formIconSize} items-center justify-center rounded border border-zinc-500/50 text-zinc-500 text-xs flex-shrink-0`} title="À venir">?</span>;
 }
 
 function StatBar({
@@ -490,30 +491,54 @@ export function AnalysisResult({ result }: { result: Result }) {
   return (
     <div className="rounded-2xl bg-[#14141c] border border-white/10 overflow-hidden shadow-lg">
       <div className="p-6 space-y-0">
-      {/* Recap - first section inside single block */}
+      {/* Recap - first section: mobile = logos above, names + VS on new lines; desktop = logo | text | logo */}
       <div className="pb-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-4 min-w-0 flex-1">
-            {result.home_team_logo ? (
-              <img src={result.home_team_logo} alt="" className="w-14 h-14 object-contain flex-shrink-0" />
-            ) : (
-              <div className="w-14 h-14 rounded-xl bg-[#1c1c28] flex-shrink-0 flex items-center justify-center text-white font-bold">{home.slice(0, 2)}</div>
-            )}
-            <div className="min-w-0">
-              <p className="text-zinc-500 text-sm">{t("analysis.analyzedMatch")}</p>
-              <h1 className="text-xl md:text-2xl font-bold mt-0.5 text-white">
-                <span className="text-white">{home}</span>
-                <span className="text-zinc-500 font-normal mx-2">vs</span>
-                <span className="text-white">{away}</span>
+          <div className="min-w-0 flex-1 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+            {/* Mobile: logos row then label + home / vs / away on new lines */}
+            <div className="flex flex-col items-center sm:hidden">
+              <div className="flex items-center justify-center gap-3">
+                {result.home_team_logo ? (
+                  <img src={result.home_team_logo} alt="" className="w-12 h-12 object-contain flex-shrink-0" />
+                ) : (
+                  <div className="w-12 h-12 rounded-xl bg-[#1c1c28] flex items-center justify-center text-white font-bold text-sm">{home.slice(0, 2)}</div>
+                )}
+                {result.away_team_logo ? (
+                  <img src={result.away_team_logo} alt="" className="w-12 h-12 object-contain flex-shrink-0" />
+                ) : (
+                  <div className="w-12 h-12 rounded-xl bg-[#1c1c28] flex items-center justify-center text-white font-bold text-sm">{away.slice(0, 2)}</div>
+                )}
+              </div>
+              <p className="text-zinc-500 text-sm mt-2">{t("analysis.analyzedMatch")}</p>
+              <h1 className="text-xl font-bold mt-0.5 text-white text-center">
+                <span className="text-white block">{home}</span>
+                <span className="text-zinc-500 font-normal block my-0.5">vs</span>
+                <span className="text-white block">{away}</span>
               </h1>
             </div>
-            {result.away_team_logo ? (
-              <img src={result.away_team_logo} alt="" className="w-14 h-14 object-contain flex-shrink-0" />
-            ) : (
-              <div className="w-14 h-14 rounded-xl bg-[#1c1c28] flex-shrink-0 flex items-center justify-center text-white font-bold">{away.slice(0, 2)}</div>
-            )}
+            {/* Desktop: logo | text | logo */}
+            <div className="hidden sm:flex items-center gap-4 min-w-0 flex-1">
+              {result.home_team_logo ? (
+                <img src={result.home_team_logo} alt="" className="w-14 h-14 object-contain flex-shrink-0" />
+              ) : (
+                <div className="w-14 h-14 rounded-xl bg-[#1c1c28] flex-shrink-0 flex items-center justify-center text-white font-bold">{home.slice(0, 2)}</div>
+              )}
+              <div className="min-w-0">
+                <p className="text-zinc-500 text-sm">{t("analysis.analyzedMatch")}</p>
+                <h1 className="text-xl md:text-2xl font-bold mt-0.5 text-white">
+                  <span className="text-white">{home}</span>
+                  <span className="text-zinc-500 font-normal mx-2">vs</span>
+                  <span className="text-white">{away}</span>
+                </h1>
+              </div>
+              {result.away_team_logo ? (
+                <img src={result.away_team_logo} alt="" className="w-14 h-14 object-contain flex-shrink-0" />
+              ) : (
+                <div className="w-14 h-14 rounded-xl bg-[#1c1c28] flex-shrink-0 flex items-center justify-center text-white font-bold">{away.slice(0, 2)}</div>
+              )}
+            </div>
           </div>
-          <div className="rounded-lg border border-[#00ffe8]/60 px-4 py-2 text-center flex-shrink-0">
+          <div className="rounded-lg border border-[#00ffe8]/60 px-4 py-2 text-center flex-shrink-0 w-full sm:w-auto">
             <p className="text-[#00ffe8] font-semibold text-sm">{t("analysis.aiReady")}</p>
             <p className="text-[#00ffe8]/80 text-xs mt-0.5">{t("analysis.basedOn")}</p>
           </div>
@@ -650,7 +675,7 @@ export function AnalysisResult({ result }: { result: Result }) {
                   <p className="font-semibold text-white text-sm truncate">{home}</p>
                   <FormLabelBlock label={result.home_form_label ?? ""} compact />
                 </div>
-                <p className="text-xs text-zinc-400 mt-1 flex items-center gap-1.5">
+                <p className="text-xs text-zinc-400 mt-1 flex items-center gap-0.5 sm:gap-1.5 flex-wrap">
                   {result.home_form?.map((r, i) => <FormIcon key={i} result={r} />) ?? "—"}
                   <span className="text-zinc-500">W-D-L: {result.home_wdl ?? "—"}</span>
                 </p>
@@ -667,7 +692,7 @@ export function AnalysisResult({ result }: { result: Result }) {
                   <p className="font-semibold text-white text-sm truncate">{away}</p>
                   <FormLabelBlock label={result.away_form_label ?? ""} compact />
                 </div>
-                <p className="text-xs text-zinc-400 mt-1 flex items-center gap-1.5">
+                <p className="text-xs text-zinc-400 mt-1 flex items-center gap-0.5 sm:gap-1.5 flex-wrap">
                   {result.away_form?.map((r, i) => <FormIcon key={i} result={r} />) ?? "—"}
                   <span className="text-zinc-500">W-D-L: {result.away_wdl ?? "—"}</span>
                 </p>

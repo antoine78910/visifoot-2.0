@@ -13,7 +13,7 @@ from app.core.config import get_settings
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="Visifoot 2.0 API",
+    title="DeepFoot API",
     description="API de prédiction de matchs de football (1X2, Over/Under, BTTS, score exact)",
     version="0.1.0",
 )
