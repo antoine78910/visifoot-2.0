@@ -396,6 +396,171 @@ def get_h2h_last_5_seasons(
     return (hw, hd, ha)
 
 
+def get_h2h_last_5_seasons_details(
+    home_team_id: int,
+    away_team_id: int,
+) -> dict[str, Any]:
+    """
+    H2H détaillé via endpoint head-to-head Sportmonks.
+    - Filtre uniquement les 5 dernières saisons (fenêtre glissante par saison football: août -> mai)
+    - Calcule versions pondérées (1.0/0.8/0.6/0.4/0.2) et brutes
+    - Retourne un breakdown par saison pour l'affichage du recap
+    """
+    from datetime import datetime, timezone
+
+    out: dict[str, Any] = {
+        "weighted_home_wins": 0.0,
+        "weighted_draws": 0.0,
+        "weighted_away_wins": 0.0,
+        "weighted_matches_count": 0.0,
+        "raw_home_wins": 0,
+        "raw_draws": 0,
+        "raw_away_wins": 0,
+        "raw_matches_count": 0,
+        "season_breakdown": [],
+        "seasons_used": 5,
+    }
+    if not _use_sportmonks() or not home_team_id or not away_team_id:
+        return out
+
+    now = datetime.now(timezone.utc)
+    current_season_end_year = now.year + 1 if now.month >= 7 else now.year
+    season_end_years = [current_season_end_year - i for i in range(5)]
+    season_weights = {year: H2H_SEASON_WEIGHTS[idx] for idx, year in enumerate(season_end_years)}
+    season_stats: dict[int, dict[str, Any]] = {
+        y: {
+            "season": f"{y-1}-{y}",
+            "weight": season_weights.get(y, 0.2),
+            "raw_home_wins": 0,
+            "raw_draws": 0,
+            "raw_away_wins": 0,
+            "raw_matches": 0,
+            "weighted_home_wins": 0.0,
+            "weighted_draws": 0.0,
+            "weighted_away_wins": 0.0,
+            "weighted_matches": 0.0,
+        }
+        for y in season_end_years
+    }
+
+    data = _get_allow_404(
+        f"/fixtures/head-to-head/{home_team_id}/{away_team_id}",
+        params={"per_page": 200},
+        include="participants;scores",
+    )
+    raw = data.get("data")
+    if not isinstance(raw, list):
+        raw = []
+
+    participants_by_fid: dict[int, list] = {}
+    for p in (data.get("participants") or []):
+        if isinstance(p, dict) and p.get("fixture_id") is not None:
+            participants_by_fid.setdefault(int(p["fixture_id"]), []).append(p)
+    scores_by_fid: dict[int, list] = {}
+    for s in (data.get("scores") or []):
+        if isinstance(s, dict) and s.get("fixture_id") is not None:
+            scores_by_fid.setdefault(int(s["fixture_id"]), []).append(s)
+
+    for m in raw:
+        if not isinstance(m, dict):
+            continue
+        fid = m.get("id")
+        if fid is None:
+            continue
+
+        match_date = m.get("starting_at") or m.get("date") or ""
+        try:
+            year = int(str(match_date)[:4])
+            month = int(str(match_date)[5:7])
+        except Exception:
+            continue
+        season_end_year = year + 1 if month >= 7 else year
+        if season_end_year not in season_weights:
+            continue
+        weight = season_weights[season_end_year]
+
+        participants = m.get("participants") or participants_by_fid.get(int(fid), [])
+        scores = m.get("scores") or scores_by_fid.get(int(fid), [])
+        if not isinstance(participants, list) or len(participants) < 2:
+            continue
+
+        home_goals = 0
+        away_goals = 0
+        for s in (scores if isinstance(scores, list) else []):
+            if not isinstance(s, dict):
+                continue
+            score_obj = s.get("score") or s
+            part = score_obj.get("participant") or s.get("participant")
+            g = int(score_obj.get("goals", 0) or s.get("goals", 0) or 0)
+            if part == "home":
+                home_goals += g
+            elif part == "away":
+                away_goals += g
+
+        match_home_id = None
+        match_away_id = None
+        for p in participants:
+            if not isinstance(p, dict):
+                continue
+            meta = p.get("meta") or {}
+            loc = (meta.get("location") or "").lower()
+            tid = int(p.get("id") or p.get("team_id") or 0)
+            if loc == "home":
+                match_home_id = tid
+            elif loc == "away":
+                match_away_id = tid
+        if not match_home_id and len(participants) >= 2:
+            match_home_id = int(participants[0].get("id") or participants[0].get("team_id") or 0)
+            match_away_id = int(participants[1].get("id") or participants[1].get("team_id") or 0)
+        if not match_home_id or not match_away_id:
+            continue
+
+        if not {match_home_id, match_away_id}.issuperset({int(home_team_id), int(away_team_id)}):
+            continue
+
+        # Résultat du point de vue home_team_id de la requête.
+        if match_home_id == home_team_id:
+            home_team_goals = home_goals
+            away_team_goals = away_goals
+        elif match_away_id == home_team_id:
+            home_team_goals = away_goals
+            away_team_goals = home_goals
+        else:
+            continue
+
+        s = season_stats[season_end_year]
+        s["raw_matches"] += 1
+        s["weighted_matches"] += weight
+        out["raw_matches_count"] += 1
+        out["weighted_matches_count"] += weight
+
+        if home_team_goals > away_team_goals:
+            s["raw_home_wins"] += 1
+            s["weighted_home_wins"] += weight
+            out["raw_home_wins"] += 1
+            out["weighted_home_wins"] += weight
+        elif home_team_goals < away_team_goals:
+            s["raw_away_wins"] += 1
+            s["weighted_away_wins"] += weight
+            out["raw_away_wins"] += 1
+            out["weighted_away_wins"] += weight
+        else:
+            s["raw_draws"] += 1
+            s["weighted_draws"] += weight
+            out["raw_draws"] += 1
+            out["weighted_draws"] += weight
+
+    out["season_breakdown"] = [season_stats[y] for y in season_end_years if season_stats[y]["raw_matches"] > 0]
+    if out["weighted_matches_count"] > 0:
+        print(
+            "[sportmonks] H2H detailed (5 seasons): "
+            f"raw={out['raw_matches_count']} "
+            f"weighted={out['weighted_matches_count']:.1f} "
+            f"home_wins={out['weighted_home_wins']:.1f}, draws={out['weighted_draws']:.1f}, away_wins={out['weighted_away_wins']:.1f}"
+        )
+    return out
+
+
 def team_past_fixtures(
     team_id: int,
     last_n: int = 5,
@@ -1348,108 +1513,18 @@ def load_match_context_sportmonks(
     h2h_hw, h2h_hd, h2h_ha = 0.0, 0.0, 0.0
     h2h_home_pct_override: Optional[float] = None
 
-    # Utiliser les données H2H de l'API (récupérées via /fixtures/head-to-head)
-    h2h_list = fixture_data.get("h2h")
-    if home_team_id and away_team_id and h2h_list and isinstance(h2h_list, list):
+    h2h_details: dict[str, Any] = {}
+    if home_team_id and away_team_id:
         report("Parsing H2H from API…", 22)
-        print(f"[sportmonks] Processing {len(h2h_list)} H2H matches from API")
-
-        # Parser chaque match H2H avec pondération par année
-        from datetime import datetime, timezone
-        now = datetime.now(timezone.utc)
-        current_year = now.year
-
-        for m in h2h_list:
-            if not isinstance(m, dict):
-                continue
-
-            # Déterminer l'année du match pour la pondération
-            match_date = m.get("starting_at") or m.get("date") or ""
-            match_year = current_year
-            if match_date:
-                try:
-                    match_year = int(match_date[:4])
-                except (ValueError, TypeError):
-                    pass
-
-            # Pondération : plus récent = plus de poids (1.0 pour cette année, 0.8 pour -1 an, etc.)
-            years_ago = current_year - match_year
-            if years_ago >= 5:
-                weight = 0.2
-            elif years_ago == 4:
-                weight = 0.2
-            elif years_ago == 3:
-                weight = 0.4
-            elif years_ago == 2:
-                weight = 0.6
-            elif years_ago == 1:
-                weight = 0.8
-            else:
-                weight = 1.0
-
-            # Analyser le résultat - l'API renvoie le résultat du point de vue de home_team_id
-            # On doit identifier quel participant est home et away dans CE match
-            participants = m.get("participants", [])
-            scores = m.get("scores", [])
-
-            # Extraire les scores
-            home_goals = 0
-            away_goals = 0
-            for s in (scores if isinstance(scores, list) else []):
-                if not isinstance(s, dict):
-                    continue
-                score_obj = s.get("score") or s
-                part = score_obj.get("participant") or s.get("participant")
-                g = int(score_obj.get("goals", 0) or s.get("goals", 0) or 0)
-                if part == "home":
-                    home_goals += g
-                elif part == "away":
-                    away_goals += g
-
-            # Identifier qui était à domicile dans CE match H2H
-            match_home_id = None
-            match_away_id = None
-            for p in (participants if isinstance(participants, list) else []):
-                if not isinstance(p, dict):
-                    continue
-                meta = p.get("meta") or {}
-                loc = (meta.get("location") or "").lower()
-                tid = int(p.get("id") or p.get("team_id") or 0)
-                if loc == "home":
-                    match_home_id = tid
-                elif loc == "away":
-                    match_away_id = tid
-
-            # Si on ne peut pas déterminer, skip
-            if not match_home_id or not match_away_id:
-                continue
-
-            # Calculer le résultat du point de vue de notre home_team_id actuel
-            # Si notre home_team était à domicile dans ce match H2H
-            if match_home_id == home_team_id:
-                if home_goals > away_goals:
-                    h2h_hw += weight
-                elif home_goals < away_goals:
-                    h2h_ha += weight
-                else:
-                    h2h_hd += weight
-            # Si notre home_team était à l'extérieur dans ce match H2H
-            elif match_away_id == home_team_id:
-                if away_goals > home_goals:
-                    h2h_hw += weight
-                elif away_goals < home_goals:
-                    h2h_ha += weight
-                else:
-                    h2h_hd += weight
-
+        h2h_details = get_h2h_last_5_seasons_details(int(home_team_id), int(away_team_id))
+        h2h_hw = float(h2h_details.get("weighted_home_wins") or 0.0)
+        h2h_hd = float(h2h_details.get("weighted_draws") or 0.0)
+        h2h_ha = float(h2h_details.get("weighted_away_wins") or 0.0)
         total_h2h = h2h_hw + h2h_hd + h2h_ha
         if total_h2h > 0:
             h2h_home_pct_override = 100.0 * (h2h_hw + 0.5 * h2h_hd) / total_h2h
-            print(f"[sportmonks] H2H from API (weighted): home_wins={h2h_hw:.1f}, draws={h2h_hd:.1f}, away_wins={h2h_ha:.1f}")
         else:
-            print(f"[sportmonks] No valid H2H data found in API response")
-    else:
-        print(f"[sportmonks] No H2H data available from API")
+            print("[sportmonks] No valid H2H data found in API response")
     lambda_home_calc = xg_home
     lambda_away_calc = xg_away
     comparison_pcts: Optional[dict[str, float]] = None
@@ -1587,6 +1662,12 @@ def load_match_context_sportmonks(
         "h2h_draws": round(h2h_hd, 1),
         "h2h_away_wins": round(h2h_ha, 1),
         "h2h_seasons_used": 5 if (h2h_hw or h2h_hd or h2h_ha) else None,
+        "h2h_raw_matches_count": int(h2h_details.get("raw_matches_count") or 0),
+        "h2h_raw_home_wins": int(h2h_details.get("raw_home_wins") or 0),
+        "h2h_raw_draws": int(h2h_details.get("raw_draws") or 0),
+        "h2h_raw_away_wins": int(h2h_details.get("raw_away_wins") or 0),
+        "h2h_season_breakdown": h2h_details.get("season_breakdown") or [],
+        "h2h_weighting": list(H2H_SEASON_WEIGHTS),
         "match_context_summary": motivation_ctx.get("match_context_summary"),
         "home_motivation_score": motivation_ctx.get("home_motivation_score"),
         "away_motivation_score": motivation_ctx.get("away_motivation_score"),

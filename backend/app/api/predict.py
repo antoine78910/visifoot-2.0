@@ -322,6 +322,12 @@ def _build_analysis_recap(
             "draws": recap.get("h2h_draws"),
             "away_wins": recap.get("h2h_away_wins"),
             "matches_count": recap.get("h2h_matches_count"),
+            "raw_home_wins": recap.get("h2h_raw_home_wins"),
+            "raw_draws": recap.get("h2h_raw_draws"),
+            "raw_away_wins": recap.get("h2h_raw_away_wins"),
+            "raw_matches_count": recap.get("h2h_raw_matches_count"),
+            "season_breakdown": recap.get("h2h_season_breakdown") or [],
+            "weighting": recap.get("h2h_weighting") or [],
         },
     }
     return {
@@ -346,6 +352,12 @@ def _build_analysis_recap(
             "draws": recap.get("h2h_draws"),
             "away_wins": recap.get("h2h_away_wins"),
             "seasons_used": recap.get("h2h_seasons_used"),
+            "raw_matches_count": recap.get("h2h_raw_matches_count"),
+            "raw_home_wins": recap.get("h2h_raw_home_wins"),
+            "raw_draws": recap.get("h2h_raw_draws"),
+            "raw_away_wins": recap.get("h2h_raw_away_wins"),
+            "season_breakdown": recap.get("h2h_season_breakdown") or [],
+            "weighting": recap.get("h2h_weighting") or [],
         },
         "probabilities": {
             "model": prob_source,

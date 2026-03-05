@@ -91,6 +91,21 @@ type Result = {
       draws?: number;
       away_wins?: number;
       seasons_used?: number | null;
+      raw_matches_count?: number;
+      raw_home_wins?: number;
+      raw_draws?: number;
+      raw_away_wins?: number;
+      season_breakdown?: Array<{
+        season?: string;
+        weight?: number;
+        raw_home_wins?: number;
+        raw_draws?: number;
+        raw_away_wins?: number;
+        weighted_home_wins?: number;
+        weighted_draws?: number;
+        weighted_away_wins?: number;
+      }>;
+      weighting?: number[];
     };
     probabilities?: {
       model?: string;
@@ -349,6 +364,9 @@ export function AnalysisResult({ result }: { result: Result }) {
   const away = result.away_team ?? "Away";
   const { t } = useLanguage();
   const fullAnalysis = result.full_analysis !== false;
+  const probabilitiesModel = result.analysis_recap?.probabilities?.model ?? "";
+  const probabilitiesSourceLabel = probabilitiesModel.toLowerCase().includes("sportmonks") ? "SportMonks" : "Custom";
+  const comparisonSourceLabel = "Custom";
   const [showUnlockModal1, setShowUnlockModal1] = useState(false);
   const [showUnlockModal2, setShowUnlockModal2] = useState(false);
 
@@ -711,6 +729,7 @@ export function AnalysisResult({ result }: { result: Result }) {
       {/* Exact probabilities — titre toujours visible; pour free: contenu flouté + overlay 15% */}
       <section className="pt-6 border-t border-white/5">
         <h2 className="text-lg font-semibold text-white mb-4">📊 Exact probabilities</h2>
+        <p className="text-zinc-500 text-xs -mt-2 mb-4">{t("analysis.statsSource").replace("{source}", probabilitiesSourceLabel)}</p>
         {fullAnalysis ? (
           <>
             <div className="space-y-4 mb-4">
@@ -939,6 +958,7 @@ export function AnalysisResult({ result }: { result: Result }) {
       {/* Statistical comparison - bleu = domicile, rouge = extérieur */}
       <section className="pt-6 border-t border-white/5">
         <h2 className="text-lg font-semibold text-white mb-2">📊 {t("analysis.statisticalComparison")}</h2>
+        <p className="text-zinc-500 text-xs mb-3">{t("analysis.statsSource").replace("{source}", comparisonSourceLabel)}</p>
         <div className="flex justify-between text-sm font-semibold mb-3 px-1">
           <span className={HOME_COLOR}>{home}</span>
           <span className={AWAY_COLOR}>{away}</span>
@@ -1044,6 +1064,27 @@ export function AnalysisResult({ result }: { result: Result }) {
                     .replace("{awayWins}", String(result.analysis_recap.h2h.away_wins ?? 0))
                     .replace("{seasons}", result.analysis_recap.h2h.seasons_used != null ? String(result.analysis_recap.h2h.seasons_used) : "—")}
                 </p>
+                {(result.analysis_recap.h2h.raw_matches_count ?? 0) > 0 && (
+                  <p className="text-zinc-400 text-xs mt-1">
+                    {t("analysis.recapH2hRawDetail")
+                      .replace("{count}", String(result.analysis_recap.h2h.raw_matches_count ?? 0))
+                      .replace("{homeWins}", String(result.analysis_recap.h2h.raw_home_wins ?? 0))
+                      .replace("{draws}", String(result.analysis_recap.h2h.raw_draws ?? 0))
+                      .replace("{awayWins}", String(result.analysis_recap.h2h.raw_away_wins ?? 0))}
+                  </p>
+                )}
+                {result.analysis_recap.h2h.season_breakdown && result.analysis_recap.h2h.season_breakdown.length > 0 && (
+                  <div className="text-zinc-400 text-xs mt-2 space-y-1">
+                    <p>{t("analysis.recapH2hSeasonBreakdown")}</p>
+                    {result.analysis_recap.h2h.season_breakdown.map((s, idx) => (
+                      <p key={idx}>
+                        {String((s as Record<string, unknown>).season ?? "—")}: raw {(s as Record<string, unknown>).raw_home_wins ?? 0}-{(s as Record<string, unknown>).raw_draws ?? 0}-{(s as Record<string, unknown>).raw_away_wins ?? 0}
+                        {" · "}weighted {(Number((s as Record<string, unknown>).weighted_home_wins ?? 0)).toFixed(1)}-{(Number((s as Record<string, unknown>).weighted_draws ?? 0)).toFixed(1)}-{(Number((s as Record<string, unknown>).weighted_away_wins ?? 0)).toFixed(1)}
+                        {" · "}w={String((s as Record<string, unknown>).weight ?? "—")}
+                      </p>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
             {result.analysis_recap.probabilities && (
