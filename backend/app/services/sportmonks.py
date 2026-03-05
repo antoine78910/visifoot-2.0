@@ -850,93 +850,48 @@ def compute_motivation_context(
 def resolve_fixture_and_teams(home_team: str, away_team: str) -> Optional[dict[str, Any]]:
     """
     Trouve un prochain match entre les deux équipes (Sportmonks).
-    Utilise /fixtures/between/{start}/{end}/{team_id} pour éviter les 404 (IDs de search sont parfois invalides).
-    Une seule requête with include=participants;league;venue;predictions;metadata;h2h → H2H et prédictions inclus.
+    Stratégie: 1) /fixtures/search pour trouver le match, 2) /fixtures/{id} pour détails complets
+    3) /fixtures/head-to-head pour le H2H séparé
     """
     if not _use_sportmonks():
         return None
     from datetime import datetime, timezone, timedelta
     now = datetime.now(timezone.utc)
     start_date = now.strftime("%Y-%m-%d")
-    end_date = (now + timedelta(days=60)).strftime("%Y-%m-%d")  # 60 j max pour éviter 404 (aucun match au-delà)
+    end_date = (now + timedelta(days=60)).strftime("%Y-%m-%d")
 
     # Résoudre les IDs équipe par nom
+    print(f"[sportmonks] Resolving fixture: {home_team!r} vs {away_team!r}")
     home_candidates = teams_search((home_team or "").strip(), limit=5)
     away_candidates = teams_search((away_team or "").strip(), limit=5)
     home_team_id = int(home_candidates[0]["id"]) if home_candidates and home_candidates[0].get("id") is not None else None
     away_team_id = int(away_candidates[0]["id"]) if away_candidates and away_candidates[0].get("id") is not None else None
 
-    include = "participants;league;venue;predictions;metadata;h2h"
-    for primary_id, other_id in [(home_team_id, away_team_id), (away_team_id, home_team_id)]:
-        if primary_id is None or other_id is None:
-            continue
-        path = f"/fixtures/between/{start_date}/{end_date}/{primary_id}"
-        data = _get_allow_404(path, params={"per_page": 50}, include=include)
-        raw = data.get("data")
-        if isinstance(raw, dict):
-            raw = raw.get("data") if isinstance(raw.get("data"), list) else []
-        if not isinstance(raw, list):
-            raw = []
-        # Attacher les includes à la racine (même logique que fixture_by_id)
-        for f in raw:
-            if not _fixture_involves_team(f, other_id):
-                continue
-            # Match futur uniquement
-            sat = f.get("starting_at") or ""
-            if sat:
-                try:
-                    dt_str = sat.replace("T", " ")[:19].strip()
-                    fd = datetime.fromisoformat(dt_str.replace(" ", "T").replace("Z", "+00:00"))
-                    if fd.tzinfo is None:
-                        fd = fd.replace(tzinfo=timezone.utc)
-                    if fd < now:
-                        continue
-                except Exception:
-                    pass
-            inner = dict(f)
-            fid = f.get("id")
-            # Attacher les includes : participants filtrés par fixture_id (between renvoie une liste plate)
-            if isinstance(data.get("participants"), list):
-                by_fid: dict[int, list] = {}
-                for p in data.get("participants", []):
-                    if isinstance(p, dict) and p.get("fixture_id") is not None:
-                        by_fid.setdefault(int(p["fixture_id"]), []).append(p)
-                inner["participants"] = by_fid.get(int(fid or 0), []) if fid else []
-            elif data.get("participants"):
-                inner["participants"] = data.get("participants")
-            if "league" not in inner and data.get("league"):
-                inner["league"] = data.get("league")
-            if "venue" not in inner and data.get("venue"):
-                inner["venue"] = data.get("venue")
-            if "predictions" not in inner and data.get("predictions"):
-                inner["predictions"] = data.get("predictions")
-            if "metadata" not in inner and data.get("metadata"):
-                inner["metadata"] = data.get("metadata")
-            if "h2h" not in inner and data.get("h2h"):
-                inner["h2h"] = data.get("h2h")
-            # Récupérer H2H via endpoint dédié /fixtures/head-to-head/{home}/{away}
-            if not inner.get("h2h") and home_team_id and away_team_id:
-                print(f"[sportmonks] Fetching H2H for {home_team_id} vs {away_team_id}")
-                h2h_data = _get_allow_404(f"/fixtures/head-to-head/{home_team_id}/{away_team_id}", params={"per_page": 10})
-                h2h_list = h2h_data.get("data") if isinstance(h2h_data.get("data"), list) else []
-                if h2h_list:
-                    inner["h2h"] = h2h_list
-                    print(f"[sportmonks] H2H found: {len(h2h_list)} matches")
-            return inner
-    # Fallback quand between renvoie 404 (aucun match dans la période) : search + GET /fixtures/{id}
-    query = f"{home_team or ''} vs {away_team or ''}".strip()
-    if not query:
+    if not home_team_id or not away_team_id:
+        print(f"[sportmonks] Cannot resolve team IDs: home={home_team_id}, away={away_team_id}")
         return None
-    search_list = fixtures_search(query, limit=15)
+
+    print(f"[sportmonks] Team IDs: home={home_team_id}, away={away_team_id}")
+
+    # Chercher via /fixtures/search (plus fiable que /between qui donne souvent 404)
+    query = f"{home_team} vs {away_team}"
+    print(f"[sportmonks] Searching fixtures: {query!r}")
+    search_results = fixtures_search(query, limit=20)
+
+    fixture_found = None
     h_lower = (home_team or "").lower()
     a_lower = (away_team or "").lower()
-    for f in search_list:
+
+    for f in search_results:
         name = (f.get("name") or "").lower()
-        if not name or h_lower not in name or a_lower not in name:
+        if not name or (h_lower not in name and a_lower not in name):
             continue
+
         fid = f.get("id")
         if not fid:
             continue
+
+        # Vérifier que c'est futur
         sat = f.get("starting_at") or ""
         if sat:
             try:
@@ -948,13 +903,22 @@ def resolve_fixture_and_teams(home_team: str, away_team: str) -> Optional[dict[s
                     continue
             except Exception:
                 continue
-        full = _get_allow_404(f"/fixtures/{fid}", include=include)
+
+        # Match trouvé - récupérer les détails complets
+        print(f"[sportmonks] Found fixture {fid} via search: {name}")
+        include = "participants;league;venue;predictions;metadata"
+        full = _get(f"/fixtures/{fid}", include=include)
+
         if not full or not full.get("data"):
             continue
-        inner = full.get("data") if isinstance(full.get("data"), dict) else None
+
+        inner = full.get("data") if isinstance(full.get("data"), dict) else {}
         if not inner:
             continue
+
         inner = dict(inner)
+
+        # Attacher les includes si au niveau racine
         if "participants" not in inner and full.get("participants"):
             inner["participants"] = full.get("participants")
         if "league" not in inner and full.get("league"):
@@ -965,22 +929,31 @@ def resolve_fixture_and_teams(home_team: str, away_team: str) -> Optional[dict[s
             inner["predictions"] = full.get("predictions")
         if "metadata" not in inner and full.get("metadata"):
             inner["metadata"] = full.get("metadata")
-        if "h2h" not in inner and full.get("h2h"):
-            inner["h2h"] = full.get("h2h")
-        if home_team_id and away_team_id:
-            if not _fixture_involves_team(inner, home_team_id) or not _fixture_involves_team(inner, away_team_id):
-                continue
-            # Récupérer H2H via endpoint dédié
-            if not inner.get("h2h"):
-                print(f"[sportmonks] Fetching H2H (fallback) for {home_team_id} vs {away_team_id}")
-                h2h_data = _get_allow_404(f"/fixtures/head-to-head/{home_team_id}/{away_team_id}", params={"per_page": 10})
-                h2h_list = h2h_data.get("data") if isinstance(h2h_data.get("data"), list) else []
-                if h2h_list:
-                    inner["h2h"] = h2h_list
-                    print(f"[sportmonks] H2H (fallback) found: {len(h2h_list)} matches")
-        print(f"[sportmonks] resolve_fixture fallback: fixture {fid} from search")
-        return inner
-    return None
+
+        # Vérifier que les deux équipes sont bien dans ce match
+        if not _fixture_involves_team(inner, home_team_id) or not _fixture_involves_team(inner, away_team_id):
+            print(f"[sportmonks] Fixture {fid} does not involve both teams, skipping")
+            continue
+
+        fixture_found = inner
+        break
+
+    if not fixture_found:
+        print(f"[sportmonks] No upcoming fixture found via search")
+        return None
+
+    # Récupérer le H2H via endpoint dédié
+    print(f"[sportmonks] Fetching H2H for {home_team_id} vs {away_team_id}")
+    h2h_data = _get_allow_404(f"/fixtures/head-to-head/{home_team_id}/{away_team_id}", params={"per_page": 10})
+    h2h_list = h2h_data.get("data") if isinstance(h2h_data.get("data"), list) else []
+    if h2h_list:
+        fixture_found["h2h"] = h2h_list
+        print(f"[sportmonks] H2H found: {len(h2h_list)} matches")
+    else:
+        print(f"[sportmonks] No H2H data available")
+        fixture_found["h2h"] = []
+
+    return fixture_found
 
 
 def _fixture_involves_team(fixture_data: dict, team_id: int) -> bool:
@@ -1032,6 +1005,106 @@ def _team_logo(participant: Optional[dict]) -> Optional[str]:
     if s.startswith("http"):
         return s
     return f"https://cdn.sportmonks.com/images/soccer/teams/{s}" if s else None
+
+
+def get_match_news_and_comments(
+    fixture_id: Optional[int],
+    home_team_id: Optional[int],
+    away_team_id: Optional[int],
+    match_date: Optional[str],
+) -> list[dict[str, Any]]:
+    """
+    Récupère les news/commentaires pour un match:
+    - Si match dans <48h: commentaires du match via /commentaries/fixtures/{id}
+    - Sinon: commentaires des derniers matchs des deux équipes via /fixtures (past) + /commentaries
+    """
+    from datetime import datetime, timezone, timedelta
+    news_items: list[dict[str, Any]] = []
+
+    if not _use_sportmonks():
+        return news_items
+
+    now = datetime.now(timezone.utc)
+    match_dt = None
+    if match_date:
+        try:
+            match_dt = datetime.fromisoformat(match_date.replace("Z", "+00:00"))
+            if match_dt.tzinfo is None:
+                match_dt = match_dt.replace(tzinfo=timezone.utc)
+        except Exception:
+            pass
+
+    # Match dans moins de 48h : récupérer commentaires pré-match si disponibles
+    if match_dt and (match_dt - now).total_seconds() < 48 * 3600 and fixture_id:
+        print(f"[sportmonks] Fetching pre-match commentaries for fixture {fixture_id}")
+        comm_data = _get_allow_404(f"/commentaries/fixtures/{fixture_id}", params={"per_page": 20})
+        comms = comm_data.get("data") if isinstance(comm_data.get("data"), list) else []
+        for c in comms:
+            if not isinstance(c, dict):
+                continue
+            text = (c.get("comment") or "").strip()
+            if text and len(text) > 20:
+                news_items.append({
+                    "source": "sportmonks_commentary",
+                    "title": f"Pre-match: {text[:100]}",
+                    "snippet": text,
+                    "keywords_found": ["lineup", "team news", "pre-match"],
+                })
+
+    # Récupérer commentaires des derniers matchs des deux équipes
+    for team_id in [home_team_id, away_team_id]:
+        if not team_id:
+            continue
+
+        # Derniers matchs terminés
+        end_date = now.strftime("%Y-%m-%d")
+        start_date = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+        path = f"/fixtures/between/{start_date}/{end_date}/{team_id}"
+        data = _get_allow_404(path, params={"per_page": 5})
+        raw = data.get("data")
+        if isinstance(raw, dict):
+            raw = raw.get("data") if isinstance(raw.get("data"), list) else []
+        if not isinstance(raw, list):
+            raw = []
+
+        # Garder seulement les matchs terminés (passés)
+        for f in raw:
+            sat = f.get("starting_at") or ""
+            if sat:
+                try:
+                    dt_str = sat.replace("T", " ")[:19].strip()
+                    fixture_dt = datetime.fromisoformat(dt_str.replace(" ", "T").replace("Z", "+00:00"))
+                    if fixture_dt.tzinfo is None:
+                        fixture_dt = fixture_dt.replace(tzinfo=timezone.utc)
+                    if fixture_dt >= now:  # Match futur, skip
+                        continue
+                except Exception:
+                    pass
+
+            fid = f.get("id")
+            if not fid:
+                continue
+
+            # Récupérer les commentaires de ce match
+            comm_data = _get_allow_404(f"/commentaries/fixtures/{fid}", params={"per_page": 10})
+            comms = comm_data.get("data") if isinstance(comm_data.get("data"), list) else []
+            for c in comms[:3]:  # Max 3 commentaires par match
+                if not isinstance(c, dict):
+                    continue
+                text = (c.get("comment") or "").strip()
+                if text and len(text) > 20:
+                    news_items.append({
+                        "source": "sportmonks_past_match",
+                        "title": f"Recent match commentary: {text[:80]}",
+                        "snippet": text,
+                        "keywords_found": ["past match", "commentary"],
+                    })
+
+        if len(news_items) >= 15:  # Limiter à 15 items au total
+            break
+
+    print(f"[sportmonks] Found {len(news_items)} news/commentary items")
+    return news_items[:15]
 
 
 def _parse_sportmonks_predictions_array(predictions_list: list[dict[str, Any]]) -> dict[str, Any]:
@@ -1130,28 +1203,33 @@ def load_match_context_sportmonks(
     home_team_id = (home_participant.get("id") or home_participant.get("team_id")) if home_participant else None
     away_team_id = (away_participant.get("id") or away_participant.get("team_id")) if away_participant else None
 
-    # Enrichir les participants avec image_path depuis l'API teams si manquant
-    if home_participant and not home_participant.get("image_path"):
-        if home_team_id:
-            # Récupérer les données complètes de l'équipe via /teams/{id}
-            team_data = _get_allow_404(f"/teams/{home_team_id}")
-            if team_data and team_data.get("data"):
-                team_obj = team_data["data"]
-                if isinstance(team_obj, dict) and team_obj.get("image_path"):
-                    home_participant["image_path"] = team_obj["image_path"]
+    # Récupérer les logos directement via l'API /teams/{id}
+    home_logo = None
+    away_logo = None
 
-    if away_participant and not away_participant.get("image_path"):
-        if away_team_id:
-            team_data = _get_allow_404(f"/teams/{away_team_id}")
-            if team_data and team_data.get("data"):
-                team_obj = team_data["data"]
-                if isinstance(team_obj, dict) and team_obj.get("image_path"):
-                    away_participant["image_path"] = team_obj["image_path"]
+    if home_team_id:
+        print(f"[sportmonks] Fetching logo for home team ID {home_team_id}")
+        team_data = _get_allow_404(f"/teams/{home_team_id}")
+        if team_data and team_data.get("data"):
+            team_obj = team_data["data"]
+            if isinstance(team_obj, dict):
+                img = team_obj.get("image_path")
+                if img:
+                    home_logo = img if str(img).startswith("http") else f"https://cdn.sportmonks.com/images/soccer/teams/{img}"
+                    print(f"[sportmonks] Home logo found: {home_logo}")
 
-    home_logo = _team_logo(home_participant)
-    away_logo = _team_logo(away_participant)
+    if away_team_id:
+        print(f"[sportmonks] Fetching logo for away team ID {away_team_id}")
+        team_data = _get_allow_404(f"/teams/{away_team_id}")
+        if team_data and team_data.get("data"):
+            team_obj = team_data["data"]
+            if isinstance(team_obj, dict):
+                img = team_obj.get("image_path")
+                if img:
+                    away_logo = img if str(img).startswith("http") else f"https://cdn.sportmonks.com/images/soccer/teams/{img}"
+                    print(f"[sportmonks] Away logo found: {away_logo}")
 
-    # Fallback blasons si toujours pas de logo
+    # Fallback via search si toujours pas de logo
     if not home_logo and home_name:
         print(f"[sportmonks] Fallback logo search for home team: {home_name}")
         candidates = teams_search(home_name, limit=1)
@@ -1159,6 +1237,8 @@ def load_match_context_sportmonks(
             img = candidates[0].get("image_path")
             if img:
                 home_logo = img if str(img).startswith("http") else f"https://cdn.sportmonks.com/images/soccer/teams/{img}"
+                print(f"[sportmonks] Home logo (fallback): {home_logo}")
+
     if not away_logo and away_name:
         print(f"[sportmonks] Fallback logo search for away team: {away_name}")
         candidates = teams_search(away_name, limit=1)
@@ -1166,6 +1246,7 @@ def load_match_context_sportmonks(
             img = candidates[0].get("image_path")
             if img:
                 away_logo = img if str(img).startswith("http") else f"https://cdn.sportmonks.com/images/soccer/teams/{img}"
+                print(f"[sportmonks] Away logo (fallback): {away_logo}")
 
     league_obj = fixture_data.get("league") or {}
     league_name = league_obj.get("name") if isinstance(league_obj, dict) else None

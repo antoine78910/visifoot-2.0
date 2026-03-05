@@ -503,17 +503,32 @@ def run_predict_with_progress(
     scraped_items: list = []
     motivation_text = ""
 
-    # Scrape news for context (if NewsAPI configured)
+    # Scrape news for context
     report("Fetching news…", 68)
     try:
+        # Essayer d'abord les news externes (NewsAPI, Google News, etc.)
         scraped_items = fetch_news_multi_source(
             ctx.get("home_team", ""),
             ctx.get("away_team", ""),
             ctx.get("league"),
         )
+
+        # Si Sportmonks activé, ajouter les commentaires de match
+        if ctx.get("_sportmonks_use_predictions"):
+            from app.services.sportmonks import get_match_news_and_comments
+            sportmonks_news = get_match_news_and_comments(
+                fixture_id=ctx.get("fixture_id"),
+                home_team_id=ctx.get("home_team_id"),
+                away_team_id=ctx.get("away_team_id"),
+                match_date=ctx.get("match_date_iso"),
+            )
+            if sportmonks_news:
+                scraped_items.extend(sportmonks_news)
+                print(f"[predict] Added {len(sportmonks_news)} Sportmonks commentary items")
+
         if scraped_items:
             news_included = True
-            print(f"[predict] Scraped {len(scraped_items)} news items")
+            print(f"[predict] Total news items: {len(scraped_items)}")
     except Exception as e:
         print(f"[predict] News scraping failed: {e}")
 
