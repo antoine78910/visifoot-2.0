@@ -246,6 +246,122 @@ def fixtures_search(query: str, limit: int = 10) -> list[dict[str, Any]]:
     return data.get("data") or []
 
 
+def team_past_fixtures(
+    team_id: int,
+    last_n: int = 5,
+) -> tuple[list[int], list[int], list[str]]:
+    """
+    Derniers matchs terminés d'une équipe (Sportmonks).
+    Retourne (goals_for_list, goals_against_list, form_list W/D/L).
+    """
+    if not _use_sportmonks() or not team_id:
+        return ([], [], [])
+    from datetime import datetime, timezone, timedelta
+    now = datetime.now(timezone.utc)
+    end_date = now.strftime("%Y-%m-%d")
+    start_date = (now - timedelta(days=120)).strftime("%Y-%m-%d")
+    path = f"/fixtures/between/{start_date}/{end_date}/{team_id}"
+    params: dict[str, Any] = {"per_page": 30}
+    try:
+        data = _get(path, params=params, include="participants;scores")
+    except Exception:
+        return ([], [], [])
+    raw = data.get("data")
+    if isinstance(raw, dict):
+        raw = raw.get("data") if isinstance(raw.get("data"), list) else []
+    if not isinstance(raw, list):
+        raw = []
+    raw.sort(key=lambda x: (x.get("starting_at") or ""), reverse=True)
+    participants_by_fid: dict[int, list] = {}
+    for p in (data.get("participants") or []):
+        if isinstance(p, dict):
+            fid = p.get("fixture_id")
+            if fid is not None:
+                participants_by_fid.setdefault(int(fid), []).append(p)
+    scores_by_fid: dict[int, list] = {}
+    for s in (data.get("scores") or []):
+        if isinstance(s, dict):
+            fid = s.get("fixture_id")
+            if fid is not None:
+                scores_by_fid.setdefault(int(fid), []).append(s)
+    goals_for_list: list[int] = []
+    goals_against_list: list[int] = []
+    form_list: list[str] = []
+    seen = 0
+    for f in raw:
+        if seen >= last_n:
+            break
+        fid = f.get("id")
+        if fid is None:
+            continue
+        sat = f.get("starting_at") or ""
+        try:
+            if sat:
+                dt_str = sat.replace("T", " ")[:19].strip()
+                fixture_dt = datetime.fromisoformat(dt_str.replace(" ", "T").replace("Z", "+00:00"))
+                if fixture_dt.tzinfo is None:
+                    fixture_dt = fixture_dt.replace(tzinfo=timezone.utc)
+                if fixture_dt >= now:
+                    continue
+        except Exception:
+            pass
+        participants = f.get("participants") or participants_by_fid.get(int(fid), [])
+        scores = f.get("scores") or scores_by_fid.get(int(fid), [])
+        if not participants or not scores:
+            continue
+        home_goals = sum(
+            int((s.get("score") or {}).get("goals", 0) or 0)
+            for s in scores
+            if (s.get("score") or {}).get("participant") == "home"
+        )
+        away_goals = sum(
+            int((s.get("score") or {}).get("goals", 0) or 0)
+            for s in scores
+            if (s.get("score") or {}).get("participant") == "away"
+        )
+        home_p, away_p = None, None
+        for p in participants:
+            meta = p.get("meta") or {}
+            loc = (meta.get("location") or "").lower()
+            if loc == "home":
+                home_p = p
+            elif loc == "away":
+                away_p = p
+        if not home_p or not away_p and len(participants) >= 2:
+            home_p = participants[0] if participants else None
+            away_p = participants[1] if len(participants) > 1 else None
+        def _team_id_from_p(p: Optional[dict]) -> Optional[int]:
+            if not p:
+                return None
+            v = p.get("team_id") or p.get("id")
+            return int(v) if v is not None else None
+        pid_home = _team_id_from_p(home_p)
+        pid_away = _team_id_from_p(away_p)
+        tid = int(team_id)
+        is_home = pid_home is not None and pid_home == tid
+        is_away = pid_away is not None and pid_away == tid
+        if not is_home and not is_away:
+            if not _fixture_involves_team(f, team_id):
+                continue
+            is_home = _team_id_from_p(participants[0] if participants else None) == tid
+            is_away = not is_home and len(participants) > 1
+        if not (is_home or is_away):
+            continue
+        gf = home_goals if is_home else away_goals
+        ga = away_goals if is_home else home_goals
+        if home_goals > away_goals:
+            res = "W" if is_home else "L"
+        elif home_goals < away_goals:
+            res = "L" if is_home else "W"
+        else:
+            res = "D"
+        goals_for_list.append(gf)
+        goals_against_list.append(ga)
+        form_list.append(res)
+        seen += 1
+    return (goals_for_list, goals_against_list, form_list)
+
+
 def team_upcoming_fixtures(team_id: int, limit: int = 10) -> list[dict[str, Any]]:
     """
     Prochains matchs de l'équipe (Sportmonks).
@@ -404,8 +520,9 @@ def load_match_context_sportmonks(
     progress_callback: Optional[Any] = None,
 ) -> Optional[dict[str, Any]]:
     """
-    Charge le contexte match depuis Sportmonks: fixture, prédictions, équipes avec blasons.
+    Charge le contexte match depuis Sportmonks: fixture, prédictions, forme (derniers matchs), équipes avec blasons.
     Retourne le même format que _load_match_context_api_football pour compatibilité predict.
+    Quand les prédictions API sont vides, on utilise la forme et les buts (Poisson) depuis les matchs passés Sportmonks.
     """
     if not _use_sportmonks():
         return None
@@ -424,6 +541,8 @@ def load_match_context_sportmonks(
     away_name = (away_participant.get("name") if away_participant else None) or away_team
     home_logo = _team_logo(home_participant)
     away_logo = _team_logo(away_participant)
+    home_team_id = (home_participant.get("id") or home_participant.get("team_id")) if home_participant else None
+    away_team_id = (away_participant.get("id") or away_participant.get("team_id")) if away_participant else None
 
     league_obj = fixture_data.get("league") or {}
     league_name = league_obj.get("name") if isinstance(league_obj, dict) else None
@@ -433,13 +552,12 @@ def load_match_context_sportmonks(
     venue_name = venue_obj.get("name") if isinstance(venue_obj, dict) else None
     starting_at = fixture_data.get("starting_at")
     match_date_iso = starting_at
-    match_date = starting_at  # peut formater en "4 March 2026 at 20:00" si besoin
+    match_date = starting_at
     fixture_id = fixture_data.get("id")
 
-    report("Loading Sportmonks predictions…", 30)
+    report("Loading Sportmonks predictions…", 25)
     probs = predictions_probabilities_by_fixture(int(fixture_id)) if fixture_id else None
 
-    # Mapper les probas Sportmonks vers notre format (noms de champs peuvent varier selon l'API)
     home_win = draw = away_win = 33.33
     over_25 = under_25 = 50.0
     btts_yes = btts_no = 50.0
@@ -475,12 +593,106 @@ def load_match_context_sportmonks(
             xg_home = float(probs.get("expected_goals_home") or probs.get("xg_home") or 1.2)
             xg_away = float(probs.get("expected_goals_away") or probs.get("xg_away") or 1.2)
 
-    # Construire le contexte au format attendu par predict (comme API-Football)
+    home_goals_for: list[int] = []
+    home_goals_against: list[int] = []
+    away_goals_for: list[int] = []
+    away_goals_against: list[int] = []
+    home_form: list[str] = []
+    away_form: list[str] = []
+    hw, hd, hl = 0, 0, 0
+    aw, ad, al = 0, 0, 0
+    lambda_home_calc = xg_home
+    lambda_away_calc = xg_away
+    comparison_pcts: Optional[dict[str, float]] = None
+    pipeline_steps: list[dict] = []
+
+    def _form_to_label(wins: int, draws: int, losses: int) -> str:
+        total = wins + draws + losses or 1
+        pts = wins * 3 + draws
+        ratio = pts / (total * 3)
+        if ratio >= 0.6:
+            return "Great form"
+        if ratio >= 0.4:
+            return "Average form"
+        return "Poor form"
+
+    if home_team_id and away_team_id:
+        report("Loading team form (last 5)…", 30)
+        try:
+            from app.ml.features import (
+                compute_goals_avg,
+                compute_lambda_home_away,
+                form_to_wdl,
+                build_comparison_pcts,
+            )
+            home_goals_for, home_goals_against, home_form = team_past_fixtures(int(home_team_id), last_n=5)
+            away_goals_for, away_goals_against, away_form = team_past_fixtures(int(away_team_id), last_n=5)
+            hw = sum(1 for x in home_form if x == "W")
+            hd = sum(1 for x in home_form if x == "D")
+            hl = sum(1 for x in home_form if x == "L")
+            aw = sum(1 for x in away_form if x == "W")
+            ad = sum(1 for x in away_form if x == "D")
+            al = sum(1 for x in away_form if x == "L")
+            h_for_avg, h_against_avg = compute_goals_avg(home_goals_for, home_goals_against)
+            a_for_avg, a_against_avg = compute_goals_avg(away_goals_for, away_goals_against)
+            lambda_home_calc, lambda_away_calc = compute_lambda_home_away(
+                home_goals_for, home_goals_against, away_goals_for, away_goals_against,
+            )
+            comparison_pcts = build_comparison_pcts(
+                hw, hd, hl, aw, ad, al,
+                h_for_avg, a_for_avg, h_against_avg, a_against_avg,
+                0, 0, 0,
+            )
+            pipeline_steps = [
+                {"order": 1, "title_key": "recap.step.data_source_sportmonks", "detail": "Data source: Sportmonks (fixture + predictions + team past fixtures for form)."},
+                {"order": 2, "title_key": "recap.step.form", "detail": f"Team results (Sportmonks last 5): home goals_for/against avg {h_for_avg:.2f}/{h_against_avg:.2f}, away {a_for_avg:.2f}/{a_against_avg:.2f}. Form W-D-L."},
+                {"order": 3, "title_key": "recap.step.features", "detail": f"Feature engineering: lambda_home={lambda_home_calc:.2f}, lambda_away={lambda_away_calc:.2f}. Comparison percentages."},
+            ]
+        except Exception:
+            pass
+
+    use_api_probs = bool(probs)
+    if not use_api_probs:
+        xg_home = lambda_home_calc
+        xg_away = lambda_away_calc
+
+    data_recap: dict[str, Any] = {
+        "data_source": "Sportmonks",
+        "pipeline_steps": pipeline_steps,
+        "sportmonks_predictions": {
+            "home_win": home_win,
+            "draw": draw,
+            "away_win": away_win,
+            "over_2_5": over_25,
+            "under_2_5": under_25,
+            "btts_yes": btts_yes,
+            "btts_no": btts_no,
+            "xg_home": xg_home,
+            "xg_away": xg_away,
+        },
+        "raw_home_goals_for": home_goals_for,
+        "raw_home_goals_against": home_goals_against,
+        "raw_away_goals_for": away_goals_for,
+        "raw_away_goals_against": away_goals_against,
+        "raw_home_form": home_form,
+        "raw_away_form": away_form,
+        "form_home_matches": len(home_goals_for),
+        "form_away_matches": len(away_goals_for),
+        "home_goals_for_avg": round(sum(home_goals_for) / len(home_goals_for), 2) if home_goals_for else None,
+        "home_goals_against_avg": round(sum(home_goals_against) / len(home_goals_against), 2) if home_goals_against else None,
+        "away_goals_for_avg": round(sum(away_goals_for) / len(away_goals_for), 2) if away_goals_for else None,
+        "away_goals_against_avg": round(sum(away_goals_against) / len(away_goals_against), 2) if away_goals_against else None,
+        "h2h_matches_count": 0,
+        "h2h_home_wins": 0,
+        "h2h_draws": 0,
+        "h2h_away_wins": 0,
+    }
+
     return {
         "home_team": home_name,
         "away_team": away_name,
-        "home_team_id": home_participant.get("id") if home_participant else None,
-        "away_team_id": away_participant.get("id") if away_participant else None,
+        "home_team_id": home_team_id,
+        "away_team_id": away_team_id,
         "home_team_logo": home_logo,
         "away_team_logo": away_logo,
         "league": league_name,
@@ -490,32 +702,18 @@ def load_match_context_sportmonks(
         "fixture_id": fixture_id,
         "lambda_home": xg_home,
         "lambda_away": xg_away,
-        "home_form": None,
-        "away_form": None,
-        "home_wdl": None,
-        "away_wdl": None,
-        "home_form_label": None,
-        "away_form_label": None,
-        "comparison_pcts": None,
+        "home_form": home_form or None,
+        "away_form": away_form or None,
+        "home_wdl": f"{hw}-{hd}-{hl}" if home_form else None,
+        "away_wdl": f"{aw}-{ad}-{al}" if away_form else None,
+        "home_form_label": _form_to_label(hw, hd, hl) if home_form else None,
+        "away_form_label": _form_to_label(aw, ad, al) if away_form else None,
+        "comparison_pcts": comparison_pcts,
         "match_over": False,
         "final_score_home": None,
         "final_score_away": None,
         "match_statistics": None,
-        "data_recap": {
-            "data_source": "Sportmonks",
-            "pipeline_steps": [],
-            "sportmonks_predictions": {
-                "home_win": home_win,
-                "draw": draw,
-                "away_win": away_win,
-                "over_2_5": over_25,
-                "under_2_5": under_25,
-                "btts_yes": btts_yes,
-                "btts_no": btts_no,
-                "xg_home": xg_home,
-                "xg_away": xg_away,
-            },
-        },
+        "data_recap": data_recap,
         "_sportmonks_raw_probs": probs,
-        "_sportmonks_use_predictions": bool(probs),
+        "_sportmonks_use_predictions": use_api_probs,
     }
