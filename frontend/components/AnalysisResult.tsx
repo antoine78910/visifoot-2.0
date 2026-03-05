@@ -967,27 +967,30 @@ export function AnalysisResult({ result }: { result: Result }) {
         <h2 className="text-lg font-semibold text-white mb-4">🎯 Our predictions</h2>
         <div className="space-y-4 mb-6">
           {typeof result.xg_home === "number" && typeof result.xg_away === "number" && (result.xg_home + result.xg_away > 0) && (
-            <StatBar
-              label={`xG share (${t("analysis.expectedGoals")})`}
-              homePct={(result.xg_home / (result.xg_home + result.xg_away)) * 100}
-              homeColor={HOME_COLOR}
-              awayColor={AWAY_COLOR}
+            <SplitBar
+              leftPct={(result.xg_home / (result.xg_home + result.xg_away)) * 100}
+              leftLabel={`${home} xG`}
+              rightLabel={`${away} xG`}
+              leftColor="bg-[#00ffe8]"
+              rightColor="bg-[#ef4444]/60"
             />
           )}
           {typeof result.btts_yes_pct === "number" && (
-            <StatBar
-              label={t("analysis.bttsLabel")}
-              homePct={result.btts_yes_pct}
-              homeColor={HOME_COLOR}
-              awayColor={AWAY_COLOR}
+            <SplitBar
+              leftPct={result.btts_yes_pct}
+              leftLabel="BTTS Yes"
+              rightLabel="BTTS No"
+              leftColor="bg-[#00ffe8]"
+              rightColor="bg-[#ef4444]/60"
             />
           )}
           {result.over_under && result.over_under.length > 0 && (
-            <StatBar
-              label="Over 2.5"
-              homePct={(result.over_under.find((r) => r.line === "2.5") ?? result.over_under[0]).over_pct}
-              homeColor={HOME_COLOR}
-              awayColor={AWAY_COLOR}
+            <SplitBar
+              leftPct={(result.over_under.find((r) => r.line === "2.5") ?? result.over_under[0]).over_pct}
+              leftLabel="Over 2.5"
+              rightLabel="Under 2.5"
+              leftColor="bg-[#00ffe8]"
+              rightColor="bg-[#ef4444]/60"
             />
           )}
         </div>
