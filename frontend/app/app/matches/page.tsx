@@ -12,7 +12,7 @@ function MatchesContent() {
   const away = searchParams.get("away") ?? "";
 
   return (
-    <div className="px-2 py-4 sm:p-8 w-full flex flex-col items-center">
+    <div className="px-1 py-4 sm:p-8 w-full flex flex-col items-center">
       <div className="w-full max-w-xl mx-auto min-w-0">
         <h1 className="text-2xl font-bold text-white text-center">{t("matches.title")}</h1>
         <p className="text-zinc-500 mt-1 text-center">{t("matches.subtitle")}</p>

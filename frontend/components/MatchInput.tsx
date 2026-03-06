@@ -19,6 +19,42 @@ function LoaderSpinner({ className }: { className?: string }) {
   );
 }
 
+/** Overlay de chargement style /loading-demo : fond sombre + carte centrée */
+function AnalysisLoadingOverlay({
+  progress,
+  progressStep,
+  analyzingLabel,
+}: {
+  progress: number;
+  progressStep: string;
+  analyzingLabel: string;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-6 bg-[#0a0a0f]" aria-live="polite" aria-busy="true">
+      <div className="w-full max-w-md rounded-2xl bg-[#14141c] border border-white/10 p-8 shadow-xl">
+        <div className="flex flex-col items-center gap-4 w-full">
+          <span className="flex items-center gap-2 text-white">
+            <LoaderSpinner className="w-5 h-5 flex-shrink-0 text-[#00ffe8]" />
+            <span className="font-semibold">{analyzingLabel}</span>
+          </span>
+          <span className="text-2xl font-bold tabular-nums text-white">{progress}%</span>
+          <AnalysisStepDisplay
+            step={progressStep}
+            variant="default"
+            className="w-full min-h-[2rem] text-zinc-300"
+          />
+          <div className="w-full h-2.5 bg-white/10 rounded-full overflow-hidden shadow-inner">
+            <div
+              className="h-full bg-gradient-to-r from-[#00ffe8] to-emerald-400 rounded-full transition-all duration-700 ease-out"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 type UpcomingFixture = {
@@ -329,7 +365,14 @@ export function MatchInput({
   }, []);
 
   return (
-    <div className="w-full max-w-xl rounded-2xl bg-dark-card border border-dark-border p-6 shadow-glow">
+    <div className="w-full max-w-xl rounded-2xl bg-dark-card border border-dark-border p-6 shadow-glow relative">
+      {loading && (
+        <AnalysisLoadingOverlay
+          progress={progress}
+          progressStep={progressStep}
+          analyzingLabel={t("matchInput.analyzing")}
+        />
+      )}
       <p className="text-xs uppercase tracking-wider text-zinc-500 mb-6">{t("matchInput.matchToAnalyze")}</p>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -407,24 +450,7 @@ export function MatchInput({
             disabled={loading}
             className="w-full py-4 rounded-xl font-semibold text-black bg-gradient-to-r from-[#00ffe8] to-[#00ddcc] hover:opacity-90 transition shadow-glow disabled:opacity-80 disabled:cursor-wait"
           >
-            {loading ? (
-              <span className="flex flex-col items-center gap-3 text-black w-full">
-                <span className="flex items-center gap-2">
-                  <LoaderSpinner className="w-5 h-5 flex-shrink-0" />
-                  <span className="font-semibold">{t("matchInput.analyzing")}</span>
-                </span>
-                <span className="text-2xl font-bold tabular-nums">{progress}%</span>
-                <AnalysisStepDisplay step={progressStep} variant="button" className="w-full min-h-[1.75rem]" />
-                <div className="w-full max-w-xs h-2.5 bg-black/20 rounded-full overflow-hidden shadow-inner">
-                  <div
-                    className="h-full bg-black rounded-full transition-all duration-500 ease-out"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-              </span>
-            ) : (
-              <span className="text-black">{t("matchInput.analyzeButton")}</span>
-            )}
+            <span className="text-black">{t("matchInput.analyzeButton")}</span>
           </button>
         )}
       </form>

@@ -527,7 +527,7 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-auto min-w-0 px-4 md:px-0 py-4 md:py-0">
+      <main className="flex-1 overflow-auto min-w-0 px-2 md:px-0 py-4 md:py-0">
         {children}
       </main>
     </div>

@@ -334,9 +334,9 @@ function PredictionMarketBar({
           style={{ backgroundColor: rightColor }}
         />
       </div>
-      <div className="flex justify-between text-xs text-zinc-500">
-        <span>{pct.toFixed(1)}%</span>
-        <span>{rightPct.toFixed(1)}%</span>
+      <div className="flex justify-between text-xs font-medium tabular-nums">
+        <span style={{ color: leftColor }}>{pct.toFixed(1)}%</span>
+        <span style={{ color: rightColor }}>{rightPct.toFixed(1)}%</span>
       </div>
     </div>
   );
@@ -522,16 +522,16 @@ export function AnalysisResult({ result }: { result: Result }) {
   return (
     <div className="rounded-2xl bg-[#14141c] border border-white/10 overflow-hidden shadow-lg relative">
       <div className="p-4 sm:p-6 space-y-0">
-      {/* AI analysis ready — petit badge en haut à droite */}
-      <div className="absolute top-2 right-2 sm:top-3 sm:right-3 z-10">
-        <div className="rounded-md border border-[#00ffe8]/50 bg-[#0a0a0e]/90 px-2 py-1 text-center">
+      {/* AI analysis ready — mobile: tout en haut centré (dépasse de moitié); desktop: haut droite */}
+      <div className="absolute -top-3 left-1/2 -translate-x-1/2 sm:left-auto sm:right-3 sm:top-3 sm:translate-x-0 z-10">
+        <div className="rounded-md border border-[#00ffe8]/50 bg-[#0a0a0e]/95 px-2 py-1 text-center shadow-lg">
           <p className="text-[#00ffe8] font-medium text-[10px] sm:text-xs leading-tight">{t("analysis.aiReady")}</p>
           <p className="text-[#00ffe8]/70 text-[9px] sm:text-[10px] leading-tight">{t("analysis.basedOn")}</p>
         </div>
       </div>
       {/* Recap - first section: mobile = logos above, names + VS on new lines; desktop = logo | text | logo */}
-      <div className="pb-4 sm:pb-6">
-        <div className="flex flex-wrap items-center justify-between gap-4 pr-20 sm:pr-24">
+      <div className="pb-4 sm:pb-6 pt-4 sm:pt-0">
+        <div className="flex flex-wrap items-center justify-between gap-4 sm:pr-24">
           <div className="min-w-0 flex-1 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
             {/* Mobile: logos row then label + home / vs / away on new lines */}
             <div className="flex flex-col items-center sm:hidden">
@@ -882,9 +882,10 @@ export function AnalysisResult({ result }: { result: Result }) {
                 <span className="text-[#ef4444] font-semibold text-sm w-10 text-right flex-shrink-0">{result.internal_prob_away ?? result.prob_away ?? 0}%</span>
               </div>
             </div>
+            <p className="text-zinc-500 text-xs mt-2">{t("analysis.exactProbNote")}</p>
             {result.implied_odds_home != null && (
               <>
-                <p className="text-zinc-500 text-xs mb-2">{t("betting.impliedOdds")} (decimal, compare with bookmakers)</p>
+                <p className="text-zinc-500 text-xs mb-2 mt-3">{t("betting.impliedOdds")} (decimal, compare with bookmakers)</p>
                 <div className="flex flex-wrap gap-4 text-xs text-zinc-500">
                   <span>{home} ~{result.implied_odds_home}</span>
                   <span>Draw ~{result.implied_odds_draw ?? "—"}</span>
@@ -1108,16 +1109,16 @@ export function AnalysisResult({ result }: { result: Result }) {
             <div className="space-y-1 text-sm">
               <div className="flex items-center justify-between">
                 <span className="text-zinc-300">{home}</span>
-                <span className="text-white font-semibold">{typeof result.xg_home === "number" ? result.xg_home.toFixed(2) : "0.00"} goals</span>
+                <span className="font-semibold tabular-nums" style={{ color: HOME_HEX }}>{typeof result.xg_home === "number" ? result.xg_home.toFixed(2) : "0.00"} goals</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-zinc-300">{away}</span>
-                <span className="text-white font-semibold">{typeof result.xg_away === "number" ? result.xg_away.toFixed(2) : "0.00"} goals</span>
+                <span className="font-semibold tabular-nums" style={{ color: AWAY_HEX }}>{typeof result.xg_away === "number" ? result.xg_away.toFixed(2) : "0.00"} goals</span>
               </div>
               <div className="h-px bg-white/10 my-2" />
               <div className="flex items-center justify-between">
                 <span className="text-zinc-400">Total</span>
-                <span className="text-white font-semibold">{typeof result.xg_total === "number" ? result.xg_total.toFixed(2) : "0.00"} goals</span>
+                <span className="text-white font-semibold tabular-nums">{typeof result.xg_total === "number" ? result.xg_total.toFixed(2) : "0.00"} goals</span>
               </div>
             </div>
             {typeof result.btts_yes_pct === "number" && (

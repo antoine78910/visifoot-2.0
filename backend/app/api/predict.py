@@ -133,6 +133,7 @@ def _apply_motivation_to_1x2(out: dict, ctx: dict) -> None:
     """
     Ajuste prob_home / prob_draw / prob_away selon la motivation des équipes
     (home_motivation_score, away_motivation_score dans ctx). Renormalise à 100%.
+    Applique le même ajustement aux internal_prob_* pour que l'affichage "Exact probabilities" reflète la motivation.
     """
     home_score = ctx.get("home_motivation_score")
     away_score = ctx.get("away_motivation_score")
@@ -166,6 +167,18 @@ def _apply_motivation_to_1x2(out: dict, ctx: dict) -> None:
     out["double_chance_x2"] = round(out["prob_draw"] + out["prob_away"], 1)
     out["double_chance_12"] = round(out["prob_home"] + out["prob_away"], 1)
     out["upset_probability"] = round(min(out["prob_home"], out["prob_away"]), 1)
+    # Appliquer le même shift aux internal_prob_* (affichées dans "Exact probabilities") pour cohérence avec la motivation
+    i1 = out.get("internal_prob_home")
+    ix = out.get("internal_prob_draw")
+    i2 = out.get("internal_prob_away")
+    if i1 is not None and ix is not None and i2 is not None:
+        i1 = float(i1) + shift
+        i2 = float(i2) - shift
+        itotal = i1 + ix + i2
+        if itotal > 0:
+            out["internal_prob_home"] = round(100 * i1 / itotal, 1)
+            out["internal_prob_draw"] = round(100 * float(ix) / itotal, 1)
+            out["internal_prob_away"] = round(100 * i2 / itotal, 1)
 
 
 def _out_from_sportmonks(ctx: dict) -> dict:
