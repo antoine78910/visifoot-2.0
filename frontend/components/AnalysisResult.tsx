@@ -533,26 +533,26 @@ export function AnalysisResult({ result }: { result: Result }) {
       <div className="pb-4 sm:pb-6 pt-4 sm:pt-0">
         <div className="flex flex-wrap items-center justify-between gap-4 sm:pr-24">
           <div className="min-w-0 flex-1 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-            {/* Mobile: logos row then label + home / vs / away on new lines */}
-            <div className="flex flex-col items-center sm:hidden">
-              <div className="flex items-center justify-center gap-3">
+            {/* Mobile: blason aligné avec le nom de l'équipe, noms un peu plus gros pour gagner de la place */}
+            <div className="flex flex-col sm:hidden gap-1.5 min-w-0">
+              <p className="text-zinc-500 text-xs text-center">{t("analysis.analyzedMatch")}</p>
+              <div className="flex items-center gap-2 min-w-0">
                 {result.home_team_logo ? (
-                  <img src={result.home_team_logo} alt="" className="w-12 h-12 object-contain flex-shrink-0" />
+                  <img src={result.home_team_logo} alt="" className="w-11 h-11 object-contain flex-shrink-0" />
                 ) : (
-                  <div className="w-12 h-12 rounded-xl bg-[#1c1c28] flex items-center justify-center text-white font-bold text-sm">{home.slice(0, 2)}</div>
+                  <div className="w-11 h-11 rounded-xl bg-[#1c1c28] flex items-center justify-center text-white font-bold text-sm flex-shrink-0">{home.slice(0, 2)}</div>
                 )}
-                {result.away_team_logo ? (
-                  <img src={result.away_team_logo} alt="" className="w-12 h-12 object-contain flex-shrink-0" />
-                ) : (
-                  <div className="w-12 h-12 rounded-xl bg-[#1c1c28] flex items-center justify-center text-white font-bold text-sm">{away.slice(0, 2)}</div>
-                )}
+                <span className="text-white font-bold text-base sm:text-lg truncate flex-1 min-w-0">{home}</span>
               </div>
-              <p className="text-zinc-500 text-xs sm:text-sm mt-1.5">{t("analysis.analyzedMatch")}</p>
-              <h1 className="text-lg sm:text-xl font-bold mt-0.5 text-white text-center">
-                <span className="text-white block">{home}</span>
-                <span className="text-zinc-500 font-normal block my-0.5">vs</span>
-                <span className="text-white block">{away}</span>
-              </h1>
+              <p className="text-zinc-500 text-sm text-center">vs</p>
+              <div className="flex items-center gap-2 min-w-0">
+                {result.away_team_logo ? (
+                  <img src={result.away_team_logo} alt="" className="w-11 h-11 object-contain flex-shrink-0" />
+                ) : (
+                  <div className="w-11 h-11 rounded-xl bg-[#1c1c28] flex items-center justify-center text-white font-bold text-sm flex-shrink-0">{away.slice(0, 2)}</div>
+                )}
+                <span className="text-white font-bold text-base sm:text-lg truncate flex-1 min-w-0">{away}</span>
+              </div>
             </div>
             {/* Desktop: logo | text | logo */}
             <div className="hidden sm:flex items-center gap-4 min-w-0 flex-1">
