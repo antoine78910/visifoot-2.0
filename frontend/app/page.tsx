@@ -130,52 +130,52 @@ export default function LandingPage() {
 
             <h3 className="text-white font-semibold text-sm mb-3">Team statistics</h3>
             <div className="grid sm:grid-cols-2 gap-4">
-              <div className="rounded-xl bg-[#1c1c28] border border-white/5 p-4 flex items-center gap-3">
-                <img src="https://media.api-sports.io/football/teams/85.png" alt="" className="w-10 h-10 object-contain flex-shrink-0" />
-                <div className="min-w-0">
-                  <p className="font-semibold text-white text-sm">Paris Saint-Germain</p>
-                  <p className="text-zinc-400 text-xs mt-1 flex items-center gap-1">
-                    Form: <span className="inline-flex gap-0.5">✅ ✅ ➖ ❌ ✅</span> <span className="text-zinc-500">W-D-L: 3-1-1</span>
-                  </p>
-                  <p className="text-zinc-400 text-xs mt-0.5">Goals/match: 2.2 · xG: 2.1</p>
+              <div className="rounded-xl bg-[#1c1c28] border border-white/5 p-4 flex flex-col gap-2 min-w-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <img src="https://media.api-sports.io/football/teams/85.png" alt="" className="w-10 h-10 object-contain flex-shrink-0" />
+                  <p className="font-semibold text-white text-sm truncate">Paris Saint-Germain</p>
                 </div>
+                <p className="text-zinc-400 text-xs">Goals/match: 2.2 · xG: 2.1</p>
+                <p className="text-zinc-400 text-xs mt-auto flex items-center gap-1">
+                  Form: <span className="inline-flex gap-0.5">✅ ✅ ➖ ❌ ✅</span> <span className="text-zinc-500">W-D-L: 3-1-1</span>
+                </p>
               </div>
-              <div className="rounded-xl bg-[#1c1c28] border border-white/5 p-4 flex items-center gap-3">
-                <img src="https://media.api-sports.io/football/teams/49.png" alt="" className="w-10 h-10 object-contain flex-shrink-0" />
-                <div className="min-w-0">
-                  <p className="font-semibold text-white text-sm">Chelsea</p>
-                  <p className="text-zinc-400 text-xs mt-1 flex items-center gap-1">
-                    Form: <span className="inline-flex gap-0.5">✅ ➖ ✅ ✅ ➖</span> <span className="text-zinc-500">W-D-L: 3-2-0</span>
-                  </p>
-                  <p className="text-zinc-400 text-xs mt-0.5">Goals/match: 1.8 · xG: 1.9</p>
+              <div className="rounded-xl bg-[#1c1c28] border border-white/5 p-4 flex flex-col gap-2 min-w-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <img src="https://media.api-sports.io/football/teams/49.png" alt="" className="w-10 h-10 object-contain flex-shrink-0" />
+                  <p className="font-semibold text-white text-sm truncate">Chelsea</p>
                 </div>
+                <p className="text-zinc-400 text-xs">Goals/match: 1.8 · xG: 1.9</p>
+                <p className="text-zinc-400 text-xs mt-auto flex items-center gap-1">
+                  Form: <span className="inline-flex gap-0.5">✅ ➖ ✅ ✅ ➖</span> <span className="text-zinc-500">W-D-L: 3-2-0</span>
+                </p>
               </div>
             </div>
 
             <div className="border-t border-white/10 mt-5 pt-5" />
 
             <h3 className="text-white font-semibold text-sm mb-3">AI probabilities</h3>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <span className="text-zinc-300 text-sm w-24 flex-shrink-0">PSG win</span>
-                <div className="flex-1 h-3 bg-[#1c1c28] rounded-full overflow-hidden min-w-0">
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <span className="text-zinc-300 text-xs sm:text-sm w-20 sm:w-24 flex-shrink-0 tabular-nums">PSG win</span>
+                <div className="flex-1 h-2 bg-[#1c1c28] rounded-full overflow-hidden min-w-0">
                   <div className="h-full bg-[#00ffe8] rounded-full" style={{ width: "42%" }} />
                 </div>
-                <span className="text-white font-semibold text-sm w-8 text-right">42%</span>
+                <span className="text-white font-semibold text-xs sm:text-sm w-7 sm:w-8 text-right tabular-nums">42%</span>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-zinc-300 text-sm w-24 flex-shrink-0">Draw</span>
-                <div className="flex-1 h-3 bg-[#1c1c28] rounded-full overflow-hidden min-w-0">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <span className="text-zinc-300 text-xs sm:text-sm w-20 sm:w-24 flex-shrink-0 tabular-nums">Draw</span>
+                <div className="flex-1 h-2 bg-[#1c1c28] rounded-full overflow-hidden min-w-0">
                   <div className="h-full bg-zinc-400 rounded-full" style={{ width: "28%" }} />
                 </div>
-                <span className="text-white font-semibold text-sm w-8 text-right">28%</span>
+                <span className="text-white font-semibold text-xs sm:text-sm w-7 sm:w-8 text-right tabular-nums">28%</span>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-zinc-300 text-sm w-24 flex-shrink-0">Chelsea win</span>
-                <div className="flex-1 h-3 bg-[#1c1c28] rounded-full overflow-hidden min-w-0">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <span className="text-zinc-300 text-xs sm:text-sm w-20 sm:w-24 flex-shrink-0 tabular-nums">Chelsea win</span>
+                <div className="flex-1 h-2 bg-[#1c1c28] rounded-full overflow-hidden min-w-0">
                   <div className="h-full bg-[#ef4444]/80 rounded-full" style={{ width: "30%" }} />
                 </div>
-                <span className="text-white font-semibold text-sm w-8 text-right">30%</span>
+                <span className="text-white font-semibold text-xs sm:text-sm w-7 sm:w-8 text-right tabular-nums">30%</span>
               </div>
             </div>
 
