@@ -55,9 +55,19 @@ body {
 .animate-league-scroll {
   animation: league-scroll 40s linear infinite;
 }
+@media (max-width: 768px) {
+  .animate-league-scroll {
+    animation-duration: 24s;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .animate-league-scroll {
     animation-duration: 80s;
+  }
+}
+@media (max-width: 768px) and (prefers-reduced-motion: reduce) {
+  .animate-league-scroll {
+    animation-duration: 48s;
   }
 }
 

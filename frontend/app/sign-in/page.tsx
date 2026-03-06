@@ -12,9 +12,21 @@ import {
 import { SIGN_UP_HREF, getAppAuthCallbackUrl, getAppRootUrl } from "@/lib/app-url";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
+function getSignInErrorMessage(err: unknown): string {
+  const msg = typeof err === "object" && err !== null && "message" in err ? String((err as { message: string }).message) : "";
+  const lower = msg.toLowerCase();
+  if (lower.includes("invalid login credentials") || lower.includes("invalid_credentials")) return "Email or password incorrect.";
+  if (lower.includes("email not confirmed")) return "Please confirm your email before signing in.";
+  if (lower.includes("user not found")) return "No account found with this email.";
+  if (msg) return msg;
+  return "Sign-in failed. Please try again.";
+}
+
 function SignInPageContent() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const searchParams = useSearchParams();
   const next = searchParams.get("next");
 
@@ -31,27 +43,47 @@ function SignInPageContent() {
     }
   }, []);
 
-  const canSubmit = email.trim().length > 0 && password.trim().length >= 6;
+  const canSubmit = email.trim().length > 0 && password.trim().length >= 6 && !loading;
 
-  const handleSignIn = (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
-    const user: UserInfo = {
-      displayName: displayNameFromEmail(email.trim()),
-      email: email.trim(),
-      plan: "free",
-    };
-    setAuthCookie();
-    setUserInStorage(user);
-    // Always redirect to the app after sign-in (app subdomain in dev, app origin in prod)
-    const isApp = typeof window !== "undefined" && window.location.hostname.startsWith("app.");
-    const safeNext = next && next.startsWith("/") ? next : null;
-    const target = safeNext
-      ? `${window.location.origin}${safeNext}`
-      : isApp
-        ? `${window.location.origin}/`
-        : getAppRootUrl();
-    window.location.href = target;
+    setError(null);
+    setLoading(true);
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+      if (signInError) throw signInError;
+      const user = data?.user;
+      const userEmail = user?.email ?? email.trim();
+      const displayName =
+        (user?.user_metadata as { full_name?: string; name?: string })?.full_name ||
+        (user?.user_metadata as { full_name?: string; name?: string })?.name ||
+        displayNameFromEmail(userEmail);
+      const userInfo: UserInfo = {
+        id: user?.id,
+        displayName,
+        email: userEmail,
+        plan: "free",
+      };
+      setAuthCookie();
+      setUserInStorage(userInfo);
+      const isApp = typeof window !== "undefined" && window.location.hostname.startsWith("app.");
+      const safeNext = next && next.startsWith("/") ? next : null;
+      const target = safeNext
+        ? `${window.location.origin}${safeNext}`
+        : isApp
+          ? `${window.location.origin}/`
+          : getAppRootUrl();
+      window.location.href = target;
+    } catch (err) {
+      setError(getSignInErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleGoogle = async () => {
@@ -121,22 +153,27 @@ function SignInPageContent() {
             placeholder="Email"
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => { setEmail(e.target.value); setError(null); }}
             className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent"
           />
           <input
             placeholder="Password"
             type="password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => { setPassword(e.target.value); setError(null); }}
             className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent"
           />
+          {error && (
+            <p className="text-sm text-red-400 bg-red-500/10 border border-red-400/30 rounded-lg px-3 py-2" role="alert">
+              {error}
+            </p>
+          )}
           <button
             type="submit"
             disabled={!canSubmit}
             className="w-full h-12 px-6 bg-gradient-to-r from-teal-400 to-emerald-400 hover:from-teal-500 hover:to-emerald-500 text-black font-semibold rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Sign in
+            {loading ? "Signing in…" : "Sign in"}
           </button>
         </form>
 

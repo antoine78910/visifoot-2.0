@@ -324,14 +324,14 @@ function PredictionMarketBar({
         <span className="text-zinc-300">{leftLabel}</span>
         <span className="text-zinc-300">{rightLabel}</span>
       </div>
-      <div className="h-3 bg-[#1c1c28] rounded-full overflow-hidden flex">
+      <div className="h-3 bg-[#1c1c28] rounded-full overflow-hidden flex shadow-inner">
         <div
-          className="h-full rounded-l-full transition-all"
+          className="h-full rounded-l-full transition-all duration-300"
           style={{ width: `${pct}%`, backgroundColor: leftColor }}
         />
         <div
-          className="h-full flex-1 rounded-r-full"
-          style={{ backgroundColor: rightColor + "99" }}
+          className="h-full flex-1 rounded-r-full opacity-80"
+          style={{ backgroundColor: rightColor }}
         />
       </div>
       <div className="flex justify-between text-xs text-zinc-500">
@@ -520,11 +520,18 @@ export function AnalysisResult({ result }: { result: Result }) {
   );
 
   return (
-    <div className="rounded-2xl bg-[#14141c] border border-white/10 overflow-hidden shadow-lg">
+    <div className="rounded-2xl bg-[#14141c] border border-white/10 overflow-hidden shadow-lg relative">
       <div className="p-4 sm:p-6 space-y-0">
+      {/* AI analysis ready — petit badge en haut à droite */}
+      <div className="absolute top-2 right-2 sm:top-3 sm:right-3 z-10">
+        <div className="rounded-md border border-[#00ffe8]/50 bg-[#0a0a0e]/90 px-2 py-1 text-center">
+          <p className="text-[#00ffe8] font-medium text-[10px] sm:text-xs leading-tight">{t("analysis.aiReady")}</p>
+          <p className="text-[#00ffe8]/70 text-[9px] sm:text-[10px] leading-tight">{t("analysis.basedOn")}</p>
+        </div>
+      </div>
       {/* Recap - first section: mobile = logos above, names + VS on new lines; desktop = logo | text | logo */}
       <div className="pb-4 sm:pb-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-4 pr-20 sm:pr-24">
           <div className="min-w-0 flex-1 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
             {/* Mobile: logos row then label + home / vs / away on new lines */}
             <div className="flex flex-col items-center sm:hidden">
@@ -568,10 +575,6 @@ export function AnalysisResult({ result }: { result: Result }) {
                 <div className="w-14 h-14 rounded-xl bg-[#1c1c28] flex-shrink-0 flex items-center justify-center text-white font-bold">{away.slice(0, 2)}</div>
               )}
             </div>
-          </div>
-          <div className="rounded-lg border border-[#00ffe8]/60 px-3 py-1.5 sm:px-4 sm:py-2 text-center flex-shrink-0 w-full sm:w-auto">
-            <p className="text-[#00ffe8] font-semibold text-xs sm:text-sm">{t("analysis.aiReady")}</p>
-            <p className="text-[#00ffe8]/80 text-[10px] sm:text-xs mt-0.5">{t("analysis.basedOn")}</p>
           </div>
         </div>
         {(result.league || result.match_date || result.venue) && (
@@ -707,7 +710,11 @@ export function AnalysisResult({ result }: { result: Result }) {
                   <FormLabelBlock label={result.home_form_label ?? ""} compact />
                 </div>
                 <p className="text-[10px] sm:text-xs text-zinc-400 mt-0.5 sm:mt-1 flex items-center gap-0.5 sm:gap-1.5 flex-wrap">
-                  {result.home_form?.map((r, i) => <FormIcon key={i} result={r} />) ?? "—"}
+                  {(() => {
+                    const form5 = [...(result.home_form ?? []).slice(0, 5)];
+                    while (form5.length < 5) form5.push("");
+                    return form5.map((r, i) => <FormIcon key={i} result={r} />);
+                  })()}
                   <span className="text-zinc-500">W-D-L: {result.home_wdl ?? "—"}</span>
                 </p>
               </div>
@@ -724,7 +731,11 @@ export function AnalysisResult({ result }: { result: Result }) {
                   <FormLabelBlock label={result.away_form_label ?? ""} compact />
                 </div>
                 <p className="text-[10px] sm:text-xs text-zinc-400 mt-0.5 sm:mt-1 flex items-center gap-0.5 sm:gap-1.5 flex-wrap">
-                  {result.away_form?.map((r, i) => <FormIcon key={i} result={r} />) ?? "—"}
+                  {(() => {
+                    const form5 = [...(result.away_form ?? []).slice(0, 5)];
+                    while (form5.length < 5) form5.push("");
+                    return form5.map((r, i) => <FormIcon key={i} result={r} />);
+                  })()}
                   <span className="text-zinc-500">W-D-L: {result.away_wdl ?? "—"}</span>
                 </p>
               </div>
@@ -935,10 +946,11 @@ export function AnalysisResult({ result }: { result: Result }) {
           <div className="space-y-4">
             {[result.scenario_2, result.scenario_3, result.scenario_4].map((s, i) => {
               if (!s?.title && !s?.body) return null;
+              const body = (s.body ?? "").trim();
               return (
                 <div key={i} className="rounded-xl bg-dark-input/60 border border-dark-border p-4">
                   <p className="font-semibold text-[#00ffe8] mb-1">{s.title}</p>
-                  <p className="text-zinc-300 text-sm leading-relaxed">{s.body}</p>
+                  {body ? <ReadMore text={body} maxChars={220} t={t} /> : null}
                   {s.probability_pct != null && (
                     <p className="text-zinc-500 text-xs mt-2">AI analysis gives {s.probability_pct}% probability.</p>
                   )}

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { TeamAutocomplete, type TeamOption } from "./TeamAutocomplete";
 import { UnlockPricingModal, type PricingModalVariant } from "./UnlockPricingModal";
+import { AnalysisStepDisplay } from "./AnalysisStepDisplay";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getAppHref } from "@/lib/app-url";
 import { getUserFromStorage } from "@/lib/auth";
@@ -407,18 +408,16 @@ export function MatchInput({
             className="w-full py-4 rounded-xl font-semibold text-black bg-gradient-to-r from-[#00ffe8] to-[#00ddcc] hover:opacity-90 transition shadow-glow disabled:opacity-80 disabled:cursor-wait"
           >
             {loading ? (
-              <span className="flex flex-col items-center gap-3 text-black">
+              <span className="flex flex-col items-center gap-3 text-black w-full">
                 <span className="flex items-center gap-2">
-                  <LoaderSpinner />
+                  <LoaderSpinner className="w-5 h-5 flex-shrink-0" />
                   <span className="font-semibold">{t("matchInput.analyzing")}</span>
                 </span>
                 <span className="text-2xl font-bold tabular-nums">{progress}%</span>
-                {progressStep ? (
-                  <span className="text-sm opacity-90">{progressStep}</span>
-                ) : null}
-                <div className="w-full max-w-xs h-2 bg-black/20 rounded-full overflow-hidden">
+                <AnalysisStepDisplay step={progressStep} variant="button" className="w-full min-h-[1.75rem]" />
+                <div className="w-full max-w-xs h-2.5 bg-black/20 rounded-full overflow-hidden shadow-inner">
                   <div
-                    className="h-full bg-black rounded-full transition-all duration-300"
+                    className="h-full bg-black rounded-full transition-all duration-500 ease-out"
                     style={{ width: `${progress}%` }}
                   />
                 </div>

@@ -79,7 +79,7 @@ export default function AppAnalysisPage() {
 
   if (data === null) {
     return (
-      <div className="p-4 sm:p-8 w-full flex flex-col items-center">
+      <div className="px-2 py-4 sm:p-8 w-full flex flex-col items-center">
         <div className="w-full max-w-xl mx-auto">
           <p className="text-zinc-400 mb-4">{t("analysis.noData")}</p>
           <Link href="/matches" className="text-accent-cyan hover:underline">{t("history.analyzeMatch")}</Link>
@@ -93,8 +93,8 @@ export default function AppAnalysisPage() {
   const matchLabel = [homeTeam, awayTeam].filter(Boolean).join(" vs ") || "Match";
 
   return (
-    <div className="p-4 sm:p-8 pb-16 w-full flex flex-col items-center">
-      <div className="w-full max-w-4xl mx-auto">
+    <div className="px-2 py-4 sm:p-8 pb-16 w-full flex flex-col items-center">
+      <div className="w-full max-w-4xl mx-auto min-w-0">
         <Link href="/matches" className="inline-block text-zinc-500 hover:text-accent-cyan text-sm mb-8">
           ← {t("analysis.newAnalysis")}
         </Link>
