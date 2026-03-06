@@ -129,6 +129,12 @@ export function MatchInput({
   const stepSequenceCleanupRef = useRef<(() => void) | null>(null);
   const simulatingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const runStepSequenceCleanup = () => {
+    const fn = stepSequenceCleanupRef.current;
+    stepSequenceCleanupRef.current = null;
+    if (typeof fn === "function") fn();
+  };
+
   // Sync from URL when landing on /analyse?home=...&away=...
   useEffect(() => {
     if (initialHome !== undefined && initialHome !== homeTeam) setHomeTeam(initialHome);
@@ -199,8 +205,7 @@ export function MatchInput({
   // Séquence d’étapes de chargement (2–4 s par étape, ordre fixe)
   useEffect(() => {
     if (!loading) {
-      stepSequenceCleanupRef.current?.();
-      stepSequenceCleanupRef.current = null;
+      runStepSequenceCleanup();
       setSimulatingCount(null);
       return;
     }
@@ -293,8 +298,7 @@ export function MatchInput({
 
     const submitId = ++submitIdRef.current;
 
-    stepSequenceCleanupRef.current?.();
-    stepSequenceCleanupRef.current = null;
+    runStepSequenceCleanup();
     setLoading(true);
     setProgress(0);
     setProgressStep("");
@@ -439,8 +443,7 @@ export function MatchInput({
       } catch {
         // ignore
       }
-      stepSequenceCleanupRef.current?.();
-      stepSequenceCleanupRef.current = null;
+      runStepSequenceCleanup();
       setSimulatingCount(null);
       setProgress(100);
       setProgressStep("Done");
@@ -456,14 +459,12 @@ export function MatchInput({
       setError(err instanceof Error ? err.message : "Analysis failed.");
       setProgress(0);
       setProgressStep("");
-      stepSequenceCleanupRef.current?.();
-      stepSequenceCleanupRef.current = null;
+      runStepSequenceCleanup();
       setSimulatingCount(null);
     } finally {
       if (submitId === submitIdRef.current) {
         setLoading(false);
-        stepSequenceCleanupRef.current?.();
-        stepSequenceCleanupRef.current = null;
+        runStepSequenceCleanup();
       }
     }
   };
