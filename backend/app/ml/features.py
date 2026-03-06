@@ -2,9 +2,45 @@
 """
 Feature engineering pour un match : last 5-10 matchs, home/away, H2H.
 Les données sont supposées venir de Supabase (matches, results, h2h).
+Attack/Defense/Goals utilisent 20-40 matchs pondérés par récence (decay) pour limiter la variance.
 """
 from typing import Optional
 import math
+
+# Nombre de matchs pour les barres attack/defense/goals et pour les lambdas (pondérés par récence)
+FORM_STATS_MATCHES = 30
+# Décroissance par match (match 0 = plus récent, poids 1.0 ; match i = decay^i)
+FORM_STATS_DECAY = 0.95
+
+
+def weighted_avg(values: list[float], decay: float = FORM_STATS_DECAY) -> float:
+    """Moyenne pondérée par récence : poids = decay^index (index 0 = plus récent)."""
+    if not values:
+        return 0.0
+    total_w = 0.0
+    weighted_sum = 0.0
+    for i, v in enumerate(values):
+        w = decay ** i
+        total_w += w
+        weighted_sum += w * float(v)
+    return weighted_sum / total_w if total_w else 0.0
+
+
+def compute_weighted_goals_avg(
+    goals_for: list[int],
+    goals_against: list[int],
+    decay: float = FORM_STATS_DECAY,
+    default: float = 1.2,
+) -> tuple[float, float]:
+    """Moyennes pondérées buts marqués / encaissés (match récent = plus de poids). Retourne (avg_for, avg_against)."""
+    if not goals_for and not goals_against:
+        return (default, default)
+    n = max(len(goals_for), len(goals_against), 1)
+    f = [float(goals_for[i]) if i < len(goals_for) else default for i in range(n)]
+    a = [float(goals_against[i]) if i < len(goals_against) else default for i in range(n)]
+    avg_for = weighted_avg(f, decay)
+    avg_against = weighted_avg(a, decay)
+    return (avg_for, avg_against)
 
 
 def compute_goals_avg(goals_for: list[int], goals_against: list[int], default: float = 1.2) -> tuple[float, float]:
@@ -47,10 +83,16 @@ def compute_lambda_home_away(
     """
     Calcule les forces d'attaque/défense et en déduit lambda_home et lambda_away
     pour le modèle de Poisson (approche Dixon-Robinson simplifiée).
+    Au-delà de 5 matchs, utilise une moyenne pondérée par récence (decay).
     """
     default = max(league_avg_goals / 2, 1.0)
-    h_for, h_against = compute_goals_avg(home_goals_for, home_goals_against, default)
-    a_for, a_against = compute_goals_avg(away_goals_for, away_goals_against, default)
+    n = max(len(home_goals_for), len(home_goals_against), len(away_goals_for), len(away_goals_against), 0)
+    if n > 5:
+        h_for, h_against = compute_weighted_goals_avg(home_goals_for, home_goals_against, default=default)
+        a_for, a_against = compute_weighted_goals_avg(away_goals_for, away_goals_against, default=default)
+    else:
+        h_for, h_against = compute_goals_avg(home_goals_for, home_goals_against, default)
+        a_for, a_against = compute_goals_avg(away_goals_for, away_goals_against, default)
 
     # Force attaque = buts marqués, force défense = buts encaissés
     # lambda_home = attaque_home * défense_away / league_avg

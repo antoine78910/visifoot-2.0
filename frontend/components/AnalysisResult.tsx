@@ -811,7 +811,7 @@ export function AnalysisResult({ result }: { result: Result }) {
         );
       })()}
 
-      {/* From here: blurred for free plan — match stats (when match over), then Exact probabilities has its own title + blur+overlay */}
+      {/* From here: blurred for free plan — match stats (when match over), then Model win probabilities has its own title + blur+overlay */}
       {blurWrap(
         <>
       {/* Match statistics content (when match over) */}
@@ -854,9 +854,9 @@ export function AnalysisResult({ result }: { result: Result }) {
         </>
       )}
 
-      {/* Exact probabilities — notre modèle Poisson uniquement */}
+      {/* Model win probabilities — Poisson + motivation + recent performance blend */}
       <section className="pt-6 border-t border-white/5">
-        <h2 className="text-lg font-semibold text-white mb-4">📊 Exact probabilities</h2>
+        <h2 className="text-lg font-semibold text-white mb-4">📊 {t("analysis.modelWinProbabilities")}</h2>
         {fullAnalysis ? (
           <>
             <div className="space-y-4 mb-4">
@@ -940,7 +940,7 @@ export function AnalysisResult({ result }: { result: Result }) {
       {/* Reste de l'analyse (flouté pour free) */}
       {blurWrap(
         <>
-      {/* Scenarios #2 to #4 — after Exact statistics */}
+      {/* Scenarios #2 to #4 — after Model win probabilities */}
       {(result.scenario_2?.title || result.scenario_3?.title || result.scenario_4?.title) && (
         <section className="pt-6 border-t border-white/5">
           <h2 className="text-lg font-semibold text-white mb-4">💡 Scenarios #2 to #4</h2>
@@ -1082,9 +1082,9 @@ export function AnalysisResult({ result }: { result: Result }) {
         </section>
       )}
 
-      {/* Statistical comparison - bleu = domicile, rouge = extérieur */}
+      {/* Recent performance comparison - barres forme/buts/H2H (pas les probas du modèle) */}
       <section className="pt-6 border-t border-white/5">
-        <h2 className="text-lg font-semibold text-white mb-2">📊 {t("analysis.statisticalComparison")}</h2>
+        <h2 className="text-lg font-semibold text-white mb-2">📊 {t("analysis.recentPerformanceComparison")}</h2>
         <p className="text-zinc-500 text-xs mb-3">{t("analysis.statsSource").replace("{source}", comparisonSourceLabel)}</p>
         <div className="flex justify-between text-sm font-semibold mb-3 px-1">
           <span className={HOME_COLOR}>{home}</span>

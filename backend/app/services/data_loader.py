@@ -8,10 +8,12 @@ from typing import Any, Callable, Optional
 from app.core.config import get_settings
 from app.ml.features import (
     compute_goals_avg,
+    compute_weighted_goals_avg,
     compute_lambda_home_away,
     form_to_wdl,
     form_to_label,
     build_comparison_pcts,
+    FORM_STATS_MATCHES,
 )
 
 
@@ -193,15 +195,15 @@ def _load_match_context_api_football(
 
     report("Fetching team form…", 28)
     with ThreadPoolExecutor(max_workers=2) as ex:
-        fut_h = ex.submit(get_team_fixtures, home_id, None, 10)
-        fut_a = ex.submit(get_team_fixtures, away_id, None, 10)
+        fut_h = ex.submit(get_team_fixtures, home_id, None, 40)
+        fut_a = ex.submit(get_team_fixtures, away_id, None, 40)
         home_fixtures = fut_h.result()
         away_fixtures = fut_a.result()
     home_goals_for, home_goals_against, home_form = _fixture_to_goals_and_form(
-        home_id, home_fixtures, last_n=5
+        home_id, home_fixtures, last_n=FORM_STATS_MATCHES
     )
     away_goals_for, away_goals_against, away_form = _fixture_to_goals_and_form(
-        away_id, away_fixtures, last_n=5
+        away_id, away_fixtures, last_n=FORM_STATS_MATCHES
     )
     report("Fetching head-to-head…", 52)
     if not home_goals_for and not home_goals_against:
@@ -212,6 +214,12 @@ def _load_match_context_api_football(
         home_form = ["W", "D", "L", "W", "W"]
     if not away_form:
         away_form = ["W", "D", "L", "W", "W"]
+    # Attack/Defense/Goals bars and lambda: weighted avg over up to FORM_STATS_MATCHES (recency-weighted)
+    h_for_avg, h_against_avg = compute_weighted_goals_avg(home_goals_for, home_goals_against)
+    a_for_avg, a_against_avg = compute_weighted_goals_avg(away_goals_for, away_goals_against)
+    # Form bar and labels: last 5 matches only (W-D-L)
+    home_form_5 = home_form[:5]
+    away_form_5 = away_form[:5]
     h2h_fixtures = get_fixtures_headtohead_multi_season(home_id, away_id, ideal_seasons=5, max_seasons=5)
     h2h_h, h2h_d, h2h_a = get_h2h_from_fixtures(home_id, away_id, h2h_fixtures)
     h2h_weighted_pct = get_weighted_h2h_home_pct(home_id, away_id, h2h_fixtures)
@@ -251,14 +259,12 @@ def _load_match_context_api_football(
     if league is None:
         league = guess_common_league_name(home_id, away_id)
     report("Computing features…", 58)
-    hw = sum(1 for x in home_form if x == "W")
-    hd = sum(1 for x in home_form if x == "D")
-    hl = sum(1 for x in home_form if x == "L")
-    aw = sum(1 for x in away_form if x == "W")
-    ad = sum(1 for x in away_form if x == "D")
-    al = sum(1 for x in away_form if x == "L")
-    h_for_avg, h_against_avg = compute_goals_avg(home_goals_for, home_goals_against)
-    a_for_avg, a_against_avg = compute_goals_avg(away_goals_for, away_goals_against)
+    hw = sum(1 for x in home_form_5 if x == "W")
+    hd = sum(1 for x in home_form_5 if x == "D")
+    hl = sum(1 for x in home_form_5 if x == "L")
+    aw = sum(1 for x in away_form_5 if x == "W")
+    ad = sum(1 for x in away_form_5 if x == "D")
+    al = sum(1 for x in away_form_5 if x == "L")
     lambda_home, lambda_away = compute_lambda_home_away(
         home_goals_for, home_goals_against, away_goals_for, away_goals_against
     )
@@ -331,10 +337,11 @@ def _load_match_context_api_football(
     steps.append({
         "order": 4,
         "title_key": "recap.step.form",
-        "detail": f"2 requests: GET /fixtures?team=home_id&season=...&status=FT (last 10), same for away. "
-        f"Used last 5 matches each. Home: goals_for={home_goals_for}, goals_against={home_goals_against}, form={home_form}. "
-        f"Away: goals_for={away_goals_for}, goals_against={away_goals_against}, form={away_form}. "
-        f"Averages: home {h_for_avg:.2f} scored / {h_against_avg:.2f} conceded, away {a_for_avg:.2f} scored / {a_against_avg:.2f} conceded.",
+        "detail": f"2 requests: GET /fixtures?team=home_id&season=...&status=FT (last 40), same for away. "
+        f"Attack/Defense/Goals & lambda: last {min(len(home_goals_for), FORM_STATS_MATCHES)} matches each (recency-weighted). Form bar: last 5. "
+        f"Home: goals_for={home_goals_for[:8] if len(home_goals_for) > 8 else home_goals_for}{'...' if len(home_goals_for) > 8 else ''}, form_5={home_form_5}. "
+        f"Away: goals_for={away_goals_for[:8] if len(away_goals_for) > 8 else away_goals_for}{'...' if len(away_goals_for) > 8 else ''}, form_5={away_form_5}. "
+        f"Weighted avgs: home {h_for_avg:.2f} scored / {h_against_avg:.2f} conceded, away {a_for_avg:.2f} scored / {a_against_avg:.2f} conceded.",
     })
     steps.append({
         "order": 5,
@@ -404,8 +411,8 @@ def _load_match_context_api_football(
         "lambda_away": lambda_away,
         "home_form": home_form,
         "away_form": away_form,
-        "home_wdl": form_to_wdl(home_form),
-        "away_wdl": form_to_wdl(away_form),
+        "home_wdl": form_to_wdl(home_form_5),
+        "away_wdl": form_to_wdl(away_form_5),
         "home_form_label": form_to_label(hw, hd, hl),
         "away_form_label": form_to_label(aw, ad, al),
         "comparison_pcts": pcts,

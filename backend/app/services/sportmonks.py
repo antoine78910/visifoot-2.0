@@ -1868,26 +1868,29 @@ def load_match_context_sportmonks(
         return "Poor form"
 
     if home_team_id and away_team_id:
-        report("Loading team form (last 5)…", 30)
+        report("Loading team form (last 30, recency-weighted)…", 30)
         try:
             from app.ml.features import (
-                compute_goals_avg,
+                compute_weighted_goals_avg,
                 compute_lambda_home_away,
                 form_to_wdl,
                 build_comparison_pcts,
+                FORM_STATS_MATCHES,
             )
-            home_goals_for, home_goals_against, home_form = team_past_fixtures(int(home_team_id), last_n=5)
-            away_goals_for, away_goals_against, away_form = team_past_fixtures(int(away_team_id), last_n=5)
+            home_goals_for, home_goals_against, home_form = team_past_fixtures(int(home_team_id), last_n=FORM_STATS_MATCHES)
+            away_goals_for, away_goals_against, away_form = team_past_fixtures(int(away_team_id), last_n=FORM_STATS_MATCHES)
             home_adv = team_recent_advanced_metrics(int(home_team_id), last_n=5)
             away_adv = team_recent_advanced_metrics(int(away_team_id), last_n=5)
-            hw = sum(1 for x in home_form if x == "W")
-            hd = sum(1 for x in home_form if x == "D")
-            hl = sum(1 for x in home_form if x == "L")
-            aw = sum(1 for x in away_form if x == "W")
-            ad = sum(1 for x in away_form if x == "D")
-            al = sum(1 for x in away_form if x == "L")
-            h_for_avg, h_against_avg = compute_goals_avg(home_goals_for, home_goals_against)
-            a_for_avg, a_against_avg = compute_goals_avg(away_goals_for, away_goals_against)
+            home_form_5 = home_form[:5]
+            away_form_5 = away_form[:5]
+            hw = sum(1 for x in home_form_5 if x == "W")
+            hd = sum(1 for x in home_form_5 if x == "D")
+            hl = sum(1 for x in home_form_5 if x == "L")
+            aw = sum(1 for x in away_form_5 if x == "W")
+            ad = sum(1 for x in away_form_5 if x == "D")
+            al = sum(1 for x in away_form_5 if x == "L")
+            h_for_avg, h_against_avg = compute_weighted_goals_avg(home_goals_for, home_goals_against)
+            a_for_avg, a_against_avg = compute_weighted_goals_avg(away_goals_for, away_goals_against)
             lambda_home_calc, lambda_away_calc = compute_lambda_home_away(
                 home_goals_for, home_goals_against, away_goals_for, away_goals_against,
             )
@@ -1948,7 +1951,7 @@ def load_match_context_sportmonks(
             )
             pipeline_steps = [
                 {"order": 1, "title_key": "recap.step.data_source_sportmonks", "detail": "Data source: Sportmonks (fixture + predictions + team past fixtures for form)."},
-                {"order": 2, "title_key": "recap.step.form", "detail": f"Team results (Sportmonks last 5): home goals_for/against avg {h_for_avg:.2f}/{h_against_avg:.2f}, away {a_for_avg:.2f}/{a_against_avg:.2f}. Form W-D-L."},
+                {"order": 2, "title_key": "recap.step.form", "detail": f"Team results (Sportmonks last {FORM_STATS_MATCHES}, recency-weighted): home goals_for/against avg {h_for_avg:.2f}/{h_against_avg:.2f}, away {a_for_avg:.2f}/{a_against_avg:.2f}. Form bar: last 5 W-D-L."},
                 {"order": 3, "title_key": "recap.step.features", "detail": f"Feature engineering: lambda_home={lambda_home_calc:.2f}, lambda_away={lambda_away_calc:.2f}. Added home/away split + fatigue + recent xG (when available). Comparison percentages."},
             ]
             if h2h_hw or h2h_hd or h2h_ha:

@@ -133,7 +133,7 @@ def _apply_motivation_to_1x2(out: dict, ctx: dict) -> None:
     """
     Ajuste prob_home / prob_draw / prob_away selon la motivation des équipes
     (home_motivation_score, away_motivation_score dans ctx). Renormalise à 100%.
-    Applique le même ajustement aux internal_prob_* pour que l'affichage "Exact probabilities" reflète la motivation.
+    Applique le même ajustement aux internal_prob_* pour que l'affichage "Model win probabilities" reflète la motivation.
     """
     home_score = ctx.get("home_motivation_score")
     away_score = ctx.get("away_motivation_score")
@@ -167,7 +167,7 @@ def _apply_motivation_to_1x2(out: dict, ctx: dict) -> None:
     out["double_chance_x2"] = round(out["prob_draw"] + out["prob_away"], 1)
     out["double_chance_12"] = round(out["prob_home"] + out["prob_away"], 1)
     out["upset_probability"] = round(min(out["prob_home"], out["prob_away"]), 1)
-    # Appliquer le même shift aux internal_prob_* (affichées dans "Exact probabilities") pour cohérence avec la motivation
+    # Appliquer le même shift aux internal_prob_* (affichées dans "Model win probabilities") pour cohérence avec la motivation
     i1 = out.get("internal_prob_home")
     ix = out.get("internal_prob_draw")
     i2 = out.get("internal_prob_away")
@@ -179,6 +179,38 @@ def _apply_motivation_to_1x2(out: dict, ctx: dict) -> None:
             out["internal_prob_home"] = round(100 * i1 / itotal, 1)
             out["internal_prob_draw"] = round(100 * float(ix) / itotal, 1)
             out["internal_prob_away"] = round(100 * i2 / itotal, 1)
+
+
+def _apply_recent_performance_to_internal(out: dict, ctx: dict) -> None:
+    """
+    Blend recent performance (overall bar: attack/defense/form/h2h/goals) into Model win probabilities.
+    Soft shift: if overall_home_pct > 50, shift a few % from away to home (and vice versa). Draw unchanged proportionally.
+    """
+    pcts = ctx.get("comparison_pcts") or {}
+    overall_home = pcts.get("overall_home_pct")
+    if overall_home is None:
+        return
+    try:
+        oh = float(overall_home)
+    except (TypeError, ValueError):
+        return
+    # shift in [-4, +4] from (overall_home - 50) * 0.1
+    shift = max(-4.0, min(4.0, (oh - 50.0) * 0.1))
+    if shift == 0:
+        return
+    i1 = out.get("internal_prob_home")
+    ix = out.get("internal_prob_draw")
+    i2 = out.get("internal_prob_away")
+    if i1 is None or ix is None or i2 is None:
+        return
+    i1 = float(i1) + shift
+    i2 = float(i2) - shift
+    itotal = i1 + ix + i2
+    if itotal <= 0:
+        return
+    out["internal_prob_home"] = round(100 * i1 / itotal, 1)
+    out["internal_prob_draw"] = round(100 * float(ix) / itotal, 1)
+    out["internal_prob_away"] = round(100 * i2 / itotal, 1)
 
 
 def _out_from_sportmonks(ctx: dict) -> dict:
@@ -387,15 +419,15 @@ def _build_analysis_recap(
 
     # Period for all form-based stats (Attack, Defense, Goals, Form)
     stats_period = (
-        "Attack, Defense, Goals, Form: last 5 matches per team (all competitions). "
+        "Attack, Defense, Goals: last 30 matches per team (recency-weighted, decay 0.95). Form bar: last 5 (W-D-L). "
         "H2H: all head-to-head matches found over up to 5 seasons (recency weighted with weight = 0.6^years_ago). "
-        "Poisson lambdas also use home/away split and schedule fatigue, with xG blend when available."
+        "Poisson lambdas use the same 30-match weighted goals. Model win probabilities blend xG, motivation and recent performance (overall bar)."
     )
     # How we compute each comparison bar
     how_bars_work = {
-        "attack": "Home % = 100 × (home avg goals scored) / (home + away avg goals scored). Higher = more goals in last 5.",
-        "defense": "Home % = 100 × (1 / home avg goals conceded) / (1/home conceded + 1/away conceded). Higher = fewer goals conceded (stronger defense).",
-        "goals": "Same formula as Attack: share of total goals scored (last 5 each).",
+        "attack": "Home % = 100 × (home weighted avg goals scored) / (home + away). Last 30 matches, recency-weighted.",
+        "defense": "Home % = 100 × (1 / home weighted avg goals conceded) / (1/home + 1/away). Last 30 matches, recency-weighted.",
+        "goals": "Same formula as Attack: share of total goals scored (last 30 each, recency-weighted).",
         "form": "Home % = 100 × (home points) / (home + away points), with points = 3×W + 1×D + 0×L over last 5.",
         "h2h": "Home % = (home wins + 0.5×draws) / total H2H × 100, weighted by recency with weight = 0.6^years_ago.",
         "overall": "Average of the 5 bars above (attack, defense, form, h2h, goals), each with weight 1/5.",
@@ -654,6 +686,8 @@ def run_predict_with_progress(
     )
     # Ajuster 1X2 selon la motivation des équipes.
     _apply_motivation_to_1x2(out, ctx)
+    # Mélanger les barres "recent performance" (overall) dans les Model win probabilities (internal_prob_*).
+    _apply_recent_performance_to_internal(out, ctx)
 
     ai: dict = {}
     news_included = False
