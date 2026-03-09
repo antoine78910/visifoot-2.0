@@ -65,45 +65,38 @@ function AnalyzeContent() {
       }
     }
     const uid = getUserFromStorage()?.id;
+    function fallbackToLocalStorage() {
+      try {
+        const key = getHistoryKey();
+        const raw = localStorage.getItem(key);
+        const list: { id: string; result: Record<string, unknown> }[] = raw ? JSON.parse(raw) : [];
+        const item = list.find((x) => x.id === predictionId);
+        if (item?.result) {
+          enrichAndSetData(item.result);
+        } else {
+          setNotFound(true);
+        }
+      } catch {
+        setNotFound(true);
+      }
+    }
     if (uid) {
-      getSupabaseBrowserClient()
-        .from("analysis_history")
-        .select("result")
-        .eq("id", predictionId)
-        .single()
+      void Promise.resolve(
+        getSupabaseBrowserClient()
+          .from("analysis_history")
+          .select("result")
+          .eq("id", predictionId)
+          .single()
+      )
         .then(({ data: row, error }) => {
           if (!error && row?.result && typeof row.result === "object") {
             enrichAndSetData(row.result as Record<string, unknown>);
             return;
           }
-          try {
-            const key = getHistoryKey();
-            const raw = localStorage.getItem(key);
-            const list: { id: string; result: Record<string, unknown> }[] = raw ? JSON.parse(raw) : [];
-            const item = list.find((x) => x.id === predictionId);
-            if (item?.result) {
-              enrichAndSetData(item.result);
-            } else {
-              setNotFound(true);
-            }
-          } catch {
-            setNotFound(true);
-          }
+          fallbackToLocalStorage();
         })
         .catch(() => {
-          try {
-            const key = getHistoryKey();
-            const raw = localStorage.getItem(key);
-            const list: { id: string; result: Record<string, unknown> }[] = raw ? JSON.parse(raw) : [];
-            const item = list.find((x) => x.id === predictionId);
-            if (item?.result) {
-              enrichAndSetData(item.result);
-            } else {
-              setNotFound(true);
-            }
-          } catch {
-            setNotFound(true);
-          }
+          fallbackToLocalStorage();
         });
     } else {
       try {
