@@ -442,6 +442,11 @@ export default function AccountPage() {
           >
             {t("account.upgradeToLifetime")}
           </button>
+          {user?.email && (
+            <p className="mt-2 text-xs text-zinc-400 text-center">
+              {t("checkout.emailNotice").replace("{email}", user.email)}
+            </p>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-3 mt-3">

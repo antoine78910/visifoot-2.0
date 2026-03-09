@@ -291,6 +291,11 @@ export function UnlockPricingModal({
                   `${t("pricing.unlockLifetime")} - ${formatPrice(currencyConfig, currencyConfig.lifetimeAmount)}`
                 )}
               </button>
+              {loadingPlan === "lifetime" && user?.email && (
+                <p className="mt-2 text-xs text-zinc-400 text-center max-w-[280px] mx-auto">
+                  {t("checkout.emailNotice").replace("{email}", user.email)}
+                </p>
+              )}
             </div>
           </div>
         </div>

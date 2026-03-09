@@ -291,6 +291,11 @@ function PricingPage() {
         </div>
       )}
 
+      {loadingPlan !== null && user?.email && (
+        <p className="text-zinc-400 text-center text-xs mt-6 max-w-xl mx-auto">
+          {t("checkout.emailNotice").replace("{email}", user.email)}
+        </p>
+      )}
       <p className="text-zinc-500 text-center text-sm mt-10 max-w-2xl mx-auto">
         {t("pricing.footerDisclaimer")}
       </p>
