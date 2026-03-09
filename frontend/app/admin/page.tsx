@@ -160,7 +160,7 @@ export default function AdminPage() {
                   <tbody>
                     {topUsers.map((u) => (
                       <tr key={u.user_id} className="border-t border-white/5">
-                        <td className="py-2 pr-4 text-sm">{u.email || u.user_id}</td>
+                        <td className="py-2 pr-4 text-sm">{u.email || "—"}</td>
                         <td className="py-2 pr-4">{u.plan}</td>
                         <td className="py-2 pr-4">{u.analyses_today}</td>
                         <td className="py-2 pr-4">{u.analyses_total}</td>

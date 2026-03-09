@@ -11,6 +11,45 @@ from app.services.fixture_polling import run_poll_finished_fixtures
 router = APIRouter(prefix="/internal", tags=["internal"])
 
 
+def _fetch_auth_emails_via_http() -> dict[str, str]:
+    """
+    Récupère tous les emails Supabase Auth via l'API REST admin (auth/v1/admin/users).
+    Retourne un dict user_id -> email. Vide si pas de config ou erreur.
+    """
+    s = get_settings()
+    url_base = (s.supabase_url or "").strip().rstrip("/")
+    key = (s.supabase_service_role_key or "").strip()
+    if not url_base or not key:
+        return {}
+    uid_to_email: dict[str, str] = {}
+    try:
+        import httpx
+        auth_url = f"{url_base}/auth/v1/admin/users"
+        headers = {"Authorization": f"Bearer {key}", "apikey": key}
+        page = 1
+        per_page = 1000
+        while True:
+            with httpx.Client(timeout=30.0) as client:
+                r = client.get(auth_url, params={"per_page": per_page, "page": page}, headers=headers)
+            if r.status_code >= 400:
+                break
+            data = r.json()
+            users = data.get("users") if isinstance(data.get("users"), list) else []
+            for u in users:
+                if not isinstance(u, dict):
+                    continue
+                uid = (u.get("id") or "").strip()
+                em = (u.get("email") or "").strip()
+                if uid and em:
+                    uid_to_email[uid] = em
+            if len(users) < per_page:
+                break
+            page += 1
+    except Exception:
+        pass
+    return uid_to_email
+
+
 def _check_admin(x_admin_key: str | None) -> None:
     key = get_settings().admin_api_key
     if not key:
@@ -181,11 +220,11 @@ def admin_summary(
         reverse=True,
     )[:30]
 
-    # Resolve Supabase Auth email for each user_id (app login email)
-    uid_to_email: dict[str, str] = {}
+    # Resolve Supabase Auth email for each user_id (Users analytics = emails instead of UIDs)
+    uid_to_email: dict[str, str] = _fetch_auth_emails_via_http()
     admin_client = get_supabase_admin()
-    try:
-        if admin_client:
+    if not uid_to_email and admin_client:
+        try:
             page = 1
             per_page = 1000
             while True:
@@ -216,15 +255,14 @@ def admin_summary(
                 if len(auth_users) < per_page:
                     break
                 page += 1
-    except Exception:
-        uid_to_email = {}
+        except Exception:
+            pass
 
-    # Fallback: resolve email one-by-one for users we return (if still missing), max 150 to avoid rate limits
     fallback_count = 0
     for u in users:
         uid = u.get("user_id")
         u["email"] = uid_to_email.get(uid)
-        if not u["email"] and uid and admin_client and uid != "anonymous" and fallback_count < 150:
+        if not u["email"] and uid and admin_client and uid != "anonymous" and fallback_count < 200:
             try:
                 fallback_count += 1
                 r = admin_client.auth.admin.get_user_by_id(uid)
