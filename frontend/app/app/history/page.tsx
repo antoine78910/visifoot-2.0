@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { getHistoryKey } from "@/lib/auth";
+import { getHistoryKey, getUserFromStorage } from "@/lib/auth";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type HistoryItem = {
   id: string;
@@ -57,12 +58,48 @@ export default function HistoryPage() {
   const { t } = useLanguage();
 
   useEffect(() => {
-    try {
-      const key = getHistoryKey();
-      const raw = localStorage.getItem(key);
-      setItems(raw ? JSON.parse(raw) : []);
-    } catch {
-      setItems([]);
+    const uid = getUserFromStorage()?.id;
+    if (uid) {
+      getSupabaseBrowserClient()
+        .from("analysis_history")
+        .select("id, home_team, away_team, home_logo, away_logo, league, result, created_at")
+        .eq("user_id", uid)
+        .order("created_at", { ascending: false })
+        .limit(50)
+        .then(({ data, error }) => {
+          if (!error && Array.isArray(data)) {
+            const mapped: HistoryItem[] = data.map((row) => ({
+              id: String(row.id),
+              home_team: String(row.home_team ?? ""),
+              away_team: String(row.away_team ?? ""),
+              home_logo: row.home_logo ?? null,
+              away_logo: row.away_logo ?? null,
+              league: row.league ?? null,
+              created_at: String(row.created_at ?? ""),
+              result: (row.result as Record<string, unknown>) ?? {},
+            }));
+            setItems(mapped);
+            return;
+          }
+          throw new Error("Supabase fallback");
+        })
+        .catch(() => {
+          try {
+            const key = getHistoryKey();
+            const raw = localStorage.getItem(key);
+            setItems(raw ? JSON.parse(raw) : []);
+          } catch {
+            setItems([]);
+          }
+        });
+    } else {
+      try {
+        const key = getHistoryKey();
+        const raw = localStorage.getItem(key);
+        setItems(raw ? JSON.parse(raw) : []);
+      } catch {
+        setItems([]);
+      }
     }
   }, []);
 

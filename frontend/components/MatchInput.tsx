@@ -436,22 +436,41 @@ export function MatchInput({
       const historyKey = getHistoryKey();
       const maxHistory = 50;
       const predictionId = crypto.randomUUID();
+      const historyEntry = {
+        id: predictionId,
+        home_team: data.home_team,
+        away_team: data.away_team,
+        home_logo: (data as any)?.home_team_logo ?? null,
+        away_logo: (data as any)?.away_team_logo ?? null,
+        league: (data as any)?.league ?? null,
+        created_at: new Date().toISOString(),
+        result: data,
+      };
       try {
         const raw = localStorage.getItem(historyKey);
         const list = raw ? JSON.parse(raw) : [];
-        list.unshift({
-          id: predictionId,
-          home_team: data.home_team,
-          away_team: data.away_team,
-          home_logo: (data as any)?.home_team_logo ?? null,
-          away_logo: (data as any)?.away_team_logo ?? null,
-          league: (data as any)?.league ?? null,
-          created_at: new Date().toISOString(),
-          result: data,
-        });
+        list.unshift(historyEntry);
         localStorage.setItem(historyKey, JSON.stringify(list.slice(0, maxHistory)));
       } catch {
         // ignore
+      }
+      if (userId) {
+        try {
+          await getSupabaseBrowserClient()
+            .from("analysis_history")
+            .insert({
+              id: predictionId,
+              user_id: userId,
+              home_team: String(data.home_team ?? ""),
+              away_team: String(data.away_team ?? ""),
+              home_logo: (data as any)?.home_team_logo ?? null,
+              away_logo: (data as any)?.away_team_logo ?? null,
+              league: (data as any)?.league ?? null,
+              result: data as object,
+            });
+        } catch {
+          // ignore: offline, RLS, etc. localStorage already saved
+        }
       }
       runStepSequenceCleanup();
       setSimulatingCount(null);

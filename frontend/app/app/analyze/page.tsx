@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { AnalysisResult } from "@/components/AnalysisResult";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getHistoryKey, getUserFromStorage } from "@/lib/auth";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -27,16 +28,7 @@ function AnalyzeContent() {
       setNotFound(true);
       return;
     }
-    try {
-      const key = getHistoryKey();
-      const raw = localStorage.getItem(key);
-      const list: { id: string; result: Record<string, unknown> }[] = raw ? JSON.parse(raw) : [];
-      const item = list.find((x) => x.id === predictionId);
-      if (!item?.result) {
-        setNotFound(true);
-        return;
-      }
-      const parsed = item.result as Record<string, unknown>;
+    function enrichAndSetData(parsed: Record<string, unknown>) {
       setData(parsed);
       const home = team1.trim() || (typeof parsed?.home_team === "string" ? parsed.home_team.trim() : "");
       const away = team2.trim() || (typeof parsed?.away_team === "string" ? parsed.away_team.trim() : "");
@@ -71,8 +63,62 @@ function AnalyzeContent() {
           })
           .catch(() => {});
       }
-    } catch {
-      setNotFound(true);
+    }
+    const uid = getUserFromStorage()?.id;
+    if (uid) {
+      getSupabaseBrowserClient()
+        .from("analysis_history")
+        .select("result")
+        .eq("id", predictionId)
+        .single()
+        .then(({ data: row, error }) => {
+          if (!error && row?.result && typeof row.result === "object") {
+            enrichAndSetData(row.result as Record<string, unknown>);
+            return;
+          }
+          try {
+            const key = getHistoryKey();
+            const raw = localStorage.getItem(key);
+            const list: { id: string; result: Record<string, unknown> }[] = raw ? JSON.parse(raw) : [];
+            const item = list.find((x) => x.id === predictionId);
+            if (item?.result) {
+              enrichAndSetData(item.result);
+            } else {
+              setNotFound(true);
+            }
+          } catch {
+            setNotFound(true);
+          }
+        })
+        .catch(() => {
+          try {
+            const key = getHistoryKey();
+            const raw = localStorage.getItem(key);
+            const list: { id: string; result: Record<string, unknown> }[] = raw ? JSON.parse(raw) : [];
+            const item = list.find((x) => x.id === predictionId);
+            if (item?.result) {
+              enrichAndSetData(item.result);
+            } else {
+              setNotFound(true);
+            }
+          } catch {
+            setNotFound(true);
+          }
+        });
+    } else {
+      try {
+        const key = getHistoryKey();
+        const raw = localStorage.getItem(key);
+        const list: { id: string; result: Record<string, unknown> }[] = raw ? JSON.parse(raw) : [];
+        const item = list.find((x) => x.id === predictionId);
+        if (!item?.result) {
+          setNotFound(true);
+          return;
+        }
+        enrichAndSetData(item.result);
+      } catch {
+        setNotFound(true);
+      }
     }
   }, [fromHistory, predictionId, team1, team2]);
 
