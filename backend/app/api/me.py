@@ -17,6 +17,7 @@ from app.services.subscription import (
     get_analysis_limit,
     reset_if_new_day,
     can_analyze,
+    consume_analysis,
 )
 from app.core.supabase_client import get_supabase_admin
 from app.core.config import get_settings
@@ -166,6 +167,23 @@ async def me(x_user_id: str | None = Header(None, alias="X-User-Id")):
         "subscription_ends_at": subscription_ends_at,
         "subscription_started_at": subscription_started_at,
     }
+
+
+@router.post("/me/consume-one-analysis")
+async def consume_one_analysis(x_user_id: str | None = Header(None, alias="X-User-Id")):
+    """
+    Compte une consultation d'analyse complète (ex: ouverture depuis l'historique avec plan payant).
+    Si l'utilisateur a encore du quota (can_analyze), incrémente analyses_used_today une fois.
+    Retourne { "consumed": true } ou { "consumed": false } si limite déjà atteinte.
+    """
+    user_id = (x_user_id or "").strip()
+    if not user_id:
+        return {"consumed": False, "reason": "no_user"}
+    allowed, _, _, _ = can_analyze(user_id)
+    if not allowed:
+        return {"consumed": False, "reason": "limit_reached"}
+    consume_analysis(user_id)
+    return {"consumed": True}
 
 
 def _get_user_email_from_supabase(admin, user_id: str) -> str | None:

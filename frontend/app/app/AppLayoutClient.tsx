@@ -165,10 +165,18 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
   const [analysesLimit, setAnalysesLimit] = useState<number | null>(null);
   const [langOpen, setLangOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [refreshMeTrigger, setRefreshMeTrigger] = useState(0);
   const paymentSyncAttemptedRef = useRef(false);
 
   useEffect(() => {
     setUser(getUserFromStorage());
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onRefresh = () => setRefreshMeTrigger((n) => n + 1);
+    window.addEventListener("deepfoot-refresh-me", onRefresh);
+    return () => window.removeEventListener("deepfoot-refresh-me", onRefresh);
   }, []);
 
   // Global Whop payment sync: when returning from checkout, update plan immediately (no manual reload).
@@ -262,8 +270,8 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
       }
     })();
     return () => ac.abort();
-    // Refetch on route change so the usage counter updates after an analysis (e.g. /matches → /analyze)
-  }, [user?.id, pathname]);
+    // Refetch on route change or when analyze page signals consumption (e.g. view from history)
+  }, [user?.id, pathname, refreshMeTrigger]);
 
   const handleSignOut = async () => {
     try {

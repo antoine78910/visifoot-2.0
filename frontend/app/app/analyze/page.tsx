@@ -14,6 +14,7 @@ function AnalyzeContent() {
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   const [notFound, setNotFound] = useState(false);
   const prevLangRef = useRef<string | null>(null);
+  const consumedForIdRef = useRef<string | null>(null);
   const { t, lang } = useLanguage();
 
   const team1 = searchParams.get("team1") ?? "";
@@ -95,6 +96,26 @@ function AnalyzeContent() {
       })
       .catch(() => {});
   }, [lang, data]);
+
+  // Quand on affiche une analyse complète depuis l'historique (plan payant), compter 1 analyse consommée et rafraîchir le compteur sidebar
+  useEffect(() => {
+    if (!fromHistory || !data || !predictionId) return;
+    const u = getUserFromStorage();
+    const hasPaid = u?.plan && u.plan !== "free";
+    if (!hasPaid || !u?.id) return;
+    if (consumedForIdRef.current === predictionId) return;
+    consumedForIdRef.current = predictionId;
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (u.id) headers["X-User-Id"] = u.id;
+    fetch(`${API_URL}/me/consume-one-analysis`, { method: "POST", headers })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((res) => {
+        if (res?.consumed === true && typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("deepfoot-refresh-me"));
+        }
+      })
+      .catch(() => {});
+  }, [fromHistory, data, predictionId]);
 
   if (notFound) {
     return (
