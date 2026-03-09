@@ -496,7 +496,7 @@ export function AnalysisResult({ result }: { result: Result }) {
 
   /** Overlay 15% + CTA — form dans le premier quart (bas) du flou, pas trop près d’Exact statistics */
   const exactProbabilitiesOverlay = () => (
-    <div className="absolute inset-0 z-10 flex flex-col justify-end items-center p-4 pb-4 pt-[60%] sm:pt-[55%]">
+    <div className="flex flex-col items-center p-4 pt-4">
       <div className="rounded-2xl bg-[#14141c]/95 border-2 border-[#00ffe8]/30 p-5 sm:p-6 max-w-md w-full shadow-xl text-center relative z-10">
         <h3 className="text-lg sm:text-xl font-bold text-white">
           {t("analysis.limitedAccessTitle")}
@@ -899,8 +899,8 @@ export function AnalysisResult({ result }: { result: Result }) {
             )}
           </>
         ) : (
-          <div className="relative min-h-[380px] sm:min-h-[400px]">
-            <div className="select-none pointer-events-none blur-sm opacity-85 absolute inset-0" aria-hidden>
+          <div className="relative">
+            <div className="select-none pointer-events-none blur-sm opacity-85" aria-hidden>
               <div className="space-y-3 mb-4">
                 <div className="flex items-center gap-2">
                   <span className="text-zinc-300 text-sm w-20 flex-shrink-0">{home} win</span>
@@ -932,6 +932,7 @@ export function AnalysisResult({ result }: { result: Result }) {
           </div>
         )}
       </section>
+      {/* Pas d'espace ajouté entre Exact statistics et Scenarios #2 à #4 — le flou reste continu */}
       <UnlockFullAnalysisModal
         open={showUnlockModal1}
         onClose={closeUnlockStep1}
