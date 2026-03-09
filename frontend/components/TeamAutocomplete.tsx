@@ -20,6 +20,8 @@ interface TeamAutocompleteProps {
   preloadLimit?: number;
   /** When true, never show the suggestions dropdown (e.g. team already chosen from upcoming match). */
   suppressSuggestions?: boolean;
+  /** Called when the input receives focus (e.g. for analytics). */
+  onFocus?: () => void;
 }
 const MIN_QUERY_LENGTH = 2;
 const MIN_NETWORK_QUERY_LENGTH = 2;
@@ -99,6 +101,7 @@ export function TeamAutocomplete({
   onChange,
   onSelect,
   placeholder,
+  onFocus: onFocusProp,
   disabled,
   className = "",
   debounceMs = DEFAULT_DEBOUNCE_MS,
@@ -256,8 +259,9 @@ export function TeamAutocomplete({
   }, [query, fetchTeams, debounceMs, suppressSuggestions]);
 
   const onFocus = useCallback(() => {
+    onFocusProp?.();
     if (!suppressSuggestions && query.length >= MIN_QUERY_LENGTH && options.length > 0) setOpen(true);
-  }, [query.length, options.length, suppressSuggestions]);
+  }, [query.length, options.length, suppressSuggestions, onFocusProp]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {

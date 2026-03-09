@@ -9,6 +9,7 @@ import {
   type UserInfo,
 } from "@/lib/auth";
 import { getAppHref } from "@/lib/app-url";
+import { trackDatafastGoal } from "@/lib/datafast";
 
 export default function AuthCallbackPage() {
   const [error, setError] = useState<string | null>(null);
@@ -63,6 +64,7 @@ export default function AuthCallbackPage() {
         setUserInStorage(info);
 
         setStatus("ok");
+        trackDatafastGoal("account_verified_landing");
 
         let target: string;
         const PENDING_COOKIE = "visifoot_pending_match";

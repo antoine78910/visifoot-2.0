@@ -13,6 +13,25 @@ import type { Lang } from "@/lib/translations";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+/** Next midnight UTC (quota reset for Starter plan). */
+function getNextMidnightUTC(): Date {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+}
+
+/** Format countdown to next midnight UTC as "Xh Ym" or "Xm" or "Xs". */
+function formatCountdownToNextMidnightUTC(): string {
+  const now = Date.now();
+  const next = getNextMidnightUTC().getTime();
+  const ms = Math.max(0, next - now);
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  const h = Math.floor(m / 60);
+  if (h > 0) return `${h}h ${m % 60}m`;
+  if (m > 0) return `${m}m`;
+  return `${s}s`;
+}
+
 const navKeys: { path: string; key: string; icon: typeof BarChartIcon; soon?: boolean }[] = [
   { path: "/matches", key: "nav.matches", icon: BarChartIcon },
   { path: "/competitions", key: "nav.competitions", icon: TrophyIcon, soon: true },
@@ -164,6 +183,7 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserInfo | null>(null);
   const [analysesUsed, setAnalysesUsed] = useState(0);
   const [analysesLimit, setAnalysesLimit] = useState<number | null>(null);
+  const [nextAnalysisCountdown, setNextAnalysisCountdown] = useState<string | null>(null);
   const [langOpen, setLangOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [refreshMeTrigger, setRefreshMeTrigger] = useState(0);
@@ -275,6 +295,20 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
     // Refetch on route change or when analyze page signals consumption (e.g. view from history)
   }, [user?.id, pathname, refreshMeTrigger]);
 
+  // Countdown to next analysis (Starter 1/1): reset at midnight UTC
+  useEffect(() => {
+    const plan = user?.plan ?? "free";
+    const isStarterAtLimit = plan === "starter" && analysesUsed >= 1;
+    if (!isStarterAtLimit) {
+      setNextAnalysisCountdown(null);
+      return;
+    }
+    const tick = () => setNextAnalysisCountdown(formatCountdownToNextMidnightUTC());
+    tick();
+    const interval = setInterval(tick, 60_000); // update every minute
+    return () => clearInterval(interval);
+  }, [user?.plan, analysesUsed]);
+
   const handleSignOut = async () => {
     try {
       const supabase = getSupabaseBrowserClient();
@@ -348,7 +382,7 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
           <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider px-3 mb-2">Analysis</p>
           <ul className="space-y-0.5">
             {navKeys.map(({ path, key, icon: Icon, soon }) => {
-              const href = path === "/" ? "/app" : `/app${path}`;
+              const href = path === "/" ? "/" : path;
               const label = t(key);
               const active =
                 !soon &&
@@ -388,7 +422,7 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
             })}
             <li>
               <Link
-                href="/app/pricing"
+                href="/pricing"
                 onClick={closeSidebar}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm border transition-all duration-200 ${
                   pathname === "/pricing" || pathname === "/app/pricing" || pathname?.startsWith("/app/pricing")
@@ -434,13 +468,21 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
               const plan = user?.plan ?? "free";
               const effectiveLimit = plan === "starter" ? 1 : analysesLimit;
               const isLimitReached = plan === "free" || (effectiveLimit != null && analysesUsed >= effectiveLimit);
+              const isStarterAtLimit = plan === "starter" && analysesUsed >= 1;
               return isLimitReached ? (
-                <p className="text-xs text-zinc-400 mt-2">
-                  {t("nav.limitReached")} •{" "}
-                  <Link href="/app/pricing" className="text-[#00ffe8] hover:underline">
-                    {t("nav.upgradeForMore")}
-                  </Link>
-                </p>
+                <div className="text-xs text-zinc-400 mt-2 space-y-0.5">
+                  {isStarterAtLimit && nextAnalysisCountdown && (
+                    <p className="text-[#00ffe8]/90">
+                      {t("nav.nextAnalysisIn").replace("{time}", nextAnalysisCountdown)}
+                    </p>
+                  )}
+                  <p>
+                    {t("nav.limitReached")} •{" "}
+                    <Link href="/pricing" className="text-[#00ffe8] hover:underline">
+                      {t("nav.upgradeForMore")}
+                    </Link>
+                  </p>
+                </div>
               ) : null;
             })()}
           </div>

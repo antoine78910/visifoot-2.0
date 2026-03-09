@@ -9,6 +9,7 @@ import { AnalysisStepDisplay } from "./AnalysisStepDisplay";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getAppHref } from "@/lib/app-url";
 import { getUserFromStorage, getHistoryKey } from "@/lib/auth";
+import { trackDatafastGoal } from "@/lib/datafast";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const LOADING_STEPS = [
@@ -290,6 +291,7 @@ export function MatchInput({
       onRequireAuth({ home: homeTeam.trim(), away: awayTeam.trim() });
       return;
     }
+    trackDatafastGoal("matches_analyze_click");
     // Annuler une éventuelle requête précédente
     if (abortRef.current && !abortRef.current.signal.aborted) {
       abortRef.current.abort();
@@ -339,6 +341,7 @@ export function MatchInput({
         const data = await res.json().catch(() => ({}));
         const detail = typeof data?.detail === "string" ? data.detail : "";
         if (res.status === 403 && (detail === "starter" || detail === "free")) {
+          trackDatafastGoal("click_unlock", { source: "limit_reached" });
           setLimitModalVariant(detail === "starter" ? "pro_lifetime" : "free");
           setLoading(false);
           return;
@@ -368,6 +371,7 @@ export function MatchInput({
               } else if (event.type === "error") {
                 const code = event.code;
                 if (code === "starter" || code === "free") {
+                  trackDatafastGoal("click_unlock", { source: "limit_reached" });
                   setLimitModalVariant(code === "starter" ? "pro_lifetime" : "free");
                   setLoading(false);
                   return;
@@ -390,6 +394,7 @@ export function MatchInput({
             } else if (event.type === "error") {
               const code = event.code;
               if (code === "starter" || code === "free") {
+                trackDatafastGoal("click_unlock", { source: "limit_reached" });
                 setLimitModalVariant(code === "starter" ? "pro_lifetime" : "free");
                 setLoading(false);
                 return;
@@ -411,6 +416,7 @@ export function MatchInput({
           else if (single.type === "error") {
             const code = single.code;
             if (code === "starter" || code === "free") {
+              trackDatafastGoal("click_unlock", { source: "limit_reached" });
               setLimitModalVariant(code === "starter" ? "pro_lifetime" : "free");
               setLoading(false);
               return;
@@ -423,7 +429,10 @@ export function MatchInput({
       }
       if (!data) {
         setError(t("matchInput.errorNoResult"));
-        if (user?.id) setLimitModalVariant("free");
+        if (user?.id) {
+          trackDatafastGoal("click_unlock", { source: "limit_reached" });
+          setLimitModalVariant("free");
+        }
         setProgress(0);
         setProgressStep("");
         setLoading(false);

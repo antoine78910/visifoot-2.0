@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { UnlockFullAnalysisModal } from "@/components/UnlockFullAnalysisModal";
 import { UnlockPricingModal } from "@/components/UnlockPricingModal";
+import { trackDatafastGoal } from "@/lib/datafast";
 
 type OverUnderItem = { line: string; over_pct: number; under_pct: number };
 type ExactScoreItem = { home: number; away: number; probability: number };
@@ -509,7 +510,10 @@ export function AnalysisResult({ result }: { result: Result }) {
         </p>
         <button
           type="button"
-          onClick={openUnlockStep1}
+          onClick={() => {
+            trackDatafastGoal("unlock_analysis_1");
+            openUnlockStep1();
+          }}
           className="mt-6 w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-semibold text-[#0d0d12] bg-[#00ffe8] hover:bg-[#00ffe8]/90 transition relative z-20 text-center"
         >
           <span className="text-lg" aria-hidden>🏆</span>

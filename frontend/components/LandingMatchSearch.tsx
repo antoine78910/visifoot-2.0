@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { TeamAutocomplete, type TeamOption } from "./TeamAutocomplete";
 import { getApiUrl } from "@/lib/api";
+import { trackDatafastGoal } from "@/lib/datafast";
 
 type UpcomingFixture = {
   date: string;
@@ -62,6 +63,7 @@ export function LandingMatchSearch({ analyseHref = "/analyse" }: LandingMatchSea
           setSelectedTeam(team.name.trim() || null);
           setSelectedTeamId(team.id != null ? team.id : null);
         }}
+        onFocus={() => trackDatafastGoal("lp_team_input_click")}
         placeholder="Search for a team (e.g. Real Madrid, PSG…)"
         debounceMs={0}
         fetchLimit={20}
@@ -75,6 +77,7 @@ export function LandingMatchSearch({ analyseHref = "/analyse" }: LandingMatchSea
       <div className="flex justify-center mt-8 mb-2">
         <Link
           href={analyseHref}
+          onClick={() => trackDatafastGoal("analyse_cta_click")}
           className="inline-flex items-center justify-center px-8 py-3.5 rounded-xl font-semibold text-black bg-[#00ffe8] hover:opacity-90 transition text-base"
         >
           Analyze a match with AI
@@ -102,6 +105,7 @@ export function LandingMatchSearch({ analyseHref = "/analyse" }: LandingMatchSea
                 <li key={i}>
                   <Link
                     href={`${analyseHref}?home=${encodeURIComponent(f.home.name)}&away=${encodeURIComponent(f.away.name)}`}
+                    onClick={() => trackDatafastGoal("lp_upcoming_match_click")}
                     className="rounded-xl bg-white/5 border border-white/10 px-3 sm:px-4 py-1.5 sm:py-2.5 text-left transition hover:bg-white/10 hover:border-[#00ffe8]/30 block min-w-0 w-full max-w-full overflow-hidden"
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-3">

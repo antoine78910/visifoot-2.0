@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { getAppAuthCallbackUrl, SIGN_IN_HREF } from "@/lib/app-url";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -41,11 +41,16 @@ export function SignupModal({ open, onClose, onSignIn, pendingMatch }: SignupMod
 
   const canSubmit = email.trim().length > 0 && password.trim().length >= 6;
 
+  useEffect(() => {
+    if (open) trackDatafastGoal("view_sign_up");
+  }, [open]);
+
   if (!open) return null;
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit || loading) return;
+    trackDatafastGoal("signup_modal_signup_click");
     setError(null);
     setLoading(true);
     try {
@@ -79,6 +84,7 @@ export function SignupModal({ open, onClose, onSignIn, pendingMatch }: SignupMod
 
   const handleGoogle = async () => {
     try {
+      trackDatafastGoal("signup_modal_google_click");
       trackDatafastGoal("sign_up_submitted", { method: "google", source: "modal" });
       if (pendingMatch?.home && pendingMatch?.away) {
         try {

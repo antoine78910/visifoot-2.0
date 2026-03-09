@@ -7,6 +7,7 @@ import { formatPrice } from "@/lib/geoCurrency";
 import { getWhopCheckoutUrl, getDatafastVisitorId } from "@/lib/whopCheckout";
 import type { WhopPlanId } from "@/lib/whopCheckout";
 import { getUserFromStorage } from "@/lib/auth";
+import { trackDatafastGoal } from "@/lib/datafast";
 import { Medal, Check, Gem } from "lucide-react";
 
 const ACCENT = "#00ffe8";
@@ -63,6 +64,8 @@ function PricingPage() {
   const [loadingPlan, setLoadingPlan] = useState<WhopPlanId | null>(null);
 
   const goToWhop = (plan: WhopPlanId, source: string) => {
+    trackDatafastGoal("click_unlock", { source });
+    trackDatafastGoal("initiate_checkout", { plan, source });
     setLoadingPlan(plan);
     const url = getWhopCheckoutUrl(plan, currencyConfig.currency, getDatafastVisitorId(), source);
     requestAnimationFrame(() => {

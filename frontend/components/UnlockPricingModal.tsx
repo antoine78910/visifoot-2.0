@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useGeoCurrency } from "@/hooks/useGeoCurrency";
@@ -79,8 +79,13 @@ export function UnlockPricingModal({
     });
   };
 
+  const openedGoalFiredRef = useRef(false);
   useEffect(() => {
-    if (open) trackDatafastGoal("unlock_modal_opened", { variant: variant ?? "all" });
+    if (open && !openedGoalFiredRef.current) {
+      openedGoalFiredRef.current = true;
+      trackDatafastGoal("unlock_modal_opened", { variant: variant ?? "all" });
+    }
+    if (!open) openedGoalFiredRef.current = false;
   }, [open, variant]);
 
   useEffect(() => {

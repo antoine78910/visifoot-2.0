@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Lock, Clock } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { trackDatafastGoal } from "@/lib/datafast";
 
 const ACCENT = "#00ffe8";
 
@@ -209,7 +210,10 @@ export function UnlockFullAnalysisModal({
 
           <button
             type="button"
-            onClick={onUnlockClick}
+            onClick={() => {
+              trackDatafastGoal("unlock_analysis_2");
+              onUnlockClick();
+            }}
             className="mt-4 w-full py-2.5 px-3 rounded-xl font-semibold text-sm text-[#0d0d12] transition-all duration-300 flex items-center justify-center gap-1.5 bg-[#00ffe8] hover:bg-[#00ffe8]/95 hover:shadow-[0_0_18px_4px_rgba(0,255,232,0.45)]"
           >
             <span aria-hidden>🏆</span>

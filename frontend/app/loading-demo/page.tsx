@@ -86,7 +86,7 @@ export default function LoadingDemoPage() {
         <p className="text-zinc-600 text-xs text-center mt-8">
           <Link href="/" className="text-[#00ffe8] hover:underline">Back to home</Link>
           {" · "}
-          <Link href="/app/matches" className="text-[#00ffe8] hover:underline">Matches</Link>
+          <Link href="/matches" className="text-[#00ffe8] hover:underline">Matches</Link>
         </p>
       </div>
     </div>
