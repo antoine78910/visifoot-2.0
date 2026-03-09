@@ -255,18 +255,50 @@ def _extract_whop_member_and_plan(body: dict) -> tuple[str | None, str | None]:
     return (email, app_plan)
 
 
-def _update_supabase_plan_for_email(email: str, plan: str, membership_id: str | None = None) -> bool:
-    """Find user by email via Supabase auth admin and set profiles.plan (and optional whop_membership_id). Returns True if updated."""
+def _get_supabase_admin():
+    """Get Supabase admin client for profile updates."""
     from app.core.config import get_settings
     settings = get_settings()
     url = (settings.supabase_url or os.getenv("NEXT_PUBLIC_SUPABASE_URL") or os.getenv("SUPABASE_URL") or "").strip()
     role_key = (settings.supabase_service_role_key or os.getenv("SUPABASE_SERVICE_ROLE_KEY") or "").strip()
     if not url or not role_key:
+        return None
+    try:
+        from supabase import create_client
+        return create_client(url, role_key)
+    except Exception as e:
+        logger.warning("Whop: could not create Supabase admin client: %s", e)
+        return None
+
+
+def _update_supabase_plan_for_user_id(user_id: str, plan: str, membership_id: str | None = None) -> bool:
+    """Set profiles.plan (and optional whop_membership_id) for the given Supabase user id. Links Whop payment to the logged-in user (no email match)."""
+    admin_client = _get_supabase_admin()
+    if not admin_client:
+        logger.warning("Whop: missing Supabase config, cannot update plan by user_id")
+        return False
+    user_id = (user_id or "").strip()
+    if not user_id:
+        return False
+    try:
+        row: dict = {"id": user_id, "plan": plan}
+        if membership_id:
+            row["whop_membership_id"] = membership_id
+        admin_client.table("profiles").upsert(row, on_conflict="id").execute()
+        logger.info("Whop: updated profiles.plan=%s for user_id=%s (linked by session)", plan, user_id[:8] + "...")
+        return True
+    except Exception as e:
+        logger.warning("Whop: could not update Supabase plan for user_id %s: %s", user_id[:8] + "...", e)
+        return False
+
+
+def _update_supabase_plan_for_email(email: str, plan: str, membership_id: str | None = None) -> bool:
+    """Find user by email via Supabase auth admin and set profiles.plan (and optional whop_membership_id). Returns True if updated."""
+    admin_client = _get_supabase_admin()
+    if not admin_client:
         logger.warning("Whop webhook: missing Supabase URL or SERVICE_ROLE_KEY, cannot update plan")
         return False
     try:
-        from supabase import create_client
-        admin_client = create_client(url, role_key)
         r = admin_client.auth.admin.list_users(page=1, per_page=1000)
         users = getattr(r, "users", []) if not isinstance(r, list) else r
         user_id = None
@@ -446,14 +478,16 @@ async def whop_sync_payment(request: Request):
     Resync endpoint for return URL flow.
     Frontend calls this with payment_id after checkout success so we can:
     - fetch payment from Whop API,
-    - update plan in Supabase,
+    - update plan in Supabase for the logged-in user (X-User-Id) so Supabase and Whop are linked by session, not email,
     - attribute payment to DataFast (using visitor id from frontend cookie fallback).
+    If X-User-Id is sent, we update that user's profile (works even when app email ≠ Whop email). Else we fall back to matching by Whop member email.
     """
     from app.core.config import get_settings
     settings = get_settings()
     body = await request.json()
     payment_id = str((body or {}).get("payment_id") or "").strip()
     fallback_visitor_id = str((body or {}).get("datafast_visitor_id") or "").strip() or None
+    x_user_id = (request.headers.get("X-User-Id") or "").strip() or None
     if not payment_id:
         raise HTTPException(status_code=400, detail="payment_id is required")
     whop_api_key = (settings.whop_api_key or "").strip()
@@ -467,10 +501,15 @@ async def whop_sync_payment(request: Request):
 
     member_email, app_plan, membership_id = _extract_whop_member_plan_and_membership(wrapped)
     updated = False
-    if member_email and app_plan:
-        updated = _update_supabase_plan_for_email(member_email, app_plan, membership_id)
-    else:
-        logger.warning("Whop sync-payment: missing member_email or app_plan for payment_id=%s", payment_id)
+    if app_plan:
+        if x_user_id:
+            updated = _update_supabase_plan_for_user_id(x_user_id, app_plan, membership_id)
+            if updated:
+                logger.info("Whop sync-payment: plan=%s linked to user_id (session), payment_id=%s", app_plan, payment_id)
+        if not updated and member_email:
+            updated = _update_supabase_plan_for_email(member_email, app_plan, membership_id)
+    if not app_plan:
+        logger.warning("Whop sync-payment: missing app_plan for payment_id=%s", payment_id)
 
     parsed = _extract_whop_payment(wrapped, fallback_visitor_id=fallback_visitor_id)
     forwarded = {"ok": True, "forwarded": False, "reason": "parse_failed"}

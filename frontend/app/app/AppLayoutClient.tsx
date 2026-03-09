@@ -215,9 +215,12 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
     paymentSyncAttemptedRef.current = true;
     (async () => {
       try {
+        const currentUser = getUserFromStorage();
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (currentUser?.id) headers["X-User-Id"] = currentUser.id;
         const res = await fetch(`${API_URL}/webhooks/whop/sync-payment`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({
             payment_id: paymentId,
             datafast_visitor_id: getDatafastVisitorId(),
