@@ -165,6 +165,78 @@ def _normalize_for_search(s: str) -> str:
     return "".join(c for c in n if unicodedata.category(c) != "Mn")
 
 
+_TEAM_PREFIXES = {"fc", "ac", "sc", "ssv", "fk", "cf", "ogc", "as", "rc", "us", "nk", "sv"}
+
+
+def _normalize_team_core(s: str) -> str:
+    parts = [p for p in _normalize_for_search(s).split() if p and p not in _TEAM_PREFIXES]
+    return " ".join(parts).strip()
+
+
+def _short_team_search_terms(team_name: str) -> list[str]:
+    s = (team_name or "").strip()
+    if not s:
+        return []
+    parts = [p for p in s.split() if _normalize_for_search(p) not in _TEAM_PREFIXES and not (len(p) == 4 and p.isdigit())]
+    out: list[str] = []
+    if parts:
+        out.append(parts[0].strip())
+    if len(parts) >= 2:
+        out.append(" ".join(parts[:2]).strip())
+    return [x for x in out if x and x.lower() != s.lower()]
+
+
+def _resolve_team_candidate(team_name: str) -> Optional[dict[str, Any]]:
+    """
+    Résout une équipe Sportmonks de façon robuste.
+    Gère accents, préfixes ('FC Bayern München' -> 'Bayern München') et variantes courtes.
+    """
+    name = (team_name or "").strip()
+    if not name:
+        return None
+    q_norm = _normalize_for_search(name)
+    q_core = _normalize_team_core(name) or q_norm
+    search_terms = [name]
+    if q_norm in TEAM_SEARCH_ALIASES:
+        search_terms.extend(TEAM_SEARCH_ALIASES[q_norm][:3])
+    search_terms.extend(_short_team_search_terms(name))
+
+    seen_ids: set[int] = set()
+    candidates: list[dict[str, Any]] = []
+    for term in search_terms:
+        for row in teams_search(term, limit=10) or []:
+            if not isinstance(row, dict):
+                continue
+            rid = row.get("id")
+            try:
+                rid_int = int(rid)
+            except (TypeError, ValueError):
+                continue
+            if rid_int in seen_ids:
+                continue
+            seen_ids.add(rid_int)
+            candidates.append(row)
+
+    if not candidates:
+        return None
+
+    def score(row: dict[str, Any]) -> tuple[int, int, int, str]:
+        name_raw = (row.get("name") or "").strip()
+        n_norm = _normalize_for_search(name_raw)
+        n_core = _normalize_team_core(name_raw) or n_norm
+        youth_penalty = 1 if any(x in n_norm for x in ("women", "u19", "u20", "u21", "u23")) else 0
+        if n_norm == q_norm or n_core == q_core:
+            return (0, youth_penalty, len(n_norm), n_norm)
+        if q_core and (n_core.startswith(q_core) or q_core in n_core):
+            return (1, youth_penalty, len(n_norm), n_norm)
+        if q_norm and (n_norm.startswith(q_norm) or q_norm in n_norm):
+            return (2, youth_penalty, len(n_norm), n_norm)
+        return (3, youth_penalty, len(n_norm), n_norm)
+
+    candidates.sort(key=score)
+    return candidates[0]
+
+
 def _team_crest(team: dict) -> Optional[str]:
     """URL du blason depuis un objet team Sportmonks (image_path)."""
     img = team.get("image_path") or team.get("logo_path")
@@ -644,7 +716,7 @@ def team_past_fixtures(
                 home_p = p
             elif loc == "away":
                 away_p = p
-        if not home_p or not away_p and len(participants) >= 2:
+        if (not home_p or not away_p) and len(participants) >= 2:
             home_p = participants[0] if participants else None
             away_p = participants[1] if len(participants) > 1 else None
         def _team_id_from_p(p: Optional[dict]) -> Optional[int]:
@@ -1223,10 +1295,12 @@ def resolve_fixture_and_teams(home_team: str, away_team: str) -> Optional[dict[s
 
     # Résoudre les IDs équipe par nom
     print(f"[sportmonks] Resolving fixture: {home_team!r} vs {away_team!r}")
-    home_candidates = teams_search((home_team or "").strip(), limit=5)
-    away_candidates = teams_search((away_team or "").strip(), limit=5)
-    home_team_id = int(home_candidates[0]["id"]) if home_candidates and home_candidates[0].get("id") is not None else None
-    away_team_id = int(away_candidates[0]["id"]) if away_candidates and away_candidates[0].get("id") is not None else None
+    home_candidate = _resolve_team_candidate(home_team)
+    away_candidate = _resolve_team_candidate(away_team)
+    home_team_id = int(home_candidate["id"]) if home_candidate and home_candidate.get("id") is not None else None
+    away_team_id = int(away_candidate["id"]) if away_candidate and away_candidate.get("id") is not None else None
+    resolved_home_name = (home_candidate.get("name") or "").strip() if home_candidate else (home_team or "").strip()
+    resolved_away_name = (away_candidate.get("name") or "").strip() if away_candidate else (away_team or "").strip()
 
     if not home_team_id or not away_team_id:
         print(f"[sportmonks] Cannot resolve team IDs: home={home_team_id}, away={away_team_id}")
@@ -1234,18 +1308,42 @@ def resolve_fixture_and_teams(home_team: str, away_team: str) -> Optional[dict[s
 
     print(f"[sportmonks] Team IDs: home={home_team_id}, away={away_team_id}")
 
+    def _fetch_full_fixture(fid: Any) -> Optional[dict[str, Any]]:
+        if not fid:
+            return None
+        include = "participants;league;venue;predictions;metadata"
+        full = _get(f"/fixtures/{fid}", include=include)
+        if not full or not full.get("data"):
+            return None
+        inner = full.get("data") if isinstance(full.get("data"), dict) else {}
+        if not inner:
+            return None
+        inner = dict(inner)
+        if "participants" not in inner and full.get("participants"):
+            inner["participants"] = full.get("participants")
+        if "league" not in inner and full.get("league"):
+            inner["league"] = full.get("league")
+        if "venue" not in inner and full.get("venue"):
+            inner["venue"] = full.get("venue")
+        if "predictions" not in inner and full.get("predictions"):
+            inner["predictions"] = full.get("predictions")
+        if "metadata" not in inner and full.get("metadata"):
+            inner["metadata"] = full.get("metadata")
+        return inner
+
     # Chercher via /fixtures/search (plus fiable que /between qui donne souvent 404)
-    query = f"{home_team} vs {away_team}"
+    query = f"{resolved_home_name or home_team} vs {resolved_away_name or away_team}"
     print(f"[sportmonks] Searching fixtures: {query!r}")
     search_results = fixtures_search(query, limit=20)
 
     fixture_found = None
-    h_lower = (home_team or "").lower()
-    a_lower = (away_team or "").lower()
+    h_core = _normalize_team_core(resolved_home_name or home_team)
+    a_core = _normalize_team_core(resolved_away_name or away_team)
 
     for f in search_results:
-        name = (f.get("name") or "").lower()
-        if not name or (h_lower not in name and a_lower not in name):
+        name = (f.get("name") or "").strip()
+        name_core = _normalize_team_core(name)
+        if not name_core or (h_core and h_core not in name_core) or (a_core and a_core not in name_core):
             continue
 
         fid = f.get("id")
@@ -1267,29 +1365,9 @@ def resolve_fixture_and_teams(home_team: str, away_team: str) -> Optional[dict[s
 
         # Match trouvé - récupérer les détails complets
         print(f"[sportmonks] Found fixture {fid} via search: {name}")
-        include = "participants;league;venue;predictions;metadata"
-        full = _get(f"/fixtures/{fid}", include=include)
-
-        if not full or not full.get("data"):
-            continue
-
-        inner = full.get("data") if isinstance(full.get("data"), dict) else {}
+        inner = _fetch_full_fixture(fid)
         if not inner:
             continue
-
-        inner = dict(inner)
-
-        # Attacher les includes si au niveau racine
-        if "participants" not in inner and full.get("participants"):
-            inner["participants"] = full.get("participants")
-        if "league" not in inner and full.get("league"):
-            inner["league"] = full.get("league")
-        if "venue" not in inner and full.get("venue"):
-            inner["venue"] = full.get("venue")
-        if "predictions" not in inner and full.get("predictions"):
-            inner["predictions"] = full.get("predictions")
-        if "metadata" not in inner and full.get("metadata"):
-            inner["metadata"] = full.get("metadata")
 
         # Vérifier que les deux équipes sont bien dans ce match
         if not _fixture_involves_team(inner, home_team_id) or not _fixture_involves_team(inner, away_team_id):
@@ -1300,8 +1378,32 @@ def resolve_fixture_and_teams(home_team: str, away_team: str) -> Optional[dict[s
         break
 
     if not fixture_found:
-        print(f"[sportmonks] No upcoming fixture found via search")
-        return None
+        print("[sportmonks] Search fallback: scanning home upcoming fixtures")
+        for raw in team_upcoming_fixtures(home_team_id, limit=25):
+            if _fixture_involves_team(raw, home_team_id) and _fixture_involves_team(raw, away_team_id):
+                fixture_found = _fetch_full_fixture(raw.get("id")) or raw
+                print(f"[sportmonks] Found fixture {raw.get('id')} via home upcoming fixtures")
+                break
+
+    if not fixture_found:
+        print("[sportmonks] Search fallback: scanning away upcoming fixtures")
+        for raw in team_upcoming_fixtures(away_team_id, limit=25):
+            if _fixture_involves_team(raw, home_team_id) and _fixture_involves_team(raw, away_team_id):
+                fixture_found = _fetch_full_fixture(raw.get("id")) or raw
+                print(f"[sportmonks] Found fixture {raw.get('id')} via away upcoming fixtures")
+                break
+
+    if not fixture_found:
+        print("[sportmonks] No upcoming fixture found; building fallback team context")
+        fixture_found = {
+            "participants": [
+                {"id": home_team_id, "team_id": home_team_id, "name": resolved_home_name or home_team, "meta": {"location": "home"}},
+                {"id": away_team_id, "team_id": away_team_id, "name": resolved_away_name or away_team, "meta": {"location": "away"}},
+            ],
+            "league": {},
+            "venue": {},
+            "metadata": {},
+        }
 
     # Récupérer le H2H via endpoint dédié
     print(f"[sportmonks] Fetching H2H for {home_team_id} vs {away_team_id}")
@@ -1703,9 +1805,8 @@ def load_match_context_sportmonks(
         if team_data and team_data.get("data"):
             team_obj = team_data["data"]
             if isinstance(team_obj, dict):
-                img = team_obj.get("image_path")
-                if img:
-                    home_logo = img if str(img).startswith("http") else f"https://cdn.sportmonks.com/images/soccer/teams/{img}"
+                home_logo = _team_crest(team_obj)
+                if home_logo:
                     print(f"[sportmonks] Home logo found: {home_logo}")
 
     if away_team_id:
@@ -1714,9 +1815,8 @@ def load_match_context_sportmonks(
         if team_data and team_data.get("data"):
             team_obj = team_data["data"]
             if isinstance(team_obj, dict):
-                img = team_obj.get("image_path")
-                if img:
-                    away_logo = img if str(img).startswith("http") else f"https://cdn.sportmonks.com/images/soccer/teams/{img}"
+                away_logo = _team_crest(team_obj)
+                if away_logo:
                     print(f"[sportmonks] Away logo found: {away_logo}")
 
     # Fallback via search si toujours pas de logo
@@ -1724,18 +1824,16 @@ def load_match_context_sportmonks(
         print(f"[sportmonks] Fallback logo search for home team: {home_name}")
         candidates = teams_search(home_name, limit=1)
         if candidates and isinstance(candidates, list) and len(candidates) > 0:
-            img = candidates[0].get("image_path")
-            if img:
-                home_logo = img if str(img).startswith("http") else f"https://cdn.sportmonks.com/images/soccer/teams/{img}"
+            home_logo = _team_crest(candidates[0])
+            if home_logo:
                 print(f"[sportmonks] Home logo (fallback): {home_logo}")
 
     if not away_logo and away_name:
         print(f"[sportmonks] Fallback logo search for away team: {away_name}")
         candidates = teams_search(away_name, limit=1)
         if candidates and isinstance(candidates, list) and len(candidates) > 0:
-            img = candidates[0].get("image_path")
-            if img:
-                away_logo = img if str(img).startswith("http") else f"https://cdn.sportmonks.com/images/soccer/teams/{img}"
+            away_logo = _team_crest(candidates[0])
+            if away_logo:
                 print(f"[sportmonks] Away logo (fallback): {away_logo}")
 
     league_obj = fixture_data.get("league") or {}
