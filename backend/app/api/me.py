@@ -28,17 +28,20 @@ logger = logging.getLogger(__name__)
 
 CANCELLATION_MODE = "at_period_end"  # User keeps access until end of paid period (tuto Whop)
 
-# Whop plan_id → our plan name (same as webhooks)
+# Whop plan_id → our plan name (same as webhooks). Single product, 3 plans × 3 currencies.
 WHOP_PLAN_TO_APP = {
-    "plan_xncEV4h0yc3F1": "starter",
-    "plan_OPBroVFLkZFuG": "pro",
-    "plan_a9qUhL4i9mz6B": "lifetime",
-    "plan_SosIjQXUrG5Pb": "starter",
-    "plan_pVoGBCVIzFw4M": "pro",
-    "plan_m9Bcvjqy3xudw": "lifetime",
-    "plan_WmP3L9eEPlEJb": "starter",
-    "plan_ASd2bXI29nfKR": "pro",
-    "plan_FXHgaDOloK9Q1": "lifetime",
+    # GBP (9 / 19 / 99)
+    "plan_PEt1oIDXTTimX": "starter",
+    "plan_4txPPDCv7OjiR": "pro",
+    "plan_h5Om2F0ga6UhT": "lifetime",
+    # EUR (9 / 19 / 99)
+    "plan_3pzB8Vw1GIjSb": "starter",
+    "plan_35zzQVid4lE9Z": "pro",
+    "plan_ErLwV2KgiMiC1": "lifetime",
+    # USD (9 / 19.99 / 99.99)
+    "plan_XNiSpw7OKJoIi": "starter",
+    "plan_MOu52Z9DibE1a": "pro",
+    "plan_b4cQuHInaBG2A": "lifetime",
 }
 
 

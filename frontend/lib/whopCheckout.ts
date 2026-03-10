@@ -3,23 +3,23 @@ import type { PricingCurrency } from "@/lib/geoCurrency";
 export type WhopPlanId = "starter" | "pro" | "lifetime";
 
 const CHECKOUT_URLS: Record<PricingCurrency, Record<WhopPlanId, string>> = {
-  // USD: countries outside UK + Europe
+  // USD: countries outside UK + Europe (9 / 19.99 / 99.99)
   USD: {
-    lifetime: "https://whop.com/checkout/plan_a9qUhL4i9mz6B",
-    pro: "https://whop.com/checkout/plan_OPBroVFLkZFuG",
-    starter: "https://whop.com/checkout/plan_xncEV4h0yc3F1",
+    starter: "https://whop.com/checkout/plan_XNiSpw7OKJoIi",
+    pro: "https://whop.com/checkout/plan_MOu52Z9DibE1a",
+    lifetime: "https://whop.com/checkout/plan_b4cQuHInaBG2A",
   },
-  // GBP: UK
+  // GBP: UK (9 / 19 / 99)
   GBP: {
-    lifetime: "https://whop.com/checkout/plan_m9Bcvjqy3xudw",
-    pro: "https://whop.com/checkout/plan_pVoGBCVIzFw4M",
-    starter: "https://whop.com/checkout/plan_SosIjQXUrG5Pb",
+    starter: "https://whop.com/checkout/plan_PEt1oIDXTTimX",
+    pro: "https://whop.com/checkout/plan_4txPPDCv7OjiR",
+    lifetime: "https://whop.com/checkout/plan_h5Om2F0ga6UhT",
   },
-  // EUR: Europe (non-UK)
+  // EUR: Europe non-UK (9 / 19 / 99)
   EUR: {
-    lifetime: "https://whop.com/checkout/plan_FXHgaDOloK9Q1",
-    pro: "https://whop.com/checkout/plan_ASd2bXI29nfKR",
-    starter: "https://whop.com/checkout/plan_WmP3L9eEPlEJb",
+    starter: "https://whop.com/checkout/plan_3pzB8Vw1GIjSb",
+    pro: "https://whop.com/checkout/plan_35zzQVid4lE9Z",
+    lifetime: "https://whop.com/checkout/plan_ErLwV2KgiMiC1",
   },
 };
 
