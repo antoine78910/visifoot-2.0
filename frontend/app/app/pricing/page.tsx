@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useGeoCurrency } from "@/hooks/useGeoCurrency";
 import { formatPrice } from "@/lib/geoCurrency";
-import { getWhopCheckoutUrl, getDatafastVisitorId, isUpgradeFromCurrentPlan } from "@/lib/whopCheckout";
+import { getWhopCheckoutUrl, getDatafastVisitorId, isUpgradeFromCurrentPlan, getWhopManageUrl } from "@/lib/whopCheckout";
 import type { WhopPlanId } from "@/lib/whopCheckout";
 import { getUserFromStorage } from "@/lib/auth";
 import { trackDatafastGoal } from "@/lib/datafast";
@@ -70,10 +70,11 @@ function PricingPage() {
     trackDatafastGoal("click_unlock", { source });
     trackDatafastGoal("initiate_checkout", { plan, source });
     setLoadingPlan(plan);
-    // Upgrade (Starter→Pro/Lifetime, Pro→Lifetime): use Whop manage page so proration is applied
+    // Upgrade: use Whop manage page (proration). Fallback to manage URL built from membership_id if API didn't return it.
+    const manageUrl = getWhopManageUrl(user);
     const url =
-      isUpgradeFromCurrentPlan(currentPlan, plan) && user?.whop_manage_url
-        ? user.whop_manage_url
+      isUpgradeFromCurrentPlan(currentPlan, plan) && manageUrl
+        ? manageUrl
         : getWhopCheckoutUrl(plan, currencyConfig.currency, getDatafastVisitorId(), source, user?.email, plan !== "starter" ? user?.whop_membership_id : undefined);
     requestAnimationFrame(() => {
       setTimeout(() => {
@@ -220,6 +221,8 @@ function PricingPage() {
                 <Spinner className="w-5 h-5 flex-shrink-0 text-[#0d0d12]" />
                 <span>Redirecting...</span>
               </>
+            ) : currentPlan === "starter" ? (
+              `${t("pricing.upgradePro")} - ${formatPrice(currencyConfig, currencyConfig.proAmount)}${t("pricing.perMonth")}`
             ) : (
               `${t("pricing.unlockPro")} - ${formatPrice(currencyConfig, currencyConfig.proAmount)}${t("pricing.perMonth")}`
             )}
@@ -287,6 +290,8 @@ function PricingPage() {
                 <Spinner className="w-5 h-5 flex-shrink-0 text-[#0d0d12]" />
                 <span>Redirecting...</span>
               </>
+            ) : currentPlan === "starter" || currentPlan === "pro" ? (
+              `${t("pricing.upgradeLifetime")} - ${formatPrice(currencyConfig, currencyConfig.lifetimeAmount)}`
             ) : (
               `${t("pricing.unlockLifetime")} - ${formatPrice(currencyConfig, currencyConfig.lifetimeAmount)}`
             )}

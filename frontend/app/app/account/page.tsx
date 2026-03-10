@@ -9,7 +9,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useGeoCurrency } from "@/hooks/useGeoCurrency";
 import { formatPrice } from "@/lib/geoCurrency";
 import { UnsubscribeOfferModal } from "@/components/UnsubscribeOfferModal";
-import { getWhopCheckoutUrl, getDatafastVisitorId, isUpgradeFromCurrentPlan } from "@/lib/whopCheckout";
+import { getWhopCheckoutUrl, getDatafastVisitorId, isUpgradeFromCurrentPlan, getWhopManageUrl } from "@/lib/whopCheckout";
 import { Check } from "lucide-react";
 
 function PersonIcon({ className }: { className?: string }) {
@@ -436,10 +436,11 @@ export default function AccountPage() {
           <button
             type="button"
             onClick={() => {
-              // Pro→Lifetime upgrade: use Whop manage page so proration is applied
+              // Pro→Lifetime upgrade: use Whop manage page (proration)
+              const manageUrl = getWhopManageUrl(user);
               const url =
-                isUpgradeFromCurrentPlan(user?.plan ?? "free", "lifetime") && user?.whop_manage_url
-                  ? user.whop_manage_url
+                isUpgradeFromCurrentPlan(user?.plan ?? "free", "lifetime") && manageUrl
+                  ? manageUrl
                   : getWhopCheckoutUrl("lifetime", currencyConfig.currency, getDatafastVisitorId(), "account-lifetime", user?.email, user?.whop_membership_id);
               window.location.href = url;
             }}

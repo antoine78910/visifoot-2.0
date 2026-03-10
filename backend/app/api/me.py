@@ -331,6 +331,8 @@ async def _whop_get_membership_status(membership_id: str, whop_key: str) -> tupl
         status = (m.get("status") or "").strip().lower() or None
         member_email = _whop_extract_member_email(m)
         manage_url = (m.get("manage_url") or "").strip() or None
+        if not manage_url and membership_id:
+            manage_url = f"https://whop.com/billing/manage/{membership_id}"
         return (period_end, is_canceled, True, created_at_iso, status, member_email, manage_url)
     except Exception as e:
         logger.warning("Whop get membership status failed membership_id=%s: %s", membership_id[:12] + "..." if len(membership_id or "") > 12 else membership_id, e)

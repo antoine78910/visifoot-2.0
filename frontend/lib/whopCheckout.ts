@@ -23,12 +23,24 @@ const CHECKOUT_URLS: Record<PricingCurrency, Record<WhopPlanId, string>> = {
   },
 };
 
-/** True when the user already has a plan and wants a higher one (Starter→Pro, Starter→Lifetime, Pro→Lifetime). Use whop_manage_url for these so Whop applies proration. */
+/** Base URL for Whop subscription management (upgrade with proration). */
+const WHOP_MANAGE_BASE = "https://whop.com/billing/manage/";
+
+/** True when the user already has a plan and wants a higher one (Starter→Pro, Starter→Lifetime, Pro→Lifetime). Use manage URL for these so Whop applies proration. */
 export function isUpgradeFromCurrentPlan(currentPlan: string, targetPlan: WhopPlanId): boolean {
   if (currentPlan === "free") return false;
   if (currentPlan === "starter") return targetPlan === "pro" || targetPlan === "lifetime";
   if (currentPlan === "pro") return targetPlan === "lifetime";
   return false;
+}
+
+/** URL for the user to manage their subscription (upgrade with proration). Uses API manage_url or builds from membership_id. */
+export function getWhopManageUrl(user: { whop_manage_url?: string | null; whop_membership_id?: string | null } | null): string | null {
+  if (!user) return null;
+  const url = (user.whop_manage_url || "").trim();
+  if (url) return url;
+  const mid = (user.whop_membership_id || "").trim();
+  return mid ? `${WHOP_MANAGE_BASE}${mid}` : null;
 }
 
 /** Read DataFast visitor ID from cookie (for revenue attribution). Call only in browser. */
