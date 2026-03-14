@@ -1,5 +1,11 @@
 # Sitemap XML et architecture canonical (DeepFoot)
 
+## Règle Google : même domaine
+
+Les URLs listées dans un sitemap **doivent** être du **même domaine** que l’URL du sitemap. Si le sitemap est à `https://deepfoot.io/sitemap.xml`, toutes les URLs à l’intérieur doivent commencer par `https://deepfoot.io`. Sinon Google signale « URL non autorisée ».
+
+En production, définir **`NEXT_PUBLIC_SITE_URL=https://deepfoot.io`** (voir `frontend/.env.example`) et redéployer pour que le sitemap généré n’utilise que ce domaine.
+
 ## URLs des sitemaps à soumettre
 
 À soumettre dans **Google Search Console** et **Bing Webmaster Tools** :
